@@ -11,6 +11,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 
 #[cfg(windows)]
@@ -33,9 +34,194 @@ const SEARCHD_EXECUTABLE_NAME: &str = "mixlab-searchd";
 
 const SEARCHD_HOST: &str = "127.0.0.1";
 const SEARCHD_PORT: u16 = 3790;
-const SEARCHD_READY_TIMEOUT_MS: u64 = 120_000;
+const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
 const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
 const SEARCHD_API_TIMEOUT_MS: &str = "20000";
+const UPDATE_MANIFEST_ENV: &str = "MIXLAB_CUTTER_UPDATE_MANIFEST";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UpdateManifest {
+    version: String,
+    installer: String,
+    sha256: String,
+    #[serde(default)]
+    size_bytes: Option<u64>,
+    #[serde(default)]
+    release_notes: Option<String>,
+    #[serde(default)]
+    min_supported_version: Option<String>,
+    #[serde(default)]
+    published_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct UpdateCheckResult {
+    available: bool,
+    current_version: String,
+    latest_version: String,
+    notes: Option<String>,
+    size_bytes: Option<u64>,
+    manifest: Option<UpdateManifest>,
+}
+
+fn version_parts(value: &str) -> Vec<u64> {
+    value
+        .trim()
+        .trim_start_matches('v')
+        .split('.')
+        .map(|part| part.parse::<u64>().unwrap_or(0))
+        .collect()
+}
+
+fn update_is_newer(current: &str, latest: &str) -> bool {
+    let current_parts = version_parts(current);
+    let latest_parts = version_parts(latest);
+    let count = current_parts.len().max(latest_parts.len());
+    for index in 0..count {
+        let current_part = current_parts.get(index).copied().unwrap_or(0);
+        let latest_part = latest_parts.get(index).copied().unwrap_or(0);
+        if latest_part > current_part {
+            return true;
+        }
+        if latest_part < current_part {
+            return false;
+        }
+    }
+    false
+}
+
+fn desktop_update_manifest_path(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(override_path) = env::var(UPDATE_MANIFEST_ENV) {
+        if !override_path.trim().is_empty() {
+            return Ok(PathBuf::from(override_path));
+        }
+    }
+    let config_path = desktop_config_file(app)?;
+    let raw_config = read_desktop_config_from_path(&config_path)
+        .map_err(|error| format!("读取桌面配置失败，无法检查更新：{error}"))?;
+    let (config, _) = sanitize_desktop_config(raw_config);
+    let public_root = PathBuf::from(config.public_library_root.trim());
+    let parent = public_root
+        .parent()
+        .ok_or_else(|| "无法从公共素材库路径推导更新目录".to_string())?;
+    Ok(parent.join("安装包").join("MixLab Cutter").join("update.json"))
+}
+
+fn read_update_manifest(app: &AppHandle) -> Result<UpdateManifest, String> {
+    let path = desktop_update_manifest_path(app)?;
+    let raw = fs::read_to_string(&path).map_err(|error| {
+        format!("无法读取更新清单（{}）：{error}。请确认已连接 NAS 并检查公共素材库路径。", path.display())
+    })?;
+    serde_json::from_str(raw.trim_start_matches('﻿')).map_err(|error| format!("更新清单格式错误：{error}"))
+}
+
+fn update_installer_name_is_valid(installer_name: &str) -> bool {
+    !installer_name.trim().is_empty()
+        && Path::new(installer_name).file_name().and_then(|name| name.to_str()) == Some(installer_name)
+}
+
+fn file_sha256(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|error| format!("无法读取安装包：{error}"))?;
+    let digest = Sha256::digest(bytes);
+    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+#[tauri::command]
+fn desktop_check_update(app: AppHandle) -> Result<UpdateCheckResult, String> {
+    let manifest = read_update_manifest(&app)?;
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    let latest_version = manifest.version.trim().to_string();
+    let available = update_is_newer(&current_version, &latest_version);
+    desktop_host_log(&app, "update_check_completed", json!({ "current_version": current_version, "latest_version": latest_version, "available": available }));
+    Ok(UpdateCheckResult {
+        available,
+        current_version,
+        latest_version,
+        notes: manifest.release_notes.clone(),
+        size_bytes: manifest.size_bytes,
+        manifest: if available { Some(manifest) } else { None },
+    })
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_download_update(app: AppHandle, manifest: UpdateManifest) -> Result<String, String> {
+    let installer_name = manifest.installer.trim();
+    if !update_installer_name_is_valid(installer_name) {
+        return Err("更新清单中的安装包名称不合法".into());
+    }
+    let manifest_path = desktop_update_manifest_path(&app)?;
+    let source_dir = manifest_path.parent().ok_or_else(|| "无法定位更新清单目录".to_string())?;
+    let source = source_dir.join(installer_name);
+    if !source.is_file() {
+        return Err(format!("更新安装包不存在：{}", source.display()));
+    }
+    let updates_dir = env::var("LOCALAPPDATA")
+        .map(|root| PathBuf::from(root).join("MixLab Cutter").join("updates"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("MixLab Cutter").join("updates"));
+    fs::create_dir_all(&updates_dir).map_err(|error| format!("无法创建更新目录：{error}"))?;
+    let destination = updates_dir.join(installer_name);
+    let temporary = updates_dir.join(format!("{installer_name}.part"));
+    if temporary.exists() {
+        let _ = fs::remove_file(&temporary);
+    }
+    if let Err(error) = fs::copy(&source, &temporary) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("下载更新失败：{error}"));
+    }
+    let digest = match file_sha256(&temporary) {
+        Ok(digest) => digest,
+        Err(error) => {
+            let _ = fs::remove_file(&temporary);
+            return Err(error);
+        }
+    };
+    let expected = manifest.sha256.trim().to_ascii_lowercase();
+    if digest.to_ascii_lowercase() != expected {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("SHA256 校验失败：期望 {expected}，实际 {digest}"));
+    }
+    if destination.exists() {
+        let _ = fs::remove_file(&destination);
+    }
+    fs::rename(&temporary, &destination).map_err(|error| {
+        let _ = fs::remove_file(&temporary);
+        format!("保存更新安装包失败：{error}")
+    })?;
+    desktop_host_log(&app, "update_download_completed", json!({ "installer": path_string(destination.clone()), "sha256": manifest.sha256 }));
+    Ok(path_string(destination))
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn desktop_install_update(app: AppHandle, installer_path: String) -> Result<(), String> {
+    let updates_dir = env::var("LOCALAPPDATA")
+        .map(|root| PathBuf::from(root).join("MixLab Cutter").join("updates"))
+        .unwrap_or_else(|_| std::env::temp_dir().join("MixLab Cutter").join("updates"));
+    let installer = PathBuf::from(installer_path.trim());
+    if !installer.is_file() {
+        return Err("更新安装包不存在，请重新检查更新".into());
+    }
+    if installer.parent() != Some(updates_dir.as_path()) {
+        return Err("更新安装包路径不合法".into());
+    }
+    let helper = updates_dir.join(format!("install-update-{}.ps1", std::process::id()));
+    let escaped_installer = installer.to_string_lossy().replace('\'', "''");
+    let script = format!(
+        "$ErrorActionPreference = 'SilentlyContinue'\nwhile (Get-Process -Id {} -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 500 }}\nStart-Process -FilePath '{}'\nRemove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force\n",
+        std::process::id(),
+        escaped_installer
+    );
+    fs::write(&helper, script).map_err(|error| format!("无法创建更新安装辅助脚本：{error}"))?;
+    let mut command = Command::new("powershell.exe");
+    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File"]);
+    command.arg(&helper);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    command.spawn().map_err(|error| format!("无法启动更新安装程序：{error}"))?;
+    desktop_host_log(&app, "update_install_started", json!({ "installer": path_string(installer.clone()) }));
+    app.exit(0);
+    Ok(())
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct CutterDesktopConfig {
@@ -159,99 +345,29 @@ fn health_response_is_ready(response: &str) -> bool {
         && response.contains("\"ok\":true")
 }
 
-fn health_response_body(response: &str) -> Option<Value> {
-    if !(response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200")) {
-        return None;
-    }
-    let body = response
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .unwrap_or(response);
-    serde_json::from_str::<Value>(body.trim()).ok()
-}
-
-/// searchd 预热时会返回 HTTP 200 + ok:true，但 data.ready=false/status=warming。
-/// 桌面端必须等真正 ready 后才启动 sidecar，避免首个搜索落到 SQLite 回退。
-fn searchd_health_response_is_ready(response: &str) -> bool {
-    if !health_response_is_ready(response) {
-        return false;
-    }
-    let Some(payload) = health_response_body(response) else {
-        return false;
-    };
-    let Some(data) = payload.get("data") else {
-        return false;
-    };
-    let ok = data.get("ok").and_then(Value::as_bool).unwrap_or(false);
-    let ready = data.get("ready").and_then(Value::as_bool).unwrap_or(false);
-    let status_ready = data
-        .get("status")
-        .and_then(Value::as_str)
-        .map(|status| status.eq_ignore_ascii_case("ready"))
-        .unwrap_or(false);
-    ok && (ready || status_ready)
-}
-
-fn http_get_response_with_timeouts(
-    host: &str,
-    port: u16,
-    path: &str,
-    connect_timeout: Duration,
-    io_timeout: Duration,
-) -> Option<String> {
-    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
-        return None;
-    };
-    let Ok(mut stream) = TcpStream::connect_timeout(&address, connect_timeout) else {
-        return None;
-    };
-
-    let _ = stream.set_read_timeout(Some(io_timeout));
-    let _ = stream.set_write_timeout(Some(io_timeout));
-    let request =
-        format!("GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
-    if stream.write_all(request.as_bytes()).is_err() {
-        return None;
-    }
-
-    let mut response = String::new();
-    if stream.read_to_string(&mut response).is_err() {
-        return None;
-    }
-    Some(response)
-}
-
 fn http_health_endpoint_is_ready_with_timeouts(
     host: &str,
     port: u16,
     connect_timeout: Duration,
     io_timeout: Duration,
 ) -> bool {
-    http_get_response_with_timeouts(host, port, "/health", connect_timeout, io_timeout)
-        .map(|response| health_response_is_ready(&response))
-        .unwrap_or(false)
-}
+    let Ok(address) = format!("{host}:{port}").parse::<SocketAddr>() else {
+        return false;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, connect_timeout) else {
+        return false;
+    };
 
-fn searchd_http_health_is_ready_with_timeouts(
-    connect_timeout: Duration,
-    io_timeout: Duration,
-) -> bool {
-    http_get_response_with_timeouts(
-        SEARCHD_HOST,
-        SEARCHD_PORT,
-        "/health",
-        connect_timeout,
-        io_timeout,
-    )
-    .map(|response| searchd_health_response_is_ready(&response))
-    .unwrap_or(false)
-}
+    let _ = stream.set_read_timeout(Some(io_timeout));
+    let _ = stream.set_write_timeout(Some(io_timeout));
+    let request =
+        format!("GET /health HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
 
-fn searchd_http_health_is_ready() -> bool {
-    searchd_http_health_is_ready_with_timeouts(
-        Duration::from_millis(250),
-        Duration::from_millis(1_000),
-    )
+    let mut response = String::new();
+    stream.read_to_string(&mut response).is_ok() && health_response_is_ready(&response)
 }
 
 fn http_health_endpoint_is_ready(host: &str, port: u16) -> bool {
@@ -681,59 +797,18 @@ fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), St
 }
 
 fn wait_for_searchd_ready(app: &AppHandle) -> bool {
-    let started = Instant::now();
-    let mut attempt = 0_u32;
-    let mut last_warming_log_secs = 0_u64;
-
-    loop {
-        attempt += 1;
-        if searchd_http_health_is_ready_with_timeouts(
-            Duration::from_millis(500),
-            Duration::from_millis(1_000),
-        ) {
-            desktop_host_log(
-                app,
-                "searchd_ready",
-                json!({ "attempt": attempt, "elapsed_ms": started.elapsed().as_millis() }),
-            );
-            return true;
-        }
-
-        let elapsed = started.elapsed();
-        if elapsed >= Duration::from_millis(SEARCHD_READY_TIMEOUT_MS) {
-            desktop_host_log(
-                app,
-                "searchd_ready_timeout",
-                json!({
-                    "attempt": attempt,
-                    "elapsed_ms": elapsed.as_millis(),
-                    "timeout_ms": SEARCHD_READY_TIMEOUT_MS
-                }),
-            );
-            return false;
-        }
-
-        let elapsed_secs = elapsed.as_secs();
-        if elapsed_secs >= last_warming_log_secs.saturating_add(5) {
-            last_warming_log_secs = elapsed_secs;
-            desktop_host_log(
-                app,
-                "searchd_warming",
-                json!({
-                    "attempt": attempt,
-                    "elapsed_ms": elapsed.as_millis(),
-                    "timeout_ms": SEARCHD_READY_TIMEOUT_MS,
-                    "message": "正在预热搜索索引，首次启动可能较慢"
-                }),
-            );
-        }
-
-        thread::sleep(Duration::from_millis(500));
-    }
+    wait_for_health_endpoint(
+        app,
+        "searchd",
+        SEARCHD_HOST,
+        SEARCHD_PORT,
+        Duration::from_millis(SEARCHD_READY_TIMEOUT_MS),
+        Duration::from_millis(SEARCHD_HEALTH_READ_TIMEOUT_MS),
+    )
 }
 
 fn ensure_searchd_started(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
-    let mut searchd_is_ready = searchd_http_health_is_ready();
+    let mut searchd_is_ready = http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT);
     if searchd_is_ready {
         if searchd_matches_desktop_config(config) {
             desktop_host_log(
@@ -956,67 +1031,6 @@ fn desktop_open_directory(app: AppHandle, path_value: String) -> Result<(), Stri
             desktop_host_log(
                 &app,
                 "open_directory_failed",
-                json!({ "path": path_string(target), "error": error }),
-            );
-            Err(error)
-        }
-    }
-}
-
-#[tauri::command(rename_all = "camelCase")]
-fn desktop_open_file_location(app: AppHandle, path_value: String) -> Result<(), String> {
-    let trimmed = path_value.trim();
-    if trimmed.is_empty() {
-        return Ok(());
-    }
-
-    let target = PathBuf::from(trimmed);
-    if !target.is_file() {
-        return Err("文件不存在，无法在资源管理器中定位".to_string());
-    }
-
-    desktop_host_log(
-        &app,
-        "open_file_location_requested",
-        json!({ "path": path_string(target.clone()) }),
-    );
-
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut command = Command::new("open");
-        command.arg("-R").arg(&target);
-        command
-    };
-
-    #[cfg(windows)]
-    let mut command = {
-        let mut command = Command::new(windows_explorer_path());
-        command.arg(format!("/select,{}", path_string(target.clone())));
-        command
-    };
-
-    #[cfg(all(not(windows), not(target_os = "macos")))]
-    let mut command = {
-        let mut command = Command::new("xdg-open");
-        if let Some(parent) = target.parent() {
-            command.arg(parent);
-        }
-        command
-    };
-
-    match spawn_visible_process(&mut command) {
-        Ok(()) => {
-            desktop_host_log(
-                &app,
-                "open_file_location_spawned",
-                json!({ "path": path_string(target) }),
-            );
-            Ok(())
-        }
-        Err(error) => {
-            desktop_host_log(
-                &app,
-                "open_file_location_failed",
                 json!({ "path": path_string(target), "error": error }),
             );
             Err(error)
@@ -1464,7 +1478,9 @@ fn main() {
             desktop_run_doctor,
             desktop_start_engine,
             desktop_open_directory,
-            desktop_open_file_location
+            desktop_check_update,
+            desktop_download_update,
+            desktop_install_update
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -1669,22 +1685,35 @@ mod tests {
             .contains("抽样源视频不可读"));
     }
 
-        #[test]
-    fn searchd_health_requires_ready_not_just_http_ok() {
-        let warming = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"ready\":false,\"status\":\"warming\"}}";
-        let ready = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"ready\":true,\"status\":\"ready\"}}";
-        let legacy_ready = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"status\":\"ready\"}}";
-        let not_ok = "HTTP/1.1 500 Internal Server Error\r\n\r\n{\"data\":{\"ok\":false}}";
-
-        assert!(!searchd_health_response_is_ready(warming));
-        assert!(searchd_health_response_is_ready(ready));
-        assert!(searchd_health_response_is_ready(legacy_ready));
-        assert!(!searchd_health_response_is_ready(not_ok));
+    #[test]
+    fn update_version_comparison_handles_numeric_segments() {
+        assert!(update_is_newer("0.18.26", "0.18.27"));
+        assert!(update_is_newer("0.18.9", "0.18.10"));
+        assert!(!update_is_newer("0.18.27", "0.18.27"));
+        assert!(!update_is_newer("0.18.27", "0.18.26"));
     }
 
     #[test]
-    fn cutter_api_health_keeps_ok_true_semantics() {
-        let api = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"schema_version\":\"1.0\",\"data\":{\"ok\":true,\"searchd_configured\":true}}";
-        assert!(health_response_is_ready(api));
+    fn update_manifest_rejects_nested_installer_name() {
+        assert!(update_installer_name_is_valid("MixLab Cutter_0.18.27_x64-setup.exe"));
+        assert!(!update_installer_name_is_valid(r"..\\evil.exe"));
+        assert!(!update_installer_name_is_valid("sub/evil.exe"));
+        assert!(!update_installer_name_is_valid(""));
     }
+
+    #[test]
+    fn update_manifest_parses_and_hash_matches_file() {
+        let manifest: UpdateManifest = serde_json::from_str(r#"{"version":"0.18.27","installer":"MixLab Cutter_0.18.27_x64-setup.exe","sha256":"abc","size_bytes":123,"release_notes":"notes"}"#).expect("manifest parse");
+        assert_eq!(manifest.version, "0.18.27");
+        assert_eq!(manifest.size_bytes, Some(123));
+        assert_eq!(manifest.release_notes.as_deref(), Some("notes"));
+
+        let root = temp_library_root("update-hash");
+        let file = root.join("installer.exe");
+        fs::write(&file, b"mixlab").expect("write installer");
+        let digest = file_sha256(&file).expect("hash");
+        fs::remove_dir_all(root).ok();
+        assert_eq!(digest, "6ee040147a5059533e22f613ccdcb1eb433c7eb3a50e2385f92a44ad0fff24d3");
+    }
+
 }

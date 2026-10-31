@@ -35,6 +35,25 @@ export interface DesktopDoctorResult {
   checks: DesktopDoctorCheck[];
 }
 
+export interface DesktopUpdateManifest {
+  version: string;
+  installer: string;
+  sha256: string;
+  size_bytes?: number;
+  release_notes?: string;
+  min_supported_version?: string;
+  published_at?: string;
+}
+
+export interface DesktopUpdateCheckResult {
+  available: boolean;
+  current_version: string;
+  latest_version: string;
+  notes?: string;
+  size_bytes?: number;
+  manifest?: DesktopUpdateManifest;
+}
+
 export interface DesktopDiagnostics {
   app_version?: string;
   stage: string;
@@ -144,6 +163,27 @@ export async function writeDesktopConfig(config: DesktopConfig): Promise<Desktop
 
 export async function desktopConfigPath(): Promise<string> {
   return invokeDesktopCommand<string>("desktop_config_path");
+}
+
+export async function checkDesktopUpdate(options: DesktopNativeCommandOptions = {}): Promise<DesktopUpdateCheckResult> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<DesktopUpdateCheckResult>("desktop_check_update");
+}
+
+export async function downloadDesktopUpdate(
+  manifest: DesktopUpdateManifest,
+  options: DesktopNativeCommandOptions = {}
+): Promise<string> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<string>("desktop_download_update", { manifest });
+}
+
+export async function installDesktopUpdate(
+  installerPath: string,
+  options: DesktopNativeCommandOptions = {}
+): Promise<void> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<void>("desktop_install_update", { installerPath });
 }
 
 export async function desktopAppVersion(options: DesktopNativeCommandOptions = {}): Promise<string> {

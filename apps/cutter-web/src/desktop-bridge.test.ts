@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  checkDesktopUpdate,
   desktopAppVersion,
+  downloadDesktopUpdate,
+  installDesktopUpdate,
   openDesktopDirectory,
   resolveDesktopBridgeEnvironment,
   resolveRuntimeApiBaseUrl,
@@ -165,4 +168,48 @@ test("desktop directory opening delegates to the native desktop host", async () 
       }
     }
   ]);
+});
+
+test("desktop update commands delegate to native host", async () => {
+  const calls: unknown[] = [];
+  const invoke_fn = async <T>(command: string, args?: Record<string, unknown>) => {
+    calls.push({ command, args });
+    if (command === "desktop_check_update") {
+      return {
+        available: true,
+        current_version: "0.18.26",
+        latest_version: "0.18.27",
+        notes: "更新说明",
+        size_bytes: 1024,
+        manifest: {
+          version: "0.18.27",
+          installer: "MixLab Cutter_0.18.27_x64-setup-abc.exe",
+          sha256: "abc"
+        }
+      } as T;
+    }
+    if (command === "desktop_download_update") {
+      return String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\updates\MixLab Cutter_0.18.27_x64-setup-abc.exe` as T;
+    }
+    return undefined as T;
+  };
+
+  const checked = await checkDesktopUpdate({ invoke_fn });
+  assert.equal(checked.latest_version, "0.18.27");
+  const downloaded = await downloadDesktopUpdate(
+    {
+      version: "0.18.27",
+      installer: "MixLab Cutter_0.18.27_x64-setup-abc.exe",
+      sha256: "abc"
+    },
+    { invoke_fn }
+  );
+  assert.match(downloaded, /updates/);
+  await installDesktopUpdate(downloaded, { invoke_fn });
+
+  assert.equal(calls.length, 3);
+  assert.deepEqual((calls[0] as { command: string }).command, "desktop_check_update");
+  assert.equal((calls[1] as { command: string }).command, "desktop_download_update");
+  assert.equal((calls[2] as { command: string }).command, "desktop_install_update");
+  assert.deepEqual((calls[2] as { args: Record<string, unknown> }).args, { installerPath: downloaded });
 });
