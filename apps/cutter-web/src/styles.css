@@ -2318,3 +2318,7 @@ body,
 .cutter-inspector-panel.is-active {
   display: block;
 }
+.ml-detail-stack.cutter-inspector-panel.is-active {
+  display: grid;
+}
+
