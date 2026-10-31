@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793476010288-5d7c54e0",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793476010288-5d7c54e0",
+  "reply_to": "1793475679808-aba7fba9",
+  "created_at": "2026-10-31T19:46:50.289Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@ca463a4"
+    ]
+  },
+  "body": "0.18.26 截图基本通过，但公共素材库方向筛选位置不对：现在「全部」下拉在老师下拉的**下一行**，用户要求放在老师筛选控件**右边同一行**。请把公共素材库的 teacher select + orientation select 放在同一工具栏行，orientation 紧跟 teacher 右侧；删除独立第二行。1280/1440/1536 重截 public；同时确认本地素材方向下拉、缓存整页滚动、顶栏动作不回退。只改这一处，watch_branch 不变，不发布。"
+}
