@@ -2324,10 +2324,7 @@ body,
 }
 
 
-/* 0.18.24: remove page-header layout boxes, keep actions in top-right overlay. */
-.cutter-page {
-  position: relative;
-}
+/* 0.18.25: page actions live in a real normal-flow row; never overlay content. */
 .cutter-page .cutter-page-header,
 .cutter-page .cutter-home-header,
 .cutter-page [class*="locator-command"] > .ml-workbench-header {
@@ -2341,19 +2338,15 @@ body,
 .cutter-page .cutter-page-header .ml-control-cluster,
 .cutter-page .cutter-home-header .cutter-home-header-actions,
 .cutter-page [class*="locator-command"] > .ml-workbench-header .ml-control-cluster {
-  position: absolute !important;
-  top: 8px !important;
-  right: 16px !important;
-  z-index: 30 !important;
-  margin: 0 !important;
-}
-
-.cutter-page > .ml-workbench-main {
-  margin-top: -16px !important;
-}
-
-.cutter-page > [class*="split-workbench"] {
-  margin-top: -18px !important;
+  position: static !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 0 4px !important;
+  z-index: auto !important;
 }
 
 .ml-sidebar-status-card .ml-sidebar-status-value {
