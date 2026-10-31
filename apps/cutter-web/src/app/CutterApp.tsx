@@ -2957,7 +2957,7 @@ export function CutterApp() {
 
     loadCutterWorkbenchData(client, {
       preferredSourceVideoId: workbenchPreferredSourceVideoId,
-      includeSourceLibrary: route === "public-library",
+      includeSourceLibrary: true,
       includeRuntimeCache: route === "cache-management",
       sourceLibraryLimit: CUTTER_PUBLIC_LIBRARY_INITIAL_LOAD_LIMIT,
       sourceFolderName: materialSearchSourceFolderName(materialSearchMode, sourceFolderFilter) || undefined,
