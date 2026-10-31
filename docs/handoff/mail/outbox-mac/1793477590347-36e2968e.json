@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793477590347-36e2968e",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793477590347-36e2968e",
+  "created_at": "2026-10-31T20:13:10.348Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793477406180-94a10808"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可继续功能候选验收，维持“不发布”；本条未发现新增 P0/P1 发布阻塞证据。** 将筛选移到服务端的方向合理，但当前快照未包含 `61b275f`，且 `DIFF.patch` 为空，无法独立确认候选实现。以下事项是针对新增筛选行为的验收建议，不代表已确认存在缺陷。\n\n### 消息 1793477406180-94a10808\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[回执](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7qZG53/REVIEW-PACKET.md:19>)三类计数之和为 12,869，与清空后的总数一致；实测描述覆盖各类首页，测试声明仅列 typecheck 与 cutter-web。\n- 问题/风险：首页不空及计数自洽，尚不能证明双文件夹合并后分页无重漏、成员归属正确。\n- 建议：暂记为“候选自测通过”，补充 API 层合并分页验收。\n- 需要证据：筛选请求与响应摘要、分页 ID 对照、相关 cutter-api 回归结果。\n\n## 跨消息建议\n\n1. **明确新增参数语义。** 通过既有 task/reply 确认 `teacher` 映射及与 `source_folder_name` 同传时的规则。保留[原有精确文件夹测试](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7qZG53/packages/library-fs/src/cutter-source-library.test.ts:641>)：“陶矜”“陶矜2”仍分别匹配，由新增老师分组负责合并。涉及 library-fs 或共享包时由 Mac 修改。\n\n2. **验证合并后的全局分页。** 用两个文件夹合计超过 20 条的样本，覆盖首页、次页、文件夹交界和末页；核对稳定排序、唯一 ID 无重漏，以及最终加载数等于过滤总数。\n\n3. **核验新增筛选的缓存隔离。** 现有[分页缓存键](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7qZG53/packages/cutter-api/src/index.ts:4765>)包含原筛选条件。候选应确认 `teacher` 或等价的规范化分组条件进入缓存键，并交替请求不同老师及全部素材，检查缓存命中后的归属与计数。\n\n4. **补测分页期间切换老师。** 旧快照的[继续加载逻辑](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7qZG53/apps/cutter-web/src/app/CutterApp.tsx:3560>)直接合并返回页。候选应模拟“A 的次页延迟返回→切 B→清空筛选”，确认旧页不会追加到新列表，offset 重置且后续仍能继续加载。"
+}
