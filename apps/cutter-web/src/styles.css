@@ -2355,3 +2355,8 @@ body,
 .cutter-page > [class*="split-workbench"] {
   margin-top: -18px !important;
 }
+
+.ml-sidebar-status-card .ml-sidebar-status-value {
+  font-size: 12px;
+  white-space: nowrap;
+}
