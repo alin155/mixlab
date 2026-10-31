@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793474900313-20706d11",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793474900313-20706d11",
+  "reply_to": "1793474539619-f244a04f",
+  "created_at": "2026-10-31T19:28:20.313Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.25 最终构建/升级/验收/发布完成，LATEST 未更新】\n源：**hotfix/0.18.25 @ 85d8ecd**\n安装包：MixLab Cutter_0.18.25_x64-setup-85d8ecd.exe\nsha256=**7C8F4CBA3600E67A3AEA635986713DDFD97CA8A5E90356450F3DF5C217016C01**\n- NAS 0.18.25 已写入并读回校验一致 + SHA256SUMS.txt；\n- Mac 共享安装包 + SHA256SUMS-0.18.25-85d8ecd.txt；\n- 0.18.11~0.18.24 保留；LATEST 未更新。\n\n升级：0.18.24→0.18.25 PASS；DisplayVersion/FileVersion=0.18.25；设置页 v0.18.25。\n\n最终验收（6 页 × 1280/1440/1536）：\n- 动作按钮 vs 内容重叠：18/18 组均为 0；\n- 详情 tabs：全部 0；\n- material 1280：224px 480px 320px，右栏 right=1280，scrollWidth=clientWidth=1280；1440/1536 正常；\n- 本地全部素材 109 条：scrollbarWidth=10，scrollHeight 8346/9486/9956 > clientHeight 568/668/792，拖拽有效（2455/2356/2074）；\n- 公共素材库滚动未回归；\n- quick copy CL20261031-0008：done、mode=copy、verification passed，输出 E000110。\n\n证据：Mac evidence\\01825-final-85d8ecd.zip\nsha256=4AEAB4C0E02C0BF72D4AE000455B04B8DDE02919B1915BF32529E08AD7FDF987（18 张截图+verify+quick-copy+upgrade）。"
+}
