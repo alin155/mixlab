@@ -839,13 +839,25 @@ export async function publishCutterRelease(
 
   if (indexFirstRows.length > 0) {
     for (const row of indexFirstRows) {
-      const manifest = manifestFromIndexRow(row);
+      // Index-first is only an optimization; lecturer/file_size/etc. must still come from
+      // the source-video manifests, otherwise every large release would zero those fields.
+      const indexedManifest = manifestFromIndexRow(row);
+      let manifest = indexedManifest;
+      let sourceVideoFilePath = resolveSourceVideoPath({
+        mount_root: input.library_root,
+        relative_path: row.relative_path
+      });
+      try {
+        const storedManifest = await readSourceVideoManifest(input.library_root, row.source_video_id);
+        assertCutterReadyManifest(storedManifest);
+        manifest = storedManifest;
+        sourceVideoFilePath = await resolveSourceVideoFilePath(input.library_root, storedManifest);
+      } catch {
+        // Fallback keeps legacy/damaged libraries publishable; the source file path is best-effort.
+      }
       videos.push({
         manifest,
-        source_video_file_path: resolveSourceVideoPath({
-          mount_root: input.library_root,
-          relative_path: row.relative_path
-        }),
+        source_video_file_path: sourceVideoFilePath,
         transcript_character_count: Math.max(0, Number(row.transcript_character_count ?? 0))
       });
     }
