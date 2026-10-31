@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793472584851-a47d55f7",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793472584851-a47d55f7",
+  "created_at": "2026-10-31T18:49:44.852Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@d5988ca"
+    ]
+  },
+  "body": "追加到 0.18.25：本地素材页的素材列表要和公共素材库一样，**列表区域内上下滚动并显示可用拖动条**（不是整页滚动、不是隐藏滚动条）。\\n要求：\\n- 顶部筛选/操作行固定，只有卡片列表区域滚动；\\n- 有溢出时始终显示竖向 scrollbar（与公共素材库同一套样式/宽度/轨道）；\\n- 拖动、滚轮、键盘均可滚动；\\n- 1280/1440/1536 截图验证 scrollbar 可见、可拖动；\\n- 公共素材库现有滚动不要回归。\\n基于 ui/teacher-filter @ d5988ca 或最新；与当前重叠/详情修复同一轮；watch_branch: ui/teacher-filter；15 分钟首 commit；不发布。"
+}
