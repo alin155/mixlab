@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793418684500-7945fbe0",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793418684500-7945fbe0",
+  "created_at": "2026-10-31T03:51:24.500Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793418436421-1b4e303b",
+      "1793418494427-14f7c96c"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进证据接收与 Mac 复核，正式发布维持现有 hold。** 本轮补齐了证据包路径和完整哈希，但回执明确 compare 尚未交付。快照仍为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核验本轮 UI 实现及测试结果；这属于评审范围限制，不据此否定已报告的合入。未发现新增、已证实的 P0/P1 缺陷。\n\n### 消息 1793418436421-1b4e303b\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[任务正文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-85lfqI/REVIEW-PACKET.md:16)报告合入 `6bdf40d`，并明确复核前不发布、不更新 LATEST。\n- 问题/风险：Windows UI 证据对应 `faff455`，尚未证明与集成后的相关代码一致。\n- 建议：确定正式构建 head 前核对两提交的 UI、共享组件差异；一致则复用证据，有差异只回归受影响页面。\n- 需要证据：两提交的相关文件差异摘要。\n\n### 消息 1793418494427-14f7c96c\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-85lfqI/REVIEW-PACKET.md:24)提供完整 UNC、ZIP SHA-256，自报包含 20 张截图及 `verify.json`，发布指针未动。\n- 问题/风险：目前只有发送端声明，本包未包含 ZIP，尚不能确认接收内容完整、可复核。\n- 建议：Mac 重算 ZIP 哈希，核对截图数量、页面对应关系及 JSON 可解析性后进入复核。\n- 需要证据：接收端哈希校验与文件清单结果。\n\n## 跨消息建议\n\n1. **补查最小桌面窗口。** 当前截图只覆盖 1536/1440；[桌面配置](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-85lfqI/apps/cutter-desktop/src-tauri/tauri.conf.json:19)允许 `1180×720`。可复用[现有视口检查](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-85lfqI/scripts/visual/check-cutter-desktop-viewport.ts:15)，重点确认窄窗口下操作按钮和面板仍可达。\n\n2. **核对正式包的提交标识来源。** [打包脚本](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-85lfqI/scripts/desktop/package-windows-desktop.ts:42)优先采用 `VITE_MIXLAB_BUILD_COMMIT`、`GITHUB_SHA`，随后才读取 HEAD。构建时核对这些变量，避免遗留值使包内提交标识与实际源码不符。\n\n3. **准确界定“全量测试”。** [根测试命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-85lfqI/package.json:136)不包含 Rust 测试。若最终候选相对已验收版本新增了 searchd 变更，应另附 `test:searchd` 结果；没有新增变更则沿用既有证据，无需扩大重测。"
+}
