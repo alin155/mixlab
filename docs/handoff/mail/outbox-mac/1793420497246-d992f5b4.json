@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793420497246-d992f5b4",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793420497246-d992f5b4",
+  "reply_to": "1793420411945-18ac58d8",
+  "created_at": "2026-10-31T04:21:37.246Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.22@bdf5b6f"
+    ]
+  },
+  "body": "0.18.22 conformance 全部通过：tabs、布局、本地新建项目、待剪清单入口均已验收。请从 **hotfix/0.18.22 @ bdf5b6f** 构建正式 0.18.22 并发布：\\n1) NSIS 0.18.22，记录 sha；2) 0.18.21→0.18.22 升级，设置页 v0.18.22；3) 8 页 1536/1440 最终验收（含 tabs、老师筛选、本地新建、待剪清单）；4) 快速 copy 1~2 例；5) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13~0.18.21 保留；**LATEST 暂不更新**；6) reply sha/证据。不要改代码。"
+}
