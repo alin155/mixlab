@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793479597529-34432252",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1793479597529-34432252",
+  "created_at": "2026-10-31T20:46:37.530Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "Mac 侧检测到你长时间未启动 updater 分支。为了避免继续空等，Mac 现在接管 0.18.27 Phase 1 更新器实现（紧急接管，feature 分支 + CI 构建）；你恢复后先不要重复实现，先 review Mac 的 feat/updater-phase1-mac 分支并在 Windows 上做真实安装验收。若你已开始本地改动，先 stash/回复，不要强推。"
+}
