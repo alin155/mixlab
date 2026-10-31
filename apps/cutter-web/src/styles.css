@@ -2284,3 +2284,37 @@ body,
   font: inherit;
   font-size: 12px;
 }
+
+/* Inspector tabs: keep all content mounted for tests/accessibility; show one panel. */
+.cutter-inspector-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid var(--ml-color-border);
+  background: var(--ml-color-surface);
+}
+.cutter-inspector-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ml-color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 8px 8px;
+}
+.cutter-inspector-tab:hover {
+  color: var(--ml-color-text);
+}
+.cutter-inspector-tab.is-active {
+  color: var(--ml-color-accent);
+  border-bottom-color: var(--ml-color-accent);
+}
+.cutter-inspector-panel {
+  display: none;
+}
+.cutter-inspector-panel.is-active {
+  display: block;
+}

@@ -293,6 +293,7 @@ export function SourceDetailPage({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const dragStartRef = useRef<string | null>(null);
   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"selection" | "tasks">("selection");
   const [dragPreviewSegmentIds, setDragPreviewSegmentIds] = useState<readonly string[]>([]);
   const firstSelected = selectedSegments[0];
   const lastSelected = selectedSegments[selectedSegments.length - 1];
@@ -582,23 +583,27 @@ export function SourceDetailPage({
           </Button>
         }
       >
-        <div className="ml-detail-stack">
+        <div className="cutter-inspector-tabs" role="tablist" aria-label="素材详情">
+          <button type="button" role="tab" aria-selected={inspectorTab === "selection"} className={"cutter-inspector-tab" + (inspectorTab === "selection" ? " is-active" : "")} onClick={() => setInspectorTab("selection")}>选区</button>
+          <button type="button" role="tab" aria-selected={inspectorTab === "tasks"} className={"cutter-inspector-tab" + (inspectorTab === "tasks" ? " is-active" : "")} onClick={() => setInspectorTab("tasks")}>任务</button>
+        </div>
+        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "selection" ? " is-active" : "")}>
           <strong>{selectionTitle}</strong>
           <span>{selectedRange}</span>
           <p>{selectedText(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}</p>
           <span>拖拉文案后直接剪切这一段。</span>
-          <div className="ml-detail-stack">
-            <strong>最近任务</strong>
-            {recentJobs.length > 0 ? (
-              recentJobs.slice(0, 3).map((job) => (
-                <span key={job.queue_job_id}>
-                  {job.title} · {job.status}
-                </span>
-              ))
-            ) : (
-              <span>暂无最近任务</span>
-            )}
-          </div>
+        </div>
+        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "tasks" ? " is-active" : "")}>
+          <strong>最近任务</strong>
+          {recentJobs.length > 0 ? (
+            recentJobs.slice(0, 3).map((job) => (
+              <span key={job.queue_job_id}>
+                {job.title} · {job.status}
+              </span>
+            ))
+          ) : (
+            <span>暂无最近任务</span>
+          )}
         </div>
       </InspectorPanel>
     </section>

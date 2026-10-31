@@ -5727,7 +5727,8 @@ test("cutter dark theme overrides foundation light surfaces with theme tokens", 
   assert.equal(css.includes(".cutter-library-detail-stack"), false);
   assert.equal(css.includes(".cutter-library-detail-player"), false);
   assert.equal(css.includes(".cutter-local-detail-player"), false);
-  assert.match(publicHtml, /class="ml-detail-stack"/);
+  assert.match(publicHtml, /class="ml-detail-stack cutter-inspector-panel/);
+  assert.match(publicHtml, /cutter-inspector-tabs/);
   assert.match(publicHtml, /class="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"/);
   const libraryInspectorRule =
     foundationCss.match(/\.ml-workbench-inspector\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
