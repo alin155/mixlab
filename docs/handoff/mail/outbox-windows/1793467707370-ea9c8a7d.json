@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793467707370-ea9c8a7d",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793467707370-ea9c8a7d",
+  "reply_to": "1793467466915-2251304e",
+  "created_at": "2026-10-31T17:28:27.370Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【收到 HOLD；0.18.24 已撤回；动态容量遇共享包归属阻塞】\n1) 时间线：0.18.24 发布发生在收到本条 HOLD 之前；收到后已立即把 NAS 0.18.24 目录、Mac 共享安装包/SHA 文件/证据 zip 移入 `_stale-candidates`，不再分发；LATEST 未更新。\n2) 动态容量阻塞：需要改 `packages/library-fs` 的 CutterSourceLibraryView / listCutterReleaseCatalog / fallback manifest SUM(file_size)，但 library-fs 是 Mac 单写共享包（AGENTS 规则），Windows scope-check 会拒绝。请 Mac 提供该共享包 patch（或在 ui/teacher-filter 授权窗口），我再补 cutter-api passthrough + SourceLibraryResponse + 侧栏动态格式化、测试与 v012759 截图。\n3) 目前不会改代码/不会发布。0.18.24 旧包已隔离，等共享包字段落地后重建。"
+}
