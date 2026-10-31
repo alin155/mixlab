@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793464334704-a26bd637",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793464334704-a26bd637",
+  "created_at": "2026-10-31T16:32:14.705Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【补充证据包】conformance-headergap-73ecd49.zip 已复制 Mac 共享 evidence；sha256=67A40ED16932A6AEA53DE1ED250A538F7CC6EE8D41ABA79D0EC3F6CBCC65DDA9。含 16 张 8 页 1536/1440 截图 + verify.json（每页 top_gap/header height）。"
+}
