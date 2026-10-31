@@ -578,7 +578,7 @@ export function CutterSidebarFooter({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [residuePanelOpen, setResiduePanelOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
-  const libraryCountLabel = `本地 ${localCount} / 公共 ${publicCount}`;
+  const libraryCountLabel = `${publicCount.toLocaleString()} 条 / ≈26 TB`;
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
   const cacheLabel = formatCutterCacheSize(displayCacheBytes);
 
@@ -604,7 +604,7 @@ export function CutterSidebarFooter({
           </strong>
         </div>
         <div className="ml-sidebar-status-row">
-          <span className="ml-sidebar-status-label">素材库</span>
+          <span className="ml-sidebar-status-label">公共素材</span>
           <strong className="ml-sidebar-status-value">{libraryCountLabel}</strong>
         </div>
         <div className="ml-sidebar-status-row">
