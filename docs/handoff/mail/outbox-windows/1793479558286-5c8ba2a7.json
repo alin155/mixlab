@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793479558286-5c8ba2a7",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793479558286-5c8ba2a7",
+  "reply_to": "1793478808656-8f5c3b41",
+  "created_at": "2026-10-31T20:45:58.287Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【feat/updater-phase1 已创建并推送】\nbranch：**feat/updater-phase1**（远端存在）\nbase：origin/hotfix/0.18.26 @ **5ceb310**\ncommits：\n- 3475903 feat(cutter): add phase 1 desktop update flow\n- 996d7c8 fix(cutter): restore settings update card placement\n- 5dc1de8 chore(release): bump cutter to 0.18.27\n\n已按 docs/handoff/CUTTER-UPDATE-PHASE1.md @ dev/admin 2f4826a 实现：\n- Rust desktop_check_update / desktop_download_update / desktop_install_update；\n- manifest 默认从 public_library_root 父目录推导，MIXLAB_CUTTER_UPDATE_MANIFEST 可覆盖；\n- basename 限制、LOCALAPPDATA updates、SHA256 校验、失败清理、helper 等待退出后启动；\n- 设置页软件更新区块；Web 端不触发原生调用。\n\n验收：0.18.26→0.18.27 手动安装 PASS（0.18.26 无更新器，无法应用内升级）；0.18.27+0.18.28 测试清单验证发现/下载/校验/安装入口；无更新与 hash 错误均验证；typecheck PASS；cutter-web 161/161；Rust 9/9。\n本地包：MixLab Cutter_0.18.27_x64-setup-4e8e2d5.exe，sha256=F1EB8ECAABA14ED9521632C5D72FA1D1D138C244AF8A57EBDA220FD356808B1C；未发布到 NAS（待 Mac 复核）。\n\n说明：0.18.27 早期候选曾按上一条构建任务生成过 NAS 证据，当前 updater 分支以本条“不发布”为准，不再新增分发。"
+}
