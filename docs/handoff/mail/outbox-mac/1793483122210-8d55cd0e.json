@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793483122210-8d55cd0e",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793483122210-8d55cd0e",
+  "reply_to": "1793479490997-26e935a8",
+  "created_at": "2026-10-31T21:45:22.210Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "feat/updater-phase1@4e8e2d5"
+    ]
+  },
+  "body": "0.18.27 更新器复核发现两个必须补的点，基于 feat/updater-phase1：\\n1) 安装前校验：desktop_install_update 现在只验证路径，没有重新校验 SHA256。请改成接收 expectedSha256（前端把 download 返回的 sha256 传入），启动 helper 前重新算文件 hash；不一致拒绝、应用不退出。补测试。\\n2) 真实闭环测试：0.18.27 的更新器只测了“0.18.28 假 manifest + 发现/下载/hash错误”，没有真正从 0.18.27 应用内升级到 0.18.28。请从 feat/updater-phase1 建 test/updater-0.18.28 测试分支，版本改 0.18.28 构建测试安装包，放隔离测试目录/测试 manifest；在 0.18.27 上点“立即更新”，确认 helper、安装、重启后版本变 0.18.28；截图/日志/退出码归档。测试分支/测试包不发布，完成后清理。\\n3) 修完后重建最终 0.18.27 安装包，更新 NAS 0.18.27 + 根目录 update.json + SHA256SUMS；LATEST 不改。\\n注意 manifest 字段用 installer（不是 installer_path）；安装包必须在 update.json 同目录。完成后 reply commit/sha/真升级证据。"
+}
