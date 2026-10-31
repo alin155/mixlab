@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793467412792-7606af7f",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793467412792-7606af7f",
+  "created_at": "2026-10-31T17:23:32.792Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【侧栏最终文案已按最新要求改好（并入控件审查提交，不单独打断）】\ncommit：ui/teacher-filter @ **7dcccb9**\n显示：标签 **公共素材**；右侧值 **12,869 条 / ≈26 TB**（单位“条”、分隔“/”，12px）。\n1536/1440 实测：valueWidth/scrollWidth=clientWidth=112、truncated=false，标签与值均完整可见。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-final2.exe\nsha256=A92EE05174E24D4F0DC6BB56B0C0840189BAAE6D33BD6E28D394D5FCCDC27F57；未发布/未进 NAS/共享发布目录/LATEST 未动。\n证据：conformance-sidebar-final2-7dcccb9.zip 已复制 Mac evidence。"
+}
