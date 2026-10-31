@@ -2379,3 +2379,10 @@ body,
 .cutter-sidebar-account-button {
   min-height: 28px !important;
 }
+
+.cutter-public-capacity-value {
+  font-size: 11.5px !important;
+}
+.ml-sidebar-status-card {
+  padding-inline: 14px !important;
+}

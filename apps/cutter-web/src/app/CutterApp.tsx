@@ -610,7 +610,7 @@ export function CutterSidebarFooter({
         </div>
         <div className="ml-sidebar-status-row">
           <span className="ml-sidebar-status-label">公共素材</span>
-          <strong className="ml-sidebar-status-value">{libraryCountLabel}</strong>
+          <strong className="ml-sidebar-status-value cutter-public-capacity-value">{libraryCountLabel}</strong>
         </div>
         <div className="ml-sidebar-status-row">
           <span className="ml-sidebar-status-label">剪切任务</span>
