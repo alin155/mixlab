@@ -2400,3 +2400,9 @@ body,
   border-radius: 999px;
   background: color-mix(in srgb, var(--ml-color-text-tertiary) 35%, transparent);
 }
+
+@media (min-width: 1181px) and (max-width: 1366px) {
+  .cutter-page[data-page="material-locator"] .ml-split-workbench {
+    grid-template-columns: 224px minmax(480px, 1fr) 320px;
+  }
+}
