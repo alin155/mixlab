@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793464703795-2eda888a",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793464703795-2eda888a",
+  "reply_to": "1793464317846-259ee00a",
+  "created_at": "2026-10-31T16:38:23.796Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@73ecd49"
+    ]
+  },
+  "body": "header 留白修复截图已通过（8 页 top_gap 已收紧）。继续 0.18.24 三项，基于 ui/teacher-filter @ 73ecd49：\\n1) 本地素材「加载更多」数字错误：当前项目只有 2 条却显示 104/107。改成按当前筛选视图的可见数量/总数计算；当前项目已加载完必须隐藏；只有全部素材视图确实还有下一页时才显示。验收：当前项目 2/2 不出现按钮。\\n2) 素材搜索右侧预览：现在是「视频/选区/任务」三个 tab，看起来像三栏，降低效率。恢复**单栏连续预览**：视频在上，选区和剪切动作直接跟在下方，不再用三个 tab 切换；只改素材搜索右栏。\\n3) 左侧栏「素材库」：删除「本地 107」，只显示公共素材：（容量=公共素材实际大小；当前 release file_size 为 0，先用 26TB 估算，后续 Admin 补 file_size 后改动态）。\\n请 typecheck + cutter-web 测试；重截 local（当前项目）、material（有结果+空态）、sidebar 1536/1440；watch_branch: ui/teacher-filter；15 分钟首 commit；不发布。"
+}
