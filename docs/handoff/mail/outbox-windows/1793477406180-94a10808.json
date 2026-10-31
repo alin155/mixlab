@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793477406180-94a10808",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793477406180-94a10808",
+  "created_at": "2026-10-31T20:10:06.180Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【公共素材库老师筛选空结果已修（feature，不发布）】\n根因：老师下拉只过滤已加载的前 20 条；陈永亮/陶矜素材不在首批，故显示空。\n修复：source-library 新增 teacher 查询；cutter-api 按老师对应文件夹精确合并（陶矜=陶矜+陶矜2），返回完整计数与分页；前端选择老师时请求服务端并支持继续加载。\n实测：王牧笛 1478、陈永亮 427、陶矜 10964；三档下拉均返回 20 条卡片，无空态/无 500；清空恢复 12869。\ntypecheck PASS；cutter-web 151/151 PASS。\ncommit：ui/teacher-filter @ 61b275f；本地包 MixLab Cutter_0.18.23_x64-setup-teacherfix2.exe，sha256=BCEA990E05801C850FA565A37650B0393042441ACC77E113CD612F3A02BC953F；未发布。"
+}
