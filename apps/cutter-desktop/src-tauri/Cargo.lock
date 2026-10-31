@@ -1753,10 +1753,11 @@ dependencies = [
 
 [[package]]
 name = "mixlab-cutter-desktop"
-version = "0.18.26"
+version = "0.18.27"
 dependencies = [
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

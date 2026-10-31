@@ -9,6 +9,7 @@ import {
 import type { CutMode } from "../../state/cut-list.ts";
 import type { MaterialSearchSourceFilter } from "../../state/material-locator.ts";
 import type { VideoOrientationFilter } from "../../state/video-orientation.ts";
+import { SoftwareUpdateCard } from "./SoftwareUpdateCard.tsx";
 
 const defaultCutModeOptions: Array<{ value: CutMode; label: string }> = [
   { value: "copy", label: "极速剪切" },
@@ -415,6 +416,8 @@ export function SettingsPage({
             }
           ]}
         />
+
+        <SoftwareUpdateCard appVersion={appVersion} />
 
         <CutterInfoGroups
           groups={[

@@ -2491,3 +2491,38 @@ body,
   margin-left: 0;
   flex: 0 0 auto;
 }
+
+.cutter-update-body {
+  display: grid;
+  gap: 10px;
+  padding: 4px 0;
+}
+.cutter-update-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+}
+.cutter-update-available {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-color-surface-subtle);
+}
+.cutter-update-available p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  line-height: 1.6;
+}
+.cutter-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.cutter-update-error {
+  margin: 0;
+  color: var(--ml-color-failed, #d9534f);
+}
