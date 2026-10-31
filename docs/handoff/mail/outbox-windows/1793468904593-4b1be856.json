@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793468904593-4b1be856",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793468904593-4b1be856",
+  "reply_to": "1793468051070-eff21742",
+  "created_at": "2026-10-31T17:48:24.593Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【动态容量已接入，0.18.24 继续 HOLD，不发布】\nui/teacher-filter 最新：**226bc08**\n- 已同步 Mac 共享提交 5d1b77c（library-fs：total_source_size_bytes，未手改共享包）；\n- cutter-api SourceLibraryPagePayload 透传 total_source_size_bytes；\n- SourceLibraryResponse 增加可选 total_source_size_bytes；\n- 侧栏动态显示：**公共素材 12,869 条 / 约28.1 TB**，无字段时才回退估算；\n- 为保证侧栏完整可见，该值 11.5px、侧栏卡片左右 padding 12px。\n\nv012759 实测：\n- total_source_size_bytes=28139586748252 → 28.1 TB；\n- 老师：陶矜 10964、王牧笛 1478、陈永亮 427；空值 0；\n- 1536/1440 侧栏 truncated=false（scrollWidth=clientWidth=124），标签未截断。\ntypecheck PASS；cutter-web 151/151 PASS。\n\n本地验证包：MixLab Cutter_0.18.23_x64-setup-capacity4.exe\nsha256=FD67E80126DA8CAEC2C68FB3A69BD3EF8C8454F2D3D3F98A52867489889FFD5E\n仅本地验证；未发布/未进 NAS/共享发布目录；0.18.24 旧包仍在 _stale-candidates；LATEST 未动。\n证据：conformance-capacity-226bc08.zip（sidebar 1536/1440 + verify.json）已复制 Mac evidence。"
+}
