@@ -1,0 +1,221 @@
+diff --git a/apps/cutter-web/src/cutter-app.test.ts b/apps/cutter-web/src/cutter-app.test.ts
+index 0ee6885..59f225f 100644
+--- a/apps/cutter-web/src/cutter-app.test.ts
++++ b/apps/cutter-web/src/cutter-app.test.ts
+@@ -5727,7 +5727,8 @@ test("cutter dark theme overrides foundation light surfaces with theme tokens",
+   assert.equal(css.includes(".cutter-library-detail-stack"), false);
+   assert.equal(css.includes(".cutter-library-detail-player"), false);
+   assert.equal(css.includes(".cutter-local-detail-player"), false);
+-  assert.match(publicHtml, /class="ml-detail-stack"/);
++  assert.match(publicHtml, /class="ml-detail-stack cutter-inspector-panel/);
++  assert.match(publicHtml, /cutter-inspector-tabs/);
+   assert.match(publicHtml, /class="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"/);
+   const libraryInspectorRule =
+     foundationCss.match(/\.ml-workbench-inspector\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
+diff --git a/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx b/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx
+index 5960195..2c52648 100644
+--- a/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx
++++ b/apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx
+@@ -200,6 +200,7 @@ export function LocalLibraryPage({
+   const [orphanCleanError, setOrphanCleanError] = useState("");
+   const [orphanCleaning, setOrphanCleaning] = useState(false);
+   const [createProjectOpen, setCreateProjectOpen] = useState(false);
++  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
+ 
+   async function loadLocalClipIntegrity() {
+     if (!client) {
+@@ -472,7 +473,11 @@ export function LocalLibraryPage({
+       </div>
+ 
+       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
+-        <div className="ml-detail-stack">
++        <div className="cutter-inspector-tabs" role="tablist" aria-label="本地素材详情">
++          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
++          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
++        </div>
++        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
+           {selected ? (
+             <video
+               key={selected.local_clip_id}
+@@ -483,6 +488,8 @@ export function LocalLibraryPage({
+               preload="metadata"
+             />
+           ) : null}
++        </div>
++        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
+           <strong>{selected?.title ?? "未选择本地素材"}</strong>
+           <span>{visible.length} 条当前视图素材</span>
+           <span>{selected ? `所属项目 ${projectTitleForClip(selected, projectById)}` : ""}</span>
+diff --git a/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx b/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx
+index 1beaba2..3694c5b 100644
+--- a/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx
++++ b/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx
+@@ -800,6 +800,7 @@ export function MaterialLocatorPage({
+   const previewEndMsRef = useRef<number | null>(null);
+   const lastAutoSeekKeyRef = useRef<string | undefined>(undefined);
+   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number; placement: "above" | "below" | "right" } | null>(null);
++  const [inspectorTab, setInspectorTab] = useState<"video" | "selection" | "tasks">("video");
+   const [dragPreviewSegmentIds, setDragPreviewSegmentIds] = useState<readonly string[]>([]);
+   const [timeSelectionStartSegmentId, setTimeSelectionStartSegmentId] = useState<string | undefined>();
+   const [previewActive, setPreviewActive] = useState(false);
+@@ -1803,7 +1804,12 @@ export function MaterialLocatorPage({
+             </section>
+ 
+           <aside className="cutter-locator-side-panel ml-split-workbench-side" aria-label="画面验证与单片段导出">
+-            <section className="cutter-locator-visual ml-pane-shell ml-pane-section ml-pane-section--media" aria-label="画面验证">
++            <div className="cutter-inspector-tabs" role="tablist" aria-label="素材搜索详情">
++              <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
++              <button type="button" role="tab" aria-selected={inspectorTab === "selection"} className={"cutter-inspector-tab" + (inspectorTab === "selection" ? " is-active" : "")} onClick={() => setInspectorTab("selection")}>选区</button>
++              <button type="button" role="tab" aria-selected={inspectorTab === "tasks"} className={"cutter-inspector-tab" + (inspectorTab === "tasks" ? " is-active" : "")} onClick={() => setInspectorTab("tasks")}>任务</button>
++            </div>
++            <section className={"cutter-locator-visual ml-pane-shell ml-pane-section ml-pane-section--media cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")} aria-label="画面验证">
+               <header className="ml-pane-header is-hidden">
+                 <div>
+                   <h2 className="ml-section-title ml-section-title--dense">视频预览</h2>
+@@ -1865,7 +1871,7 @@ export function MaterialLocatorPage({
+               </section>
+             </section>
+ 
+-            <section className="cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail" aria-label="选区导出">
++            <section className={"cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail cutter-inspector-panel" + (inspectorTab === "selection" ? " is-active" : "")} aria-label="选区导出">
+               <header className="ml-pane-header ml-pane-header--split">
+                 <div>
+                   <h2 className="ml-section-title ml-section-title--dense">选区信息</h2>
+@@ -1899,7 +1905,7 @@ export function MaterialLocatorPage({
+               </div>
+             </section>
+ 
+-            <section className="cutter-locator-queue-panel ml-pane-shell ml-queue-panel-stack" aria-label="最近剪切任务">
++            <section className={"cutter-locator-queue-panel ml-pane-shell ml-queue-panel-stack cutter-inspector-panel" + (inspectorTab === "tasks" ? " is-active" : "")} aria-label="最近剪切任务">
+               <header className="ml-pane-header ml-pane-header--compact ml-pane-header--split">
+                 <h2 className="ml-section-title ml-section-title--dense">最近剪切任务</h2>
+                 <Button
+diff --git a/apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx b/apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx
+index 358d5fb..1492f5e 100644
+--- a/apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx
++++ b/apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx
+@@ -102,6 +102,7 @@ export function PublicLibraryPage({
+     else teacherOptions.push({ name: teacher, count: folder.count });
+   }
+   const [teacherFilter, setTeacherFilter] = useState("");
++  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
+   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
+   const filtered = library.videos.filter((video) =>
+     matchesOrientationFilter(video, orientationFilter) &&
+@@ -220,7 +221,11 @@ export function PublicLibraryPage({
+       </div>
+ 
+       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
+-        <div className="ml-detail-stack">
++        <div className="cutter-inspector-tabs" role="tablist" aria-label="公共素材详情">
++          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
++          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
++        </div>
++        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
+           {selected ? (
+             <video
+               key={selected.source_video_id}
+@@ -231,6 +236,8 @@ export function PublicLibraryPage({
+               preload="metadata"
+             />
+           ) : null}
++        </div>
++        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
+           <strong>{selected?.title ?? "未选择原素材"}</strong>
+           <span>{filtered.length} 条当前视图素材</span>
+           <span>{publicLibraryIndexSummary({ libraryCount: library.available_video_count, runtimeStatus })}</span>
+diff --git a/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx b/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx
+index 978059b..4aeb843 100644
+--- a/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx
++++ b/apps/cutter-web/src/features/source-detail/SourceDetailPage.tsx
+@@ -293,6 +293,7 @@ export function SourceDetailPage({
+   const videoRef = useRef<HTMLVideoElement | null>(null);
+   const dragStartRef = useRef<string | null>(null);
+   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number } | null>(null);
++  const [inspectorTab, setInspectorTab] = useState<"selection" | "tasks">("selection");
+   const [dragPreviewSegmentIds, setDragPreviewSegmentIds] = useState<readonly string[]>([]);
+   const firstSelected = selectedSegments[0];
+   const lastSelected = selectedSegments[selectedSegments.length - 1];
+@@ -582,23 +583,27 @@ export function SourceDetailPage({
+           </Button>
+         }
+       >
+-        <div className="ml-detail-stack">
++        <div className="cutter-inspector-tabs" role="tablist" aria-label="素材详情">
++          <button type="button" role="tab" aria-selected={inspectorTab === "selection"} className={"cutter-inspector-tab" + (inspectorTab === "selection" ? " is-active" : "")} onClick={() => setInspectorTab("selection")}>选区</button>
++          <button type="button" role="tab" aria-selected={inspectorTab === "tasks"} className={"cutter-inspector-tab" + (inspectorTab === "tasks" ? " is-active" : "")} onClick={() => setInspectorTab("tasks")}>任务</button>
++        </div>
++        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "selection" ? " is-active" : "")}>
+           <strong>{selectionTitle}</strong>
+           <span>{selectedRange}</span>
+           <p>{selectedText(selectedSegments, selectedStartCharOffset, selectedEndCharOffset)}</p>
+           <span>拖拉文案后直接剪切这一段。</span>
+-          <div className="ml-detail-stack">
+-            <strong>最近任务</strong>
+-            {recentJobs.length > 0 ? (
+-              recentJobs.slice(0, 3).map((job) => (
+-                <span key={job.queue_job_id}>
+-                  {job.title} · {job.status}
+-                </span>
+-              ))
+-            ) : (
+-              <span>暂无最近任务</span>
+-            )}
+-          </div>
++        </div>
++        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "tasks" ? " is-active" : "")}>
++          <strong>最近任务</strong>
++          {recentJobs.length > 0 ? (
++            recentJobs.slice(0, 3).map((job) => (
++              <span key={job.queue_job_id}>
++                {job.title} · {job.status}
++              </span>
++            ))
++          ) : (
++            <span>暂无最近任务</span>
++          )}
+         </div>
+       </InspectorPanel>
+     </section>
+diff --git a/apps/cutter-web/src/styles.css b/apps/cutter-web/src/styles.css
+index 7530cb1..7b63883 100644
+--- a/apps/cutter-web/src/styles.css
++++ b/apps/cutter-web/src/styles.css
+@@ -2284,3 +2284,37 @@ body,
+   font: inherit;
+   font-size: 12px;
+ }
++
++/* Inspector tabs: keep all content mounted for tests/accessibility; show one panel. */
++.cutter-inspector-tabs {
++  display: flex;
++  align-items: center;
++  gap: 2px;
++  padding: 8px 10px 0;
++  border-bottom: 1px solid var(--ml-color-border);
++  background: var(--ml-color-surface);
++}
++.cutter-inspector-tab {
++  border: 0;
++  border-bottom: 2px solid transparent;
++  background: transparent;
++  color: var(--ml-color-text-muted);
++  cursor: pointer;
++  font: inherit;
++  font-size: 11px;
++  font-weight: 600;
++  padding: 6px 8px 8px;
++}
++.cutter-inspector-tab:hover {
++  color: var(--ml-color-text);
++}
++.cutter-inspector-tab.is-active {
++  color: var(--ml-color-accent);
++  border-bottom-color: var(--ml-color-accent);
++}
++.cutter-inspector-panel {
++  display: none;
++}
++.cutter-inspector-panel.is-active {
++  display: block;
++}
