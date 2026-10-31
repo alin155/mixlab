@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793417841914-fba6a4ed",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793417841914-fba6a4ed",
+  "created_at": "2026-10-31T03:37:21.914Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@daa412e + patch a41c8ee"
+    ]
+  },
+  "body": "Mac 已接管并完成 Inspector tabs 代码，但受仓库规则不能直接改 apps/cutter-web，因此以 patch 交接。\\nwatch_branch: ui/teacher-filter\\n基数：origin/ui/teacher-filter @ **daa412e**\\nPatch：origin/dev/admin @ **cc07f92** 的 （sha256 a41c8ee450ca72546e3b123bcc4f1a934b161c807b716d2a1a98dfe6f7b4dbd2）\\n请：1) 从 daa412e 应用 patch（）；冲突立即 reply，不要猜；2) 跑 typecheck + npm test（期望 2241/2241）；3) commit/push 到 ui/teacher-filter；4) 构建**本地测试包**（不发布/不进 NAS/共享/不动 LATEST），截 8 页 1536/1440（含 Inspector tabs 四个页面），复制证据到 Mac 共享 evidence；5) reply commit/测试/截图路径。\\n时限：15 分钟内必须有第一个 commit 或阻塞说明；超过 20 分钟无 commit 会触发 watch 告警。"
+}
