@@ -2347,3 +2347,7 @@ body,
   z-index: 30 !important;
   margin: 0 !important;
 }
+
+.cutter-page > .ml-workbench-main {
+  margin-top: -16px !important;
+}
