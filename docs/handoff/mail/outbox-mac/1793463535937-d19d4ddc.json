@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793463535937-d19d4ddc",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793463535937-d19d4ddc",
+  "created_at": "2026-10-31T16:18:55.937Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter"
+    ]
+  },
+  "body": "0.18.24 紧急修复：删除页面标题/说明后，8 页顶部出现大块空白，未做布局适配。用户明确批评，必须按下面验收：\\n1) 逐页移除 header 的**布局占位**（不是仅视觉隐藏 h1/p）：header 容器要么删除、要么 display:none，不能继续占用 grid/flex 行高；残留 kicker（工作台/运行环境等）一并清掉。\\n2) 页面动作（打开待剪清单/新建项目/打开素材目录/刷新/预览清理等）移到首行工具栏或右上角，与首个内容同一紧凑行，不单独占一大行。\\n3) 目标：topbar 底部到页面首个可见内容≤16px；任何页面顶部空白带不得>24px；1536/1440 均适用。\\n4) 加自动验收：在 verify.json 记录每页 、、、；8 页 top_gap≤24px、header height=0（若容器保留则必须不占布局）。\\n5) 重截 8 页 1536/1440；watch_branch: ui/teacher-filter；15 分钟内首 commit；不发布，等 Mac 复核。\\n先做这 8 页 header 收口，不要动其他业务。"
+}
