@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793420411945-18ac58d8",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793420411945-18ac58d8",
+  "reply_to": "1793420225482-396e917d",
+  "created_at": "2026-10-31T04:20:11.945Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【ed5f590 证据已在 Mac 共享 evidence】\n路径：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\evidence\\entries-ed5f590.zip\nsha256=C5ABC8C143FB614157497DD5584242F326D786E9EDA1D47DDCB27218D0FEC013\n内容：local/cut-tasks 1536/1440 截图、本地“＋新建项目”入口及 ProjectCreateDialog 截图、剪切任务“待剪清单”入口及进入清单截图 + verify.json（button 可见、dialog=true、清单切换返回=true、无横向滚动）。\ncommit ui/teacher-filter @ ed5f590；已并入 hotfix/0.18.22；cutter-web 151/151 PASS；Mac 全量 2241/2241 PASS。\n本地测试包 sha256=657FD18BFAA33F4361DDF5C20AA14A9C386EE4921AC696857375C9FC25F0A0CB；未发布/未进 NAS/共享发布目录，LATEST 未动。"
+}
