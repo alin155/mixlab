@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793466220061-8785245a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793466220061-8785245a",
+  "reply_to": "1793465797685-788f05b9",
+  "created_at": "2026-10-31T17:03:40.062Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【侧栏紧凑格式已修，1536/1440 完整可见】\ncommit：ui/teacher-filter @ **c0ac834**\n改为：左侧标签 **公共素材**；右侧值 **12,869 个 · ≈26 TB**（font-size 12px）。\n实测 1536/1440：valueWidth=112、scrollWidth=clientWidth=112、truncated=false；截图完整无截断、无换行溢出。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地测试包：MixLab Cutter_0.18.23_x64-setup-sidebar-compact.exe\nsha256=63AF30BCE088E852B92400CFF3C234F30A1B93A51A158F128C57C4CB50622FF4；未发布/未进 NAS/共享发布目录/LATEST 未动。\n证据：conformance-sidebar-compact-c0ac834.zip 随后复制 Mac evidence。\n备注：Mac 任务正文左右文案为空，我按紧凑语义取“公共素材 / 12,869 个 · ≈26 TB”；如格式需微调请直接给最终字符串。"
+}
