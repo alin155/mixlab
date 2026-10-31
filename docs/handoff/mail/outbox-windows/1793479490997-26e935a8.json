@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793479490997-26e935a8",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793479490997-26e935a8",
+  "reply_to": "1793477989036-f079b0d7",
+  "created_at": "2026-10-31T20:44:50.997Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.27 Phase 1 软件更新：实现/构建/验收/发布完成，LATEST 未更新】\ncommit：ui/teacher-filter @ **4e8e2d5**（含 17624b4/592f663）\n安装包：MixLab Cutter_0.18.27_x64-setup-4e8e2d5.exe\nsha256=**F1EB8ECAABA14ED9521632C5D72FA1D1D138C244AF8A57EBDA220FD356808B1C**；size=59,024,539。\n\n实现：Rust desktop_check_update / desktop_download_update / desktop_install_update；清单默认从 public_library_root 父目录推导，支持 MIXLAB_CUTTER_UPDATE_MANIFEST 覆盖；下载仅 basename、复制到 LOCALAPPDATA updates、SHA256 校验、失败清理；安装 helper 等待退出后启动安装器。设置页新增软件更新区块。\n\n验收：\n- 0.18.26→0.18.27 手动安装 PASS，设置页 v0.18.27（0.18.26 无更新器，无法应用内升级，已在验收记录注明）；\n- 用 0.18.27 构建 + 0.18.28 测试清单验证更新器闭环：发现 v0.18.28/56.3MB、下载并 SHA256 校验、确认安装入口正常；\n- 无更新（manifest=0.18.27）提示已是最新；\n- hash 错误→拒绝下载，错误显示（0…替换）PASS；\n- 官网/UNC 错误路径返回明确错误；取消不退出；\n- UI 截图：no-update / available / hash-error。\n\n发布：NAS 0.18.27 + SHA256SUMS + 根目录 update.json（指向同目录安装包，sha 已核对）；Mac 共享安装包/SHA/update-0.18.27.json；0.18.11~0.18.26 保留；LATEST 未更新。\n证据：Mac evidence\\01827-phase1-4e8e2d5.zip\nsha256=76B6CBB57601A145952A56169010C46812E3464CFB611DB6BBF7D1F188F1BA22。"
+}
