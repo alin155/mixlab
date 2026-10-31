@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793467238432-832fb162",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793467238432-832fb162",
+  "created_at": "2026-10-31T17:20:38.432Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【补充证据包】conformance-audit-fe9d972.zip 已复制 Mac 共享 evidence；sha256=CD4534499B9BC49DC77D337B7785680A63AE497CA06AF99E20FB9415B1978B51。含 8 页 1536/1440 audit 截图 + verify.json（低对比度/截断/小控件均为 0，重叠告警已标注）。"
+}
