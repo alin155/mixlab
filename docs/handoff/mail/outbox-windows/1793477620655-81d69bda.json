@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793477620655-81d69bda",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793477620655-81d69bda",
+  "reply_to": "1793476901736-8886b726",
+  "created_at": "2026-10-31T20:13:40.655Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【公共素材库工具栏左对齐已修（feature，不发布）】\ncommit：ui/teacher-filter @ **9e193e1**\n- 工具栏改为内容左边缘左对齐，搜索框/老师下拉/方向下拉同一行；\n- 1280：toolbarX=searchX=cardX=256，searchWidth=345，teacher/orientation 同一行，right=882=内容右边缘；\n- 1440：256/256/256，searchWidth=380；\n- 1536：256/256/256，searchWidth=380；\n- 三档 allVisible=true，scrollWidth=innerWidth，无裁切。\n\n截图：public 1280/1440/1536 三张 + verify.json。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-publicleft.exe\nsha256=0C22D4267A9D9C27C544430C27D16A8381EBEC5865C20C9F357F51FA52539E3B；未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01826-publicleft-9e193e1.zip 已复制 Mac evidence。\n另：上一轮老师筛选空结果已修复（commit 61b275f，1478/427/10964 均正常）。"
+}
