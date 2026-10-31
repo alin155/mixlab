@@ -1,4 +1,5 @@
 import { Button, InspectorPanel } from "@mixlab/ui-foundation";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 import { useEffect, useState } from "react";
 import {
   CutterApiError,
@@ -311,20 +312,17 @@ export function LocalLibraryPage({
             <p className="ml-page-description">查看本机剪切结果，播放、打开目录或继续编辑。</p>
           </div>
           <div className="cutter-local-library-controls ml-control-cluster">
-            {onCreateProject ? (
-              <Button type="button" variant="primary" size="sm" onClick={() => setCreateProjectOpen(true)}>
-                ＋ 新建项目
-              </Button>
-            ) : null}
             {onOpenLocalClipDirectory && (selected ?? visible[0]) ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => onOpenLocalClipDirectory?.((selected ?? visible[0])!)}
-              >
-                打开素材目录
-              </Button>
+              <TopbarActions>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onOpenLocalClipDirectory?.((selected ?? visible[0])!)}
+                >
+                  打开素材目录
+                </Button>
+              </TopbarActions>
             ) : null}
           </div>
         </header>
@@ -347,21 +345,19 @@ export function LocalLibraryPage({
               </Button>
             ))}
           </div>
-          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视频类型">
-            {orientationFilterOptions.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                variant={orientationFilter === option.value ? "primary" : "ghost"}
-                size="sm"
-                aria-pressed={orientationFilter === option.value}
-                onClick={() => onSetOrientationFilter?.(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </div>
           <span className="ml-section-meta">共 {visible.length} 个素材</span>
+          <select
+            aria-label="本地素材方向"
+            className="ml-field-select cutter-local-orientation-select"
+            value={orientationFilter}
+            onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+          >
+            {orientationFilterOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
 

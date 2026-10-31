@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 import { Button } from "@mixlab/ui-foundation";
 import type { LocalClipCatalog, SourceFolderOption, SourceLibraryResponse } from "../../api.ts";
 import type { CutQueueJob } from "../../state/cut-queue.ts";
@@ -450,12 +451,11 @@ export function ProjectHomePage({
             <p className="cutter-note ml-page-description">搜索素材、继续项目，或查看最近的剪切结果。</p>
           </div>
           <div className="cutter-home-header-actions">
-            <Button onClick={() => onNavigate?.("cut-tasks")} type="button" variant="secondary">
-              打开待剪清单
-            </Button>
-            <Button onClick={openCreateDialog} type="button" variant="primary">
-              ＋ 新建项目
-            </Button>
+            <TopbarActions>
+              <Button onClick={openCreateDialog} type="button" variant="primary">
+                ＋ 新建项目
+              </Button>
+            </TopbarActions>
           </div>
         </header>
 

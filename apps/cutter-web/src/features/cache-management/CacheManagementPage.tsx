@@ -1,4 +1,5 @@
 import { Badge, Button, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 import { useEffect, useMemo, useState } from "react";
 import {
   CutterApiError,
@@ -622,23 +623,11 @@ export function CacheManagementPage({
               查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除项目、待剪清单、任务归属或登录状态。
             </p>
           </div>
-          <div className="ml-control-cluster">
+          <TopbarActions>
             <Button type="button" variant="ghost" size="sm" onClick={() => void loadCacheInventory()} disabled={inventoryLoading}>
-              刷新
+              刷新缓存
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={inventoryLoading || selectedCacheTargets.length === 0}
-              onClick={() => {
-                void loadCacheInventory().then(() => setPendingDiskClear(true));
-              }}
-            >
-              预览清理
-            </Button>
-            <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
-          </div>
+          </TopbarActions>
         </header>
 
         <section className="cutter-cache-summary ml-data-strip" aria-label="缓存摘要">
@@ -654,11 +643,6 @@ export function CacheManagementPage({
           bodyClassName="cutter-cache-category-body"
           title="缓存分类"
           subtitle="清理前会再次确认；项目、被引用素材与未完成导出不会删除。"
-          actions={
-            <Button type="button" variant="secondary" size="sm" onClick={() => document.getElementById("cache-cleanup")?.scrollIntoView({ block: "start" })}>
-              预览清理
-            </Button>
-          }
         >
           <div className="cutter-cache-categories" role="table" aria-label="缓存分类">
             <div className="cutter-cache-category-row is-head" role="row">

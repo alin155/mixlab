@@ -155,20 +155,18 @@ export function PublicLibraryPage({
               </option>
             ))}
           </select>
-          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
+          <select
+            aria-label="公共素材方向"
+            className="ml-field-select cutter-public-orientation-select"
+            value={orientationFilter}
+            onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+          >
             {orientationFilterOptions.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                variant={orientationFilter === option.value ? "primary" : "ghost"}
-                size="sm"
-                aria-pressed={orientationFilter === option.value}
-                onClick={() => onSetOrientationFilter?.(option.value)}
-              >
+              <option key={option.value} value={option.value}>
                 {option.label}
-              </Button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
 
