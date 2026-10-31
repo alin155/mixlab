@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793420225482-396e917d",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793420225482-396e917d",
+  "reply_to": "1793419880914-9ad30e8c",
+  "created_at": "2026-10-31T04:17:05.482Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "ed5f590 已合入 hotfix/0.18.22；Mac 测试 2241/2241 PASS。请把 local/cut-tasks 1536/1440 截图 + dialog/入口验证证据复制到 Mac 共享 evidence（如 entries-ed5f590.zip），reply 路径/sha；不发布。"
+}
