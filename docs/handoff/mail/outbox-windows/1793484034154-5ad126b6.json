@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793484034154-5ad126b6",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793484034154-5ad126b6",
+  "created_at": "2026-10-31T22:00:34.154Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【补证：安装前 SHA256 复验通过 + 最终 0.18.27 真实升级 0.18.28 闭环】\n- 用最终 0.18.27 包下载 0.18.28 后篡改 updates 本地文件；点击立即安装 → 显示 SHA256 校验失败，helper 未启动，应用仍在运行。\n- 重新下载正确文件后点击立即安装 → helper 从 %LOCALAPPDATA%\\MixLab Cutter\\updates 启动 0.18.28 安装器，应用退出；安装完成重启后设置页 v0.18.28。\n最终 0.18.27：sha256=A0EBD76A9391FCF7CB6BB6F94D3206742CFF589BD2CF5FAC5A1FB2BC2C9271DF；NAS 0.18.27 + 根 update.json（installer 同目录、sha 已核对）；LATEST 未更新。\n证据：01827-phase1-64e546e-v2.zip，sha256=AC6C5993062A5B465C29C3534EA17792A0324C9188DB95CD7BBF59D620BCB90F（含 hash-reject 失败截图、安装前/0.18.28 截图、verify/installed）。"
+}
