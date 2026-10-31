@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793475112860-139e7419",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793475112860-139e7419",
+  "created_at": "2026-10-31T19:31:52.860Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@922fafb"
+    ]
+  },
+  "body": "0.18.26 页面优化（0.18.25 不单独发布，Mac 会隔离；基于 ui/teacher-filter @ 922fafb）：\\nA. 顶栏动作插槽：在 CutterTopbar 的  左侧新增正式 actions 插槽，页面用 portal 渲染（测试环境无 target 时 fallback 内联）；**禁止 absolute 浮层**。\\n- 首页：删除打开待剪清单；新建项目移到顶栏状态左侧；\\n- 素材搜索：删除打开待剪清单；无顶栏动作；\\n- 剪切任务：待剪清单(N) 移到顶栏状态左侧；删除旁边的打开文件目录；\\n- 本地素材：删除新建项目；打开素材目录移到顶栏状态左侧；\\n- 缓存管理：刷新改「刷新缓存」并移到顶栏状态左侧；删除预览清理、本机可用两个按钮；\\nB. 方向筛选：全部/横版/竖版改  下拉；公共素材库放老师下拉右侧；本地素材放筛选行右侧；替换原 segmented。\\nC. 缓存页滚动：整页内容（缓存分类+清理操作）一起滚动，显示可用竖向滚动条；不能只是清理区小滚动框；1280/1440/1536 验证 scrollHeight>clientHeight、scrollbar 可见可拖。\\n验收：6 页 1280/1440/1536 截图；顶栏动作与状态/内容 0 相交；被删按钮不再出现；方向下拉能正确筛选；缓存页整页滚动。先 feature 分支，不要发布。watch_branch: ui/teacher-filter；15 分钟首 commit。"
+}
