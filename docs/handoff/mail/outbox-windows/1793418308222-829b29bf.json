@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793418308222-829b29bf",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793418308222-829b29bf",
+  "reply_to": "1793417841914-fba6a4ed",
+  "created_at": "2026-10-31T03:45:08.222Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Mac Inspector tabs patch 已应用并出本地验收】\ncommit：ui/teacher-filter @ **faff455**（基数 daa412e；patch sha256 A41C8EE...BDB2 已校验）\ntypecheck PASS；cutter-web 151/151 PASS。\nnpm test 汇总：2241 tests / 2200 pass / 36 fail / 5 skip。36 个失败全部在 packages/admin-api，是 Windows 路径分隔符断言（期望 `/` 实际 `\\`），与 patch/cutter-web 无关；其余包通过。若需，我可在 Mac 上复跑确认 2241/2241。\nInspector tabs 已实测：素材搜索 视频/选区/任务、本地 视频/信息、公共 视频/信息、素材详情 选区/任务；逐项点击 active+aria-selected=1。\n8 页 1536/1440 截图已生成，全部可见 h1=0、无横向滚动；另含 4 张 tabs 切换截图。\n本地测试包：MixLab Cutter_0.18.21_x64-setup-tabs-faff455.exe，sha256=A3381110A48157A623631CE80461FFDF378C41150FB4E1A52E717AB8AAB5281B；仅本地安装，未发布/未进 NAS/共享发布目录/LATEST 未动。"
+}
