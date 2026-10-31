@@ -19,6 +19,7 @@ import {
   type MaterialSearchMode
 } from "../../state/material-locator.ts";
 import { LibraryGallery } from "../library-gallery.tsx";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 
 const orientationFilterOptions: Array<{ value: VideoOrientationFilter; label: string }> = [
   { value: "all", label: "全部" },
@@ -69,7 +70,8 @@ export function PublicLibraryPage({
   onSetMaterialScope,
   onSearchFilename,
   onSelectSourceVideo,
-  onLoadMore
+  onLoadMore,
+  onFetchTeacherLibrary
 }: {
   library: SourceLibraryResponse;
   selectedSourceVideoId?: string;
@@ -87,6 +89,7 @@ export function PublicLibraryPage({
   onSearchFilename?: (query: string) => void;
   onSelectSourceVideo?: (sourceVideoId: string) => void;
   onLoadMore?: () => void;
+  onFetchTeacherLibrary?: (teacher: string, offset: number, limit: number) => Promise<SourceLibraryResponse>;
 }) {
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
   const teacherAliases: Record<string, string> = { "陶矜2": "陶矜" };
@@ -102,36 +105,79 @@ export function PublicLibraryPage({
     else teacherOptions.push({ name: teacher, count: folder.count });
   }
   const [teacherFilter, setTeacherFilter] = useState("");
-  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
+  const [teacherLibrary, setTeacherLibrary] = useState<SourceLibraryResponse | undefined>();
+  const [teacherLoading, setTeacherLoading] = useState(false);
+  const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
-  const filtered = library.videos.filter((video) =>
+  const activeLibrary = teacherFilter ? teacherLibrary ?? library : library;
+  const teacherServerFiltered = Boolean(teacherFilter && teacherLibrary);
+  const filtered = activeLibrary.videos.filter((video) =>
     matchesOrientationFilter(video, orientationFilter) &&
-    (!teacherFilter || (video.teacher ?? teacherForFolderName(video.source_folder_name)) === teacherFilter)
+    (teacherServerFiltered || !teacherFilter || (video.teacher ?? teacherForFolderName(video.source_folder_name)) === teacherFilter)
   );
   const selected =
     filtered.find((video) => video.source_video_id === selectedSourceVideoId) ?? filtered[0];
-  const remainingCount = Math.max(0, library.available_video_count - library.videos.length);
-  const loadMoreLabel = isLoadingMore
+  const remainingCount = Math.max(0, activeLibrary.available_video_count - activeLibrary.videos.length);
+  const activeHasMore = teacherFilter && teacherLibrary
+    ? teacherLibrary.videos.length < teacherLibrary.available_video_count
+    : hasMore;
+  const loadMoreLabel = isLoadingMore || teacherLoading
     ? "正在读取"
     : `继续加载 ${Math.min(20, remainingCount)} 条`;
+  const handleTeacherChange = (teacher: string) => {
+    setTeacherFilter(teacher);
+    if (!teacher) {
+      setTeacherLibrary(undefined);
+      return;
+    }
+    if (!onFetchTeacherLibrary) return;
+    setTeacherLoading(true);
+    void onFetchTeacherLibrary(teacher, 0, 20)
+      .then((page) => setTeacherLibrary(page))
+      .catch(() => setTeacherLibrary(undefined))
+      .finally(() => setTeacherLoading(false));
+  };
+  const handleLoadMore = () => {
+    if (teacherFilter && teacherLibrary && onFetchTeacherLibrary) {
+      setTeacherLoading(true);
+      void onFetchTeacherLibrary(teacherFilter, teacherLibrary.videos.length, 20)
+        .then((page) => setTeacherLibrary({
+          ...page,
+          videos: [...teacherLibrary.videos, ...page.videos]
+        }))
+        .catch(() => undefined)
+        .finally(() => setTeacherLoading(false));
+      return;
+    }
+    onLoadMore?.();
+  };
 
   return (
     <section className="cutter-page cutter-public-library ml-workbench-page ml-workbench-page--library" data-page="public-library">
       <div className="cutter-page-main ml-workbench-main ml-workbench-main--library" style={{ gridTemplateRows: "auto auto minmax(0, 1fr) auto" }}>
+        <TopbarActions>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={refreshing}
+            onClick={() => setRefreshConfirmOpen(true)}
+          >
+            {refreshing ? "刷新中" : "刷新素材"}
+          </Button>
+        </TopbarActions>
         <header className="cutter-page-header ml-workbench-header">
           <div>
             <h1 className="ml-page-title">公共素材库</h1>
             <p className="ml-page-description">按文案或标题浏览原素材，加入项目后开始剪切。</p>
           </div>
           <div className="ml-control-cluster">
-            <span className="ml-section-meta">共 {library.available_video_count.toLocaleString()} 个原素材</span>
+            <span className="ml-section-meta">共 {activeLibrary.available_video_count.toLocaleString()} 个原素材</span>
           </div>
         </header>
 
         <div className="cutter-public-library-toolbar ml-control-cluster">
-          <Button type="button" variant="secondary" size="sm" onClick={() => window.location.reload()}>
-            刷新
-          </Button>
           <SearchBox
             aria-label={searchMode === "folder" ? "搜索文件夹名称" : "按文件名搜索公共素材"}
             buttonLabel={isSearchingFilename ? "搜索中" : "搜索"}
@@ -143,32 +189,32 @@ export function PublicLibraryPage({
             onSubmit={(value) => onSearchFilename?.(value)}
             placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
           />
-          <select
-            aria-label="老师筛选"
-            className="ml-field-select cutter-teacher-select"
-            value={teacherFilter}
-            onChange={(event) => setTeacherFilter(event.currentTarget.value)}
-          >
-            <option value="">全部老师</option>
-            {teacherOptions.map((teacher) => (
-              <option key={teacher.name} value={teacher.name}>
-                {teacher.name} {teacher.count}
-              </option>
-            ))}
-          </select>
-          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="公共素材视频类型">
-            {orientationFilterOptions.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                variant={orientationFilter === option.value ? "primary" : "ghost"}
-                size="sm"
-                aria-pressed={orientationFilter === option.value}
-                onClick={() => onSetOrientationFilter?.(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
+          <div className="cutter-public-library-filter-selects">
+            <select
+              aria-label="老师筛选"
+              className="ml-field-select cutter-teacher-select"
+              value={teacherFilter}
+              onChange={(event) => handleTeacherChange(event.currentTarget.value)}
+            >
+              <option value="">全部老师</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher.name} value={teacher.name}>
+                  {teacher.name} {teacher.count}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="公共素材方向"
+              className="ml-field-select cutter-public-orientation-select"
+              value={orientationFilter}
+              onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+            >
+              {orientationFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -202,14 +248,14 @@ export function PublicLibraryPage({
           )}
         </div>
 
-        {hasMore ? (
+        {activeHasMore ? (
           <div className="cutter-library-pagination cutter-public-library-pagination ml-pagination-bar">
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              disabled={isLoadingMore}
-              onClick={onLoadMore}
+              disabled={isLoadingMore || teacherLoading}
+              onClick={handleLoadMore}
             >
               {loadMoreLabel}
             </Button>
@@ -221,11 +267,7 @@ export function PublicLibraryPage({
       </div>
 
       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
-        <div className="cutter-inspector-tabs" role="tablist" aria-label="公共素材详情">
-          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
-          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
+        <div className="ml-detail-stack cutter-inspector-panel is-active">
           {selected ? (
             <video
               key={selected.source_video_id}
@@ -236,8 +278,6 @@ export function PublicLibraryPage({
               preload="metadata"
             />
           ) : null}
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
           <strong>{selected?.title ?? "未选择原素材"}</strong>
           <span>{filtered.length} 条当前视图素材</span>
           <span>{publicLibraryIndexSummary({ libraryCount: library.available_video_count, runtimeStatus })}</span>
@@ -253,6 +293,35 @@ export function PublicLibraryPage({
           ) : null}
         </div>
       </InspectorPanel>
+      {refreshConfirmOpen ? (
+        <div className="cutter-confirm-backdrop" role="presentation">
+          <div
+            aria-labelledby="public-refresh-title"
+            aria-modal="true"
+            className="cutter-confirm-dialog"
+            role="dialog"
+          >
+            <h2 id="public-refresh-title">刷新素材</h2>
+            <p>刷新会重新进行剪切预热，并加载服务器新预处理的视频。此过程可能需要一些时间，确认刷新？</p>
+            <div className="cutter-confirm-actions">
+              <Button type="button" variant="secondary" onClick={() => setRefreshConfirmOpen(false)}>
+                取消
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setRefreshing(true);
+                  setRefreshConfirmOpen(false);
+                  window.location.reload();
+                }}
+              >
+                确认刷新
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

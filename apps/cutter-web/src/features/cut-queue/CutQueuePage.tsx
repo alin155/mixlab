@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 import {
   Badge,
   Button,
@@ -553,25 +554,16 @@ export function CutQueuePage({
               </div>
             ) : null}
             {onOpenCutList ? (
-              <Button
-                className="cutter-queue-cut-list-action"
-                onClick={onOpenCutList}
-                size="sm"
-                variant="secondary"
-              >
-                {"待剪清单（" + cutListCount + "）"}
-              </Button>
-            ) : null}
-            {onOpenCutOutputDirectory ? (
-              <Button
-                className="cutter-queue-directory-action"
-                leadingIcon={<FolderIcon />}
-                onClick={onOpenCutOutputDirectory}
-                size="sm"
-                variant="secondary"
-              >
-                打开文件目录
-              </Button>
+              <TopbarActions>
+                <Button
+                  className="cutter-queue-cut-list-action"
+                  onClick={onOpenCutList}
+                  size="sm"
+                  variant="secondary"
+                >
+                  {"待剪清单（" + cutListCount + "）"}
+                </Button>
+              </TopbarActions>
             ) : null}
           </div>
         </header>
@@ -709,7 +701,7 @@ export function CutQueuePage({
                   onClick={onOpenCutOutputDirectory}
                   variant="secondary"
                 >
-                  打开文件目录
+                  打开输出根目录
                 </Button>
               ) : null}
               {onOpenCutJobDirectory ? (

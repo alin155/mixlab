@@ -74,6 +74,7 @@ export function CutterTopbar({ route, project, projects, engineReady, onOpenProj
         </div>
       </details>
       <span className="cutter-topbar-spacer" />
+      <div className="cutter-topbar-actions" id="cutter-topbar-actions" data-cutter-topbar-actions />
       <span className={`cutter-topbar-service${engineReady ? " is-ready" : ""}`}>
         <span className="cutter-topbar-service-dot" aria-hidden="true" />
         {engineReady ? "本机服务正常" : "本机服务未就绪"}

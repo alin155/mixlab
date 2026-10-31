@@ -476,7 +476,7 @@ test("project home renders the minimal v3 workbench", () => {
   for (const text of [
     "工作台",
     "搜索素材、继续项目，或查看最近的剪切结果。",
-    "打开待剪清单",
+    "＋ 新建项目",
     "新建项目",
     "最近项目",
     "最近剪切",
@@ -1218,7 +1218,7 @@ test("public library is a read-only gallery of available source videos", () => {
   assert.equal(html.includes("processing"), false);
   assert.equal(html.includes("failed"), false);
   assert.equal(html.includes("编辑元数据"), false);
-  assert.match(html, /cutter-local-view-toggle ml-segmented-control/);
+  assert.match(html, /aria-label="公共素材方向"/);
 
   const portraitHtml = renderToStaticMarkup(
     h(PublicLibraryPage, {
@@ -1227,11 +1227,10 @@ test("public library is a read-only gallery of available source videos", () => {
       onSetOrientationFilter: () => undefined
     })
   );
-  assert.match(portraitHtml, /aria-label="公共素材视频类型"/);
-  assert.match(portraitHtml, /aria-pressed="true"[\s\S]*?<span class="ml-button-label">竖版<\/span>/);
+  assert.match(portraitHtml, /aria-label="公共素材方向"/);
+  assert.match(portraitHtml, /<option value="portrait"/);
   assert.match(portraitHtml, /竖版爆款开场/);
   assert.equal(portraitHtml.includes("直播复盘：从流量到现金流健康度"), false);
-  assert.match(portraitHtml, /cutter-local-view-toggle ml-segmented-control/);
 
   const folderSearchHtml = renderToStaticMarkup(
     h(PublicLibraryPage, {
@@ -1895,7 +1894,7 @@ test("material locator is the main search-select-cut workbench with public sourc
   }
 
   assert.equal(html.includes("片段篮"), false);
-  assert.match(html, /打开待剪清单/);
+  assert.equal(html.includes("打开待剪清单"), false);
   assert.equal(html.includes("搜索定位"), false);
   assert.equal(html.includes("候选素材 <span>·"), false);
   const localCandidateSectionIndex = html.indexOf("本地素材");
@@ -3706,7 +3705,7 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
   assert.match(taskTableRule, /overscroll-behavior:\s*contain/);
   assert.doesNotMatch(css, /\.cutter-queue-table\.ml-table-wrap\s*{/);
   assert.equal(galleryGridRules.length, 0);
-  assert.equal(libraryScrollPaneRules.length, 2);
+  assert.equal(libraryScrollPaneRules.length, 4);
   assert.match(foundationWorkbenchPageRule, /grid-template-columns:\s*minmax\(0,\s*var\(--ml-workbench-page-main,\s*900px\)\)/);
   assert.match(foundationWorkbenchPageRule, /var\(--ml-workbench-page-side,\s*330px\)/);
   assert.match(foundationWorkbenchPageRule, /overflow:\s*hidden/);
@@ -4134,7 +4133,7 @@ test("local library is independent and exposes local recut materials with orient
     })
   );
 
-  for (const text of ["本地素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017", "打开文件目录", "已打开本地素材所属项目目录"]) {
+  for (const text of ["本地素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017", "打开所在目录", "已打开本地素材所属项目目录"]) {
     assert.match(html, new RegExp(text));
   }
 
@@ -4142,7 +4141,7 @@ test("local library is independent and exposes local recut materials with orient
   assert.match(html, /cutter-library-grid/);
   assert.match(html, /<video[^>]+src="\/local-clips\/clip-001\.mp4"/);
   assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /aria-label="本地素材视频类型"/);
+  assert.match(html, /aria-label="本地素材方向"/);
   assert.match(html, /cutter-local-library-controls ml-control-cluster/);
   assert.match(html, /cutter-local-view-toggle ml-segmented-control/);
   assert.match(html, /class="cutter-note ml-page-description"/);
@@ -4182,7 +4181,7 @@ test("local library is independent and exposes local recut materials with orient
 	      onSetOrientationFilter: () => undefined
 	    })
 	  );
-	  assert.match(portraitHtml, /aria-pressed="true"[\s\S]*?<span class="ml-button-label">竖版<\/span>/);
+	  assert.match(portraitHtml, /aria-label="本地素材方向"[\s\S]*?<option value="portrait" selected/);
 	  assert.match(portraitHtml, /4-当前项目-竖版开场/);
   assert.match(portraitHtml, /cutter-local-view-toggle ml-segmented-control/);
 	  assert.equal(portraitHtml.includes("2-当前项目-C0017"), false);
@@ -4797,7 +4796,7 @@ test("cutter css does not override foundation quiet surface defaults", async () 
   );
 });
 
-test("cut tasks page exposes a project output directory action near filters", () => {
+test("cut tasks page keeps output directory action only in the detail panel", () => {
   const data = fixture();
   const html = renderToStaticMarkup(
     h(CutQueuePage, {
@@ -4806,11 +4805,7 @@ test("cut tasks page exposes a project output directory action near filters", ()
     })
   );
 
-  assert.match(html, /打开文件目录/);
-  assert.match(
-    html,
-    /class="[^"]*\bml-button\b[^"]*\bml-button--secondary\b[^"]*\bml-button--sm\b[^"]*\bcutter-queue-directory-action\b[^"]*"/
-  );
+  assert.doesNotMatch(html, /cutter-queue-directory-action/);
   assert.match(html, /class="ml-button ml-button--secondary ml-button--md cutter-queue-detail-directory"/);
   assert.doesNotMatch(html, /class="ml-button ml-button--primary ml-button--md cutter-queue-detail-directory"/);
 });
@@ -5728,7 +5723,7 @@ test("cutter dark theme overrides foundation light surfaces with theme tokens", 
   assert.equal(css.includes(".cutter-library-detail-player"), false);
   assert.equal(css.includes(".cutter-local-detail-player"), false);
   assert.match(publicHtml, /class="ml-detail-stack cutter-inspector-panel/);
-  assert.match(publicHtml, /cutter-inspector-tabs/);
+  assert.doesNotMatch(publicHtml, /cutter-inspector-tabs/);
   assert.match(publicHtml, /class="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"/);
   const libraryInspectorRule =
     foundationCss.match(/\.ml-workbench-inspector\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
@@ -6374,9 +6369,9 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
     })
   );
   assert.match(html, /清理操作/);
-  assert.match(html, /预览清理/);
+  assert.match(html, /清理预览/);
   assert.match(html, /工作区残留与 Release 缓存/);
-  assert.match(html, /预览清理（0）/);
+  assert.match(html, /清理预览（0）/);
   assert.match(html, /治理操作记录/);
   assert.equal(governanceAuditOperationLabel("cache_clean"), "磁盘缓存清理");
   assert.match(

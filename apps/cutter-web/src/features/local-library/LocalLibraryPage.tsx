@@ -1,4 +1,5 @@
 import { Button, InspectorPanel } from "@mixlab/ui-foundation";
+import { TopbarActions } from "../app-shell/TopbarActions.tsx";
 import { useEffect, useState } from "react";
 import {
   CutterApiError,
@@ -200,7 +201,6 @@ export function LocalLibraryPage({
   const [orphanCleanError, setOrphanCleanError] = useState("");
   const [orphanCleaning, setOrphanCleaning] = useState(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
 
   async function loadLocalClipIntegrity() {
     if (!client) {
@@ -312,20 +312,17 @@ export function LocalLibraryPage({
             <p className="ml-page-description">查看本机剪切结果，播放、打开目录或继续编辑。</p>
           </div>
           <div className="cutter-local-library-controls ml-control-cluster">
-            {onCreateProject ? (
-              <Button type="button" variant="primary" size="sm" onClick={() => setCreateProjectOpen(true)}>
-                ＋ 新建项目
-              </Button>
-            ) : null}
             {onOpenLocalClipDirectory && (selected ?? visible[0]) ? (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => onOpenLocalClipDirectory?.((selected ?? visible[0])!)}
-              >
-                打开素材目录
-              </Button>
+              <TopbarActions>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onOpenLocalClipDirectory?.((selected ?? visible[0])!)}
+                >
+                  打开素材目录
+                </Button>
+              </TopbarActions>
             ) : null}
           </div>
         </header>
@@ -348,21 +345,19 @@ export function LocalLibraryPage({
               </Button>
             ))}
           </div>
-          <div className="cutter-local-view-toggle ml-segmented-control" role="group" aria-label="本地素材视频类型">
-            {orientationFilterOptions.map((option) => (
-              <Button
-                key={option.value}
-                type="button"
-                variant={orientationFilter === option.value ? "primary" : "ghost"}
-                size="sm"
-                aria-pressed={orientationFilter === option.value}
-                onClick={() => onSetOrientationFilter?.(option.value)}
-              >
-                {option.label}
-              </Button>
-            ))}
-          </div>
           <span className="ml-section-meta">共 {visible.length} 个素材</span>
+          <select
+            aria-label="本地素材方向"
+            className="ml-field-select cutter-local-orientation-select"
+            value={orientationFilter}
+            onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+          >
+            {orientationFilterOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
 
@@ -444,7 +439,7 @@ export function LocalLibraryPage({
           </section>
         ) : null}
 
-        <div className="cutter-local-library-scroll ml-scroll-region">
+        <div className="cutter-local-library-scroll ml-scroll-region" tabIndex={0} aria-label="本地素材列表">
           {viewMode === "all" ? (
             <div className="cutter-library-group-list ml-library-group-list">
               {grouped.map(([title, clips]) => (
@@ -481,11 +476,7 @@ export function LocalLibraryPage({
       </div>
 
       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
-        <div className="cutter-inspector-tabs" role="tablist" aria-label="本地素材详情">
-          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
-          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
+        <div className="ml-detail-stack cutter-inspector-panel is-active">
           {selected ? (
             <video
               key={selected.local_clip_id}
@@ -496,8 +487,6 @@ export function LocalLibraryPage({
               preload="metadata"
             />
           ) : null}
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
           <strong>{selected?.title ?? "未选择本地素材"}</strong>
           <span>{visible.length} 条当前视图素材</span>
           <span>{selected ? `所属项目 ${projectTitleForClip(selected, projectById)}` : ""}</span>
@@ -511,7 +500,7 @@ export function LocalLibraryPage({
               size="sm"
               onClick={() => onOpenLocalClipDirectory(selected)}
             >
-              打开文件目录
+              打开所在目录
             </Button>
           ) : null}
           {selected && onDeleteLocalClip ? (

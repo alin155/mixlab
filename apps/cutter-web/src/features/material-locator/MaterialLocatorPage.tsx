@@ -1459,11 +1459,6 @@ export function MaterialLocatorPage({
             <div>
               <h1 className="ml-page-title">素材搜索</h1>
             </div>
-            <div className="ml-control-cluster">
-              <Button href="#/cut-tasks" size="sm" type="button" variant="secondary">
-                打开待剪清单
-              </Button>
-            </div>
           </header>
           <div className="cutter-locator-command-header ml-command-row-header ml-command-row-header--source-filter">
             <SearchBox

@@ -2324,10 +2324,7 @@ body,
 }
 
 
-/* 0.18.24: remove page-header layout boxes, keep actions in top-right overlay. */
-.cutter-page {
-  position: relative;
-}
+/* 0.18.25: page actions live in a real normal-flow row; never overlay content. */
 .cutter-page .cutter-page-header,
 .cutter-page .cutter-home-header,
 .cutter-page [class*="locator-command"] > .ml-workbench-header {
@@ -2341,19 +2338,15 @@ body,
 .cutter-page .cutter-page-header .ml-control-cluster,
 .cutter-page .cutter-home-header .cutter-home-header-actions,
 .cutter-page [class*="locator-command"] > .ml-workbench-header .ml-control-cluster {
-  position: absolute !important;
-  top: 8px !important;
-  right: 16px !important;
-  z-index: 30 !important;
-  margin: 0 !important;
-}
-
-.cutter-page > .ml-workbench-main {
-  margin-top: -16px !important;
-}
-
-.cutter-page > [class*="split-workbench"] {
-  margin-top: -18px !important;
+  position: static !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  height: auto !important;
+  margin: 0 0 4px !important;
+  z-index: auto !important;
 }
 
 .ml-sidebar-status-card .ml-sidebar-status-value {
@@ -2385,4 +2378,116 @@ body,
 }
 .ml-sidebar-status-card {
   padding-inline: 12px !important;
+}
+
+.cutter-local-library-scroll {
+  min-height: 0;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
+.cutter-app[data-cutter-web-ready] .cutter-local-library-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ml-color-text-tertiary) 45%, transparent) transparent;
+}
+
+.cutter-app[data-cutter-web-ready] .cutter-local-library-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cutter-app[data-cutter-web-ready] .cutter-local-library-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ml-color-text-tertiary) 35%, transparent);
+}
+
+@media (min-width: 1181px) and (max-width: 1366px) {
+  .cutter-page[data-page="material-locator"] .ml-split-workbench {
+    grid-template-columns: 224px minmax(480px, 1fr) 320px;
+  }
+}
+
+.cutter-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cutter-topbar-actions:empty {
+  display: none;
+}
+.cutter-local-orientation-select {
+  width: auto;
+  min-width: 118px;
+  margin-left: auto;
+}
+.cutter-public-orientation-select {
+  width: auto;
+  min-width: 118px;
+}
+.cutter-page[data-page="cache-management"] .cutter-page-main {
+  display: block !important;
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable;
+}
+.cutter-app[data-cutter-web-ready] .cutter-page[data-page="cache-management"] .cutter-page-main {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ml-color-text-tertiary) 45%, transparent) transparent;
+}
+.cutter-app[data-cutter-web-ready] .cutter-page[data-page="cache-management"] .cutter-page-main::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.cutter-app[data-cutter-web-ready] .cutter-page[data-page="cache-management"] .cutter-page-main::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ml-color-text-tertiary) 35%, transparent);
+}
+
+.cutter-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 52%, transparent);
+}
+.cutter-confirm-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: 12px;
+  background: var(--ml-color-surface);
+  box-shadow: var(--ml-shadow-panel);
+}
+.cutter-confirm-dialog h2 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+.cutter-confirm-dialog p {
+  margin: 0 0 16px;
+  color: var(--ml-color-text-secondary);
+  line-height: 1.6;
+}
+.cutter-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cutter-public-library-filter-selects {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.cutter-public-library-toolbar {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.cutter-public-library-filter-selects {
+  margin-left: 0;
+  flex: 0 0 auto;
 }
