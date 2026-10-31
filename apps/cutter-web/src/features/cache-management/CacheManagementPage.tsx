@@ -622,7 +622,23 @@ export function CacheManagementPage({
               查看本机缓存、搜索索引、源视频预检和剪切临时区状态。清除界面缓存只清理显示与筛选偏好，不会删除项目、待剪清单、任务归属或登录状态。
             </p>
           </div>
-          <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
+          <div className="ml-control-cluster">
+            <Button type="button" variant="ghost" size="sm" onClick={() => void loadCacheInventory()} disabled={inventoryLoading}>
+              刷新
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={inventoryLoading || selectedCacheTargets.length === 0}
+              onClick={() => {
+                void loadCacheInventory().then(() => setPendingDiskClear(true));
+              }}
+            >
+              预览清理
+            </Button>
+            <Badge tone={cacheStatusTone(releaseState.tone)}>{releaseState.label}</Badge>
+          </div>
         </header>
 
         <section className="cutter-cache-summary ml-data-strip" aria-label="缓存摘要">

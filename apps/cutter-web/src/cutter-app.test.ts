@@ -1246,7 +1246,7 @@ test("public library is a read-only gallery of available source videos", () => {
   );
   assert.match(folderSearchHtml, /aria-label="搜索文件夹名称"/);
   assert.match(folderSearchHtml, /搜索课程文件夹名称/);
-  assert.equal(folderSearchHtml.includes("全部老师"), false);
+  assert.equal(folderSearchHtml.includes("全部老师"), true);
 
   const emptyPortraitHtml = renderToStaticMarkup(
     h(PublicLibraryPage, {
@@ -5727,7 +5727,8 @@ test("cutter dark theme overrides foundation light surfaces with theme tokens", 
   assert.equal(css.includes(".cutter-library-detail-stack"), false);
   assert.equal(css.includes(".cutter-library-detail-player"), false);
   assert.equal(css.includes(".cutter-local-detail-player"), false);
-  assert.match(publicHtml, /class="ml-detail-stack"/);
+  assert.match(publicHtml, /class="ml-detail-stack cutter-inspector-panel/);
+  assert.match(publicHtml, /cutter-inspector-tabs/);
   assert.match(publicHtml, /class="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"/);
   const libraryInspectorRule =
     foundationCss.match(/\.ml-workbench-inspector\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
@@ -6476,7 +6477,7 @@ test("pending login polling retries transient errors only", () => {
   assert.equal(shouldRetryPendingLoginError(new TypeError("网络中断")), true);
 });
 
-test("cut tasks tabs expose queue and pending cut-list views", () => {
+test("cut tasks expose pending cut-list as a secondary entry", () => {
   const queueHtml = renderToStaticMarkup(
     h(CutTasksTabNav, {
       activeTab: "queue",
@@ -6484,12 +6485,10 @@ test("cut tasks tabs expose queue and pending cut-list views", () => {
       onSelectTab: () => undefined
     })
   );
-  assert.match(queueHtml, /role="tablist"/);
-  assert.match(queueHtml, /aria-label="剪切任务视图"/);
+  assert.match(queueHtml, /cutter-cut-tasks-secondary-entry/);
   assert.match(queueHtml, /待剪清单（3）/);
-  assert.equal((queueHtml.match(/role="tab"/g) ?? []).length, 2);
-  assert.equal((queueHtml.match(/aria-selected="true"/g) ?? []).length, 1);
-  assert.match(queueHtml, /class="cutter-cut-tasks-tab is-active"[^>]*>剪切任务/);
+  assert.equal(queueHtml.includes('role="tablist"'), false);
+  assert.equal(queueHtml.includes('role="tab"'), false);
 
   const cutListHtml = renderToStaticMarkup(
     h(CutTasksTabNav, {
@@ -6498,7 +6497,6 @@ test("cut tasks tabs expose queue and pending cut-list views", () => {
       onSelectTab: () => undefined
     })
   );
-  assert.match(cutListHtml, /待剪清单（0）/);
-  assert.match(cutListHtml, /class="cutter-cut-tasks-tab is-active"[^>]*>待剪清单/);
-  assert.match(cutListHtml, /class="cutter-cut-tasks-tab"[^>]*>剪切任务/);
+  assert.match(cutListHtml, /返回剪切任务/);
 });
+

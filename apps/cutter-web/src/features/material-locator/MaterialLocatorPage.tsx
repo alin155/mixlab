@@ -800,6 +800,7 @@ export function MaterialLocatorPage({
   const previewEndMsRef = useRef<number | null>(null);
   const lastAutoSeekKeyRef = useRef<string | undefined>(undefined);
   const [selectionBarAnchor, setSelectionBarAnchor] = useState<{ left: number; top: number; placement: "above" | "below" | "right" } | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"video" | "selection" | "tasks">("video");
   const [dragPreviewSegmentIds, setDragPreviewSegmentIds] = useState<readonly string[]>([]);
   const [timeSelectionStartSegmentId, setTimeSelectionStartSegmentId] = useState<string | undefined>();
   const [previewActive, setPreviewActive] = useState(false);
@@ -1803,7 +1804,12 @@ export function MaterialLocatorPage({
             </section>
 
           <aside className="cutter-locator-side-panel ml-split-workbench-side" aria-label="画面验证与单片段导出">
-            <section className="cutter-locator-visual ml-pane-shell ml-pane-section ml-pane-section--media" aria-label="画面验证">
+            <div className="cutter-inspector-tabs" role="tablist" aria-label="素材搜索详情">
+              <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
+              <button type="button" role="tab" aria-selected={inspectorTab === "selection"} className={"cutter-inspector-tab" + (inspectorTab === "selection" ? " is-active" : "")} onClick={() => setInspectorTab("selection")}>选区</button>
+              <button type="button" role="tab" aria-selected={inspectorTab === "tasks"} className={"cutter-inspector-tab" + (inspectorTab === "tasks" ? " is-active" : "")} onClick={() => setInspectorTab("tasks")}>任务</button>
+            </div>
+            <section className={"cutter-locator-visual ml-pane-shell ml-pane-section ml-pane-section--media cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")} aria-label="画面验证">
               <header className="ml-pane-header is-hidden">
                 <div>
                   <h2 className="ml-section-title ml-section-title--dense">视频预览</h2>
@@ -1865,7 +1871,7 @@ export function MaterialLocatorPage({
               </section>
             </section>
 
-            <section className="cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail" aria-label="选区导出">
+            <section className={"cutter-locator-cut-panel ml-pane-shell ml-pane-section ml-pane-section--detail cutter-inspector-panel" + (inspectorTab === "selection" ? " is-active" : "")} aria-label="选区导出">
               <header className="ml-pane-header ml-pane-header--split">
                 <div>
                   <h2 className="ml-section-title ml-section-title--dense">选区信息</h2>
@@ -1899,7 +1905,7 @@ export function MaterialLocatorPage({
               </div>
             </section>
 
-            <section className="cutter-locator-queue-panel ml-pane-shell ml-queue-panel-stack" aria-label="最近剪切任务">
+            <section className={"cutter-locator-queue-panel ml-pane-shell ml-queue-panel-stack cutter-inspector-panel" + (inspectorTab === "tasks" ? " is-active" : "")} aria-label="最近剪切任务">
               <header className="ml-pane-header ml-pane-header--compact ml-pane-header--split">
                 <h2 className="ml-section-title ml-section-title--dense">最近剪切任务</h2>
                 <Button

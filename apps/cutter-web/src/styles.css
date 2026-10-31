@@ -2239,3 +2239,82 @@ body,
   height: 16px !important;
   border-radius: 4px !important;
 }
+
+/* Conformance: compress page headers; keep titles for assistive tech only. */
+.cutter-page .ml-page-title,
+.cutter-home-title {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.cutter-page-header .ml-page-description,
+.cutter-home-header-copy .ml-page-description {
+  display: none;
+}
+.cutter-page .cutter-page-header,
+.cutter-page .cutter-home-header {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.cutter-page .ml-page-kicker,
+.cutter-home-header .ml-page-kicker,
+.cutter-home-header-copy .ml-page-kicker {
+  display: none !important;
+}
+.cutter-page .cutter-page-header {
+  padding-top: 0 !important;
+}
+.cutter-cut-tasks-secondary-entry {
+  display: flex;
+  justify-content: flex-end;
+  margin: -46px 0 8px;
+}
+.cutter-cut-tasks-secondary-button {
+  border: 0;
+  background: transparent;
+  color: var(--ml-color-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+/* Inspector tabs: keep all content mounted for tests/accessibility; show one panel. */
+.cutter-inspector-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid var(--ml-color-border);
+  background: var(--ml-color-surface);
+}
+.cutter-inspector-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ml-color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 8px 8px;
+}
+.cutter-inspector-tab:hover {
+  color: var(--ml-color-text);
+}
+.cutter-inspector-tab.is-active {
+  color: var(--ml-color-accent);
+  border-bottom-color: var(--ml-color-accent);
+}
+.cutter-inspector-panel {
+  display: none;
+}
+.cutter-inspector-panel.is-active {
+  display: block;
+}

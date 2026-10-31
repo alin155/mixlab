@@ -29,6 +29,7 @@ import {
   type VideoOrientationFilter
 } from "../../state/video-orientation.ts";
 import { LibraryGallery } from "../library-gallery.tsx";
+import { ProjectCreateDialog } from "../project-home/ProjectHomePage.tsx";
 
 type LocalClipVisualMetadata = LocalClipCatalog["clips"][number] & VideoDimensions;
 export type LocalClip = LocalClipCatalog["clips"][number];
@@ -162,6 +163,7 @@ export function LocalLibraryPage({
   onSelectLocalClip,
   onOpenLocalClipDirectory,
   onDeleteLocalClip,
+  onCreateProject,
   onLoadMore,
   isLoadingMore = false,
   client,
@@ -182,6 +184,7 @@ export function LocalLibraryPage({
   onSelectLocalClip?: (localClipId: string) => void;
   onOpenLocalClipDirectory?: (localClip: LocalClip) => void;
   onDeleteLocalClip?: (localClip: LocalClip) => void;
+  onCreateProject?: (title: string) => void;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   client?: Pick<CutterApiClient, "getLocalClipIntegrity" | "cleanLocalClips">;
@@ -196,6 +199,8 @@ export function LocalLibraryPage({
   const [orphanCleanResult, setOrphanCleanResult] = useState<CutterLocalClipCleanResult | null>(null);
   const [orphanCleanError, setOrphanCleanError] = useState("");
   const [orphanCleaning, setOrphanCleaning] = useState(false);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
 
   async function loadLocalClipIntegrity() {
     if (!client) {
@@ -299,6 +304,11 @@ export function LocalLibraryPage({
             <p className="ml-page-description">查看本机剪切结果，播放、打开目录或继续编辑。</p>
           </div>
           <div className="cutter-local-library-controls ml-control-cluster">
+            {onCreateProject ? (
+              <Button type="button" variant="primary" size="sm" onClick={() => setCreateProjectOpen(true)}>
+                ＋ 新建项目
+              </Button>
+            ) : null}
             {onOpenLocalClipDirectory && (selected ?? visible[0]) ? (
               <Button
                 type="button"
@@ -463,7 +473,11 @@ export function LocalLibraryPage({
       </div>
 
       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
-        <div className="ml-detail-stack">
+        <div className="cutter-inspector-tabs" role="tablist" aria-label="本地素材详情">
+          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
+          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
+        </div>
+        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
           {selected ? (
             <video
               key={selected.local_clip_id}
@@ -474,6 +488,8 @@ export function LocalLibraryPage({
               preload="metadata"
             />
           ) : null}
+        </div>
+        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
           <strong>{selected?.title ?? "未选择本地素材"}</strong>
           <span>{visible.length} 条当前视图素材</span>
           <span>{selected ? `所属项目 ${projectTitleForClip(selected, projectById)}` : ""}</span>
@@ -507,6 +523,16 @@ export function LocalLibraryPage({
           {actionNotice ? <p className="cutter-note ml-page-description">{actionNotice}</p> : null}
         </div>
       </InspectorPanel>
+      {createProjectOpen ? (
+        <ProjectCreateDialog
+          initialTitle=""
+          onCancel={() => setCreateProjectOpen(false)}
+          onConfirm={(title) => {
+            setCreateProjectOpen(false);
+            onCreateProject?.(title);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
