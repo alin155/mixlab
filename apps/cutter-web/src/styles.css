@@ -2351,3 +2351,7 @@ body,
 .cutter-page > .ml-workbench-main {
   margin-top: -16px !important;
 }
+
+.cutter-page > [class*="split-workbench"] {
+  margin-top: -18px !important;
+}
