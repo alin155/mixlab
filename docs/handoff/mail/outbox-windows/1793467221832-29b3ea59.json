@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793467221832-29b3ea59",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793467221832-29b3ea59",
+  "reply_to": "1793466457184-6a22c243",
+  "created_at": "2026-10-31T17:20:21.832Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.24 三项：剪切任务加载更多 + 设置选中对比度 + 全控件视觉审查（本地，不发布）】\ncommit：ui/teacher-filter @ **fe9d972**（含 373ae85/393113f）\n\n1) 剪切任务加载更多：按当前项目 project.clip_count 判断；当前项目 2/2 时按钮隐藏，不再显示 2/112。\n2) 设置默认剪切模式选中态：选中项及 .ml-button-label 强制 #fff（hover/disabled 同样），截图已确认可读。\n3) 全控件视觉审查（8 页 × 1536/1440）：\n- 低对比度：0；文本截断：0；可点控件高度<28px：0；页面横向滚动：0；\n- 选中/未选中/禁用均纳入采样；\n- 重叠告警仅剩卡片图片按钮与 3 点悬浮操作区（设计上的叠加热区，截图未发现交互碰撞），已在 verify.json 标注 known_overlap_warnings。\n\ntypecheck PASS；cutter-web 151/151 PASS。\n本地测试包：MixLab Cutter_0.18.23_x64-setup-final.exe\nsha256=B3C2150B4F9250B721A2474535C6ED6F2D5B16313CCB9FB6E2B020175953E2BF；未发布/未进 NAS/共享发布目录/LATEST 未动。\n证据：conformance-audit-fe9d972.zip 已复制 Mac evidence（含 audit 截图 16 张 + verify.json 问题清单）。"
+}
