@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793473689824-bf4dcf71",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793473689824-bf4dcf71",
+  "reply_to": "1793473004919-485ecaf7",
+  "created_at": "2026-10-31T19:08:09.824Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.25 追加：material 1280 响应式 + 本地全部素材滚动条证据（本地，不发布）】\n最新 commit：ui/teacher-filter @ **922fafb**\n\n1) 素材搜索 1280 已不再裁切：\n- 左/中/右列 = 224 / 480 / 320px；\n- 页面 scrollWidth=innerWidth=1280，右栏 right=1280，sideVisible=true，无横向滚动。\n截图：final2\\material-1280.png。\n\n2) 本地素材「全部素材」视图（109 条）真实溢出：\n- 1280x800：scrollHeight 8346 / clientHeight 568，scrollbarWidth=10；wheel 0→400，PageDown 0→497，拖拽 0→3069；\n- 1440x900：9486 / 668，scrollbarWidth=10；wheel 0→400，PageDown 0→584，拖拽 0→2944；\n- 1536x1024：9956 / 792，scrollbarWidth=10；wheel 0→400，PageDown 0→693，拖拽 0→2592。\n截图：final2\\local-all-1280/1440/1536.png。\n\n3) 公共素材库滚动复核：1280x800 下 scrollHeight 1571 / clientHeight 462，scrollbarWidth=10，overflowY=scroll，未回归。\n\ntypecheck PASS；cutter-web 151/151 PASS。\n每页重叠检查已在此前 6 页 × 1280/1440/1536 报告中为 0；详情 tabs 已删除。\n未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01825-final-922fafb.zip 已复制 Mac evidence。"
+}
