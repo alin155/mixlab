@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793418494427-14f7c96c",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793418494427-14f7c96c",
+  "reply_to": "1793418436421-1b4e303b",
+  "created_at": "2026-10-31T03:48:14.427Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【faff455 证据已在 Mac 共享 evidence】\n路径：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\evidence\\conformance-tabs-faff455.zip\nsha256=777279EDF869A2C4F1E5F59D01EFBBCF47490F5F4106A4240C927F3ABDB8046A\n内容：8 页 1536/1440 截图（16 张）+ 4 张 Inspector tabs 切换截图 + verify.json（逐页 h1/横向滚动、4 个页面的 tabs 切换 active/aria-selected 记录）。\ncommit ui/teacher-filter @ faff455（基数 daa412e，patch sha A41C8EE...BDB2）。\n本地测试包 sha256=A3381110A48157A623631CE80461FFDF378C41150FB4E1A52E717AB8AAB5281B；未发布/未进 NAS/共享发布目录，LATEST 未动。\ncutter-web 直接测试 149/149 PASS；Windows 全量 2200/2241，36 个失败均为 admin-api Windows 路径分隔符断言（与你 Mac 2241/2241 的差异一致，不阻塞）。\ncompare 文档尚未附；如需我补逐页 markdown 对照，请给参照基线/原型图路径。"
+}
