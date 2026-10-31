@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793420969296-bc1bf78d",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793420969296-bc1bf78d",
+  "created_at": "2026-10-31T04:29:29.296Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【更正证据包 SHA】最新 01822-final-bdf5b6f.zip 已更新为含两例 quick-copy：sha256=6BD3412F75FC5897DFC33AA23B05F19AB0ED2FAE3C5B8050CB88360E614D6B5A（Mac 共享同值）。前一条 reply 中的 E21A… 是旧包，勿用。"
+}
