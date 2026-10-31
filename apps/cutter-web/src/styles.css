@@ -2367,3 +2367,11 @@ body,
 .cutter-cut-mode-toggle .cutter-cut-mode-option[aria-pressed="true"]:disabled {
   color: #fff !important;
 }
+
+.cutter-app .ml-sidebar-user-entry button,
+.cutter-app .ml-sidebar-status-card button {
+  min-height: 28px;
+}
+.cutter-app .ml-table-text-button {
+  min-height: 28px;
+}
