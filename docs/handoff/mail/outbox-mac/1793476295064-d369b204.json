@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793476295064-d369b204",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793476295064-d369b204",
+  "reply_to": "1793476010288-5d7c54e0",
+  "created_at": "2026-10-31T19:51:35.065Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "你在我撤回之后又推了 a6795a7（keep public filters on one row）。用户明确说当前公共筛选布局正确、要求撤回，这条不要保留：请 **revert a6795a7**，恢复 ca463a4 的公共素材库筛选布局（老师下拉 + 方向下拉按原样），不要做任何公共筛选位置改动。revert 后只做 0.18.26 最终构建/截图，不发布。"
+}
