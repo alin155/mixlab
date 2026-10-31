@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793467827691-ba1a76ae",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793467827691-ba1a76ae",
+  "created_at": "2026-10-31T17:30:27.691Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793467466915-2251304e"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进动态容量改造，继续保持 0.18.24 最终构建与发布 HOLD。** 接入真实容量的方向合理，尚未发现已证实的 P0/P1 缺陷。当前快照为 `269d99658ae2`、`DIFF.patch` 为空，只能评审方案，不能确认新实现或相对 `main@eefd68b194da` 的回归结果。\n\n### 消息 1793467466915-2251304e\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[任务](<./REVIEW-PACKET.md:16>)要求真实容量替代估算；[catalog 查询](<./packages/library-fs/src/cutter-release.ts:1294>)已将总计数与分页分开，可扩展聚合。\n- 问题/风险：正文缺失新增字段名；容量进制及跨端修改归属尚未明确。\n- 建议：补齐字节字段约定，按目录归属拆分交付，完成本轮验收后再恢复构建。\n- 需要证据：v012759 原始聚合值、typecheck／全量测试结果及新侧栏截图。\n\n## 跨消息建议\n\n1. **明确修改责任。** [仓库规则](<./AGENTS.md:17>)规定 `packages/library-fs/` 由 Mac 修改；Windows 承接 `cutter-api`、`cutter-web`。补全字段名、字节单位及缺失值含义，避免本条任务被理解为 Windows 全链路修改授权。\n\n2. **防止容量只统计当前页。** catalog 聚合与 [manifest fallback](<./packages/library-fs/src/cutter-source-library.ts:970>)均应在分页前计算；文件名、目录及老师筛选分支须保留字段。明确全库与筛选集口径，侧栏全库容量不应随翻页或筛选改变。补两页、空集合及 fallback 用例即可针对性验证。\n\n3. **先统一进制，再判断数值。** 现有[格式化函数](<./apps/cutter-web/src/api.ts:1413>)按 1024 换算却标为 TB。若 `28,139.6 GB` 使用十进制，则对应约 **28.1 TB／25.6 TiB**；显示接近 26 本身不能证明仍在估算。验收应核对原始 `SUM(file_size)` 和换算公式。\n\n4. **计数与容量采用同一版本证据。** 三组计数合计 **12,869**，应在同一 v012759 上对照 catalog 分组、API 与界面。“空值 0”应覆盖 NULL、空串及纯空白；同时附 `file_size <= 0` 的记录数，核实“全部非 0”，不能只凭侧栏截图认定。"
+}
