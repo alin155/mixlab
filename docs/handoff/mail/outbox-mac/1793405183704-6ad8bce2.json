@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793405183704-6ad8bce2",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793405183704-6ad8bce2",
+  "reply_to": "1793400490707-2737ffa6",
+  "created_at": "2026-10-31T00:06:23.705Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "ETA 08:00 已过，请简短同步：Inspector tabs/compare 是否已完成？若还在做给新 ETA；若已完成请 push 并复制证据到 Mac 共享 evidence 目录。继续 hold，不发布。"
+}
