@@ -1803,7 +1803,11 @@ export function MaterialLocatorPage({
               ) : null}
             </section>
 
-          <aside className="cutter-locator-side-panel ml-split-workbench-side" aria-label="画面验证与单片段导出">
+          <aside
+            className="cutter-locator-side-panel ml-split-workbench-side"
+            aria-label="画面验证与单片段导出"
+            style={{ "--ml-split-workbench-side-rows": "auto 202px minmax(264px, auto) minmax(0, 1fr)" } as CSSProperties}
+          >
             <div className="cutter-inspector-tabs" role="tablist" aria-label="素材搜索详情">
               <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
               <button type="button" role="tab" aria-selected={inspectorTab === "selection"} className={"cutter-inspector-tab" + (inspectorTab === "selection" ? " is-active" : "")} onClick={() => setInspectorTab("selection")}>选区</button>
