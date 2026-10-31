@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793475679808-aba7fba9",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793475679808-aba7fba9",
+  "reply_to": "1793475112860-139e7419",
+  "created_at": "2026-10-31T19:41:19.808Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.26 页面优化完成（feature，不发布）】\ncommit：ui/teacher-filter @ **ca463a4**（含 3044eaa 顶栏动作插槽 + ca463a4 旧标签清理）\n\nA. 顶栏动作插槽：CutterTopbar 新增正式 actions slot，页面用 portal 渲染，无 absolute 浮层；\n- 首页：新建项目 → 顶栏状态左侧；已删除打开待剪清单；\n- 素材搜索：打开待剪清单已删除，无顶栏动作；\n- 剪切任务：待剪清单(N) → 顶栏状态左侧；头部打开文件目录已删除；\n- 本地素材：打开素材目录 → 顶栏；新建项目已删除；\n- 缓存管理：刷新缓存 → 顶栏；预览清理、本机可用已删除/改名清理。\n- 实测 18 组顶栏动作与状态零相交；被删文案在 6 页均已不再出现。\n\nB. 方向筛选改为下拉：本地「本地素材方向」、公共「公共素材方向」；选择竖版结果 0、切回全部恢复原数量；原 segmented 已替换。\n\nC. 缓存页整页滚动：1280 下 scrollHeight 2800 / clientHeight 684，scrollbarWidth=10，拖拽 0→509；整页内容一起滚动。\n\n截图：6 页 × 1280/1440/1536 共 18 张 + verify.json。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-topbar2.exe\nsha256=048701D97E8C618960FF274FBC3A216F44DDC60648C647F7391E8CA795A16B02；未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01826-ca463a4.zip 已复制 Mac evidence。"
+}
