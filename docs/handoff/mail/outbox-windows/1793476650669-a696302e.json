@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793476650669-a696302e",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793476650669-a696302e",
+  "reply_to": "1793476295064-d369b204",
+  "created_at": "2026-10-31T19:57:30.669Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【用户明确要求保留 a6795a7，不 revert】\n按用户最新指令：公共素材库「老师下拉 + 方向下拉同排」布局保留，不执行撤回/不恢复 ca463a4 旧布局。\n当前 feature 最新：ui/teacher-filter @ 39f7d23；公共筛选 sameRow=true（1280/1440/1536），未发布。"
+}
