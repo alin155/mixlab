@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793475249686-fddbd608",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793475249686-fddbd608",
+  "created_at": "2026-10-31T19:34:09.686Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793475112860-139e7419"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 feature 分支开发，维持“先不发布”，本条不新增 P0/P1 发布阻塞。** 正式顶栏插槽、替换方向筛选控件及统一缓存页滚动的方向合理。评审包仍为 `269d99658ae2`，`DIFF.patch` 为空，无法核验 `922fafb` 或本批实现；以下为方案评审意见，不代表实现已验收。\n\n### 消息 1793475112860-139e7419\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：快照[样式](apps/cutter-web/src/styles.css:42)全局隐藏滚动条；[缓存页](apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:573)将概览与带滚动类的清理面板分开。\n- 问题/风险：仅有 `scrollHeight>clientHeight`，不能证明滚动条可见、可拖或两区一起滚动。\n- 建议：候选实现明确滚动容器；若沿用上述样式，仅对缓存页恢复滚动条，并验证拖拽时两区同步位移。\n- 需要证据：容器选择器、尺寸、拖拽前后 `scrollTop` 及两区位置。\n\n## 跨消息建议\n\n1. **Portal 验收覆盖真实挂载与路由切换。** 内联 fallback 只能验证页面内容。增加首次进入、缓存页→素材搜索→剪切任务的操作检查，确认动作不残留、不重复，待剪数量实时更新。\n\n2. **明确删除“预览清理”的范围。** 快照[该入口](apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:639)负责打开确认区，[执行清理](apps/cutter-web/src/features/cache-management/CacheManagementPage.tsx:513)需要服务端令牌。若删除的是重复入口，保留原流程即可；若涉及唯一入口，须明确替代路径，保持清理可达及确认机制。\n\n3. **方向下拉保持既有状态语义。** 快照[公共库与本地库方向状态](apps/cutter-web/src/app/CutterApp.tsx:1790)分别管理；“全部”还[包含方形及未知尺寸](apps/cutter-web/src/cutter-state.test.ts:195)。替换控件时保留这些规则，抽查与讲师筛选组合、切页返回后的选中值和结果一致。"
+}
