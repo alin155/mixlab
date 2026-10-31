@@ -443,7 +443,7 @@ export function LocalLibraryPage({
           </section>
         ) : null}
 
-        <div className="cutter-local-library-scroll ml-scroll-region">
+        <div className="cutter-local-library-scroll ml-scroll-region" tabIndex={0} aria-label="本地素材列表">
           {viewMode === "all" ? (
             <div className="cutter-library-group-list ml-library-group-list">
               {grouped.map(([title, clips]) => (
