@@ -4821,6 +4821,7 @@ function sourceLibraryPageCacheKey(input: {
   source_folder_name?: string;
   filename_query?: string;
   folder_query?: string;
+  teacher_name?: string;
 }): string {
   return [
     input.state.release_root ?? "source",
@@ -4829,7 +4830,8 @@ function sourceLibraryPageCacheKey(input: {
     input.offset,
     input.source_folder_name ?? "",
     input.filename_query ?? "",
-    input.folder_query ?? ""
+    input.folder_query ?? "",
+    input.teacher_name ?? ""
   ].join("\0");
 }
 
@@ -4852,7 +4854,8 @@ async function loadSourceLibraryPageWithState(
   offset: number,
   sourceFolderName?: string,
   filenameQuery?: string,
-  folderQuery?: string
+  folderQuery?: string,
+  teacherName?: string
 ): Promise<SourceLibraryPagePayload> {
   const cache = sourceLibraryPageCacheForInput(input);
   const key = sourceLibraryPageCacheKey({
@@ -4861,7 +4864,8 @@ async function loadSourceLibraryPageWithState(
     offset,
     source_folder_name: sourceFolderName,
     filename_query: filenameQuery,
-    folder_query: folderQuery
+    folder_query: folderQuery,
+    teacher_name: teacherName
   });
   const nowMs = Date.now();
   const cached = cache.get(key);
@@ -4878,7 +4882,7 @@ async function loadSourceLibraryPageWithState(
       offset,
       source_folder_name: sourceFolderName,
       filename_query: filenameQuery,
-      folder_query: folderQuery
+      folder_query: folderQuery ?? (teacherName ? normalizeTeacherName(teacherName) : undefined)
     });
 
     return {
@@ -5462,6 +5466,7 @@ async function loadSourceLibraryPage(
     source_folder_name?: string;
     filename_query?: string;
     folder_query?: string;
+    teacher?: string;
   }
 ): Promise<SourceLibraryPagePayload> {
   const state = await fastLibraryReadState(input);
@@ -5472,7 +5477,8 @@ async function loadSourceLibraryPage(
     request.offset,
     request.source_folder_name,
     request.filename_query,
-    request.folder_query
+    request.folder_query,
+    request.teacher
   );
 }
 
@@ -8067,7 +8073,8 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           offset: parseSourceLibraryOffset(url.searchParams.get("offset")),
           source_folder_name: optionalTrimmed(url.searchParams.get("source_folder_name") ?? undefined),
           filename_query: optionalTrimmed(url.searchParams.get("filename_query") ?? undefined),
-          folder_query: optionalTrimmed(url.searchParams.get("folder_query") ?? undefined)
+          folder_query: optionalTrimmed(url.searchParams.get("folder_query") ?? undefined),
+          teacher: optionalTrimmed(url.searchParams.get("teacher") ?? undefined)
         });
         const sourceFolders = await listCutterSourceFolders({
           library_root: input.library_root,

@@ -764,6 +764,7 @@ export interface CutterApiClient {
     sourceFolderName?: string;
     filenameQuery?: string;
     folderQuery?: string;
+    teacher?: string;
   }): Promise<SourceLibraryResponse>;
   listSourceFolders(): Promise<SourceFolderResponse>;
   getSourceVideoDetail(
@@ -1144,6 +1145,9 @@ export function createCutterApiClient(input: CutterApiClientInput): CutterApiCli
       }
       if (options?.folderQuery) {
         params.set("folder_query", options.folderQuery);
+      }
+      if (options?.teacher) {
+        params.set("teacher", options.teacher);
       }
       const query = params.toString();
       return requestEnvelope<SourceLibraryResponse>(

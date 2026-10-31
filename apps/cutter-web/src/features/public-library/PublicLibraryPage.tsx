@@ -70,7 +70,8 @@ export function PublicLibraryPage({
   onSetMaterialScope,
   onSearchFilename,
   onSelectSourceVideo,
-  onLoadMore
+  onLoadMore,
+  onFetchTeacherLibrary
 }: {
   library: SourceLibraryResponse;
   selectedSourceVideoId?: string;
@@ -88,6 +89,7 @@ export function PublicLibraryPage({
   onSearchFilename?: (query: string) => void;
   onSelectSourceVideo?: (sourceVideoId: string) => void;
   onLoadMore?: () => void;
+  onFetchTeacherLibrary?: (teacher: string, offset: number, limit: number) => Promise<SourceLibraryResponse>;
 }) {
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
   const teacherAliases: Record<string, string> = { "陶矜2": "陶矜" };
@@ -103,19 +105,53 @@ export function PublicLibraryPage({
     else teacherOptions.push({ name: teacher, count: folder.count });
   }
   const [teacherFilter, setTeacherFilter] = useState("");
+  const [teacherLibrary, setTeacherLibrary] = useState<SourceLibraryResponse | undefined>();
+  const [teacherLoading, setTeacherLoading] = useState(false);
   const [refreshConfirmOpen, setRefreshConfirmOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
-  const filtered = library.videos.filter((video) =>
+  const activeLibrary = teacherFilter ? teacherLibrary ?? library : library;
+  const teacherServerFiltered = Boolean(teacherFilter && teacherLibrary);
+  const filtered = activeLibrary.videos.filter((video) =>
     matchesOrientationFilter(video, orientationFilter) &&
-    (!teacherFilter || (video.teacher ?? teacherForFolderName(video.source_folder_name)) === teacherFilter)
+    (teacherServerFiltered || !teacherFilter || (video.teacher ?? teacherForFolderName(video.source_folder_name)) === teacherFilter)
   );
   const selected =
     filtered.find((video) => video.source_video_id === selectedSourceVideoId) ?? filtered[0];
-  const remainingCount = Math.max(0, library.available_video_count - library.videos.length);
-  const loadMoreLabel = isLoadingMore
+  const remainingCount = Math.max(0, activeLibrary.available_video_count - activeLibrary.videos.length);
+  const activeHasMore = teacherFilter && teacherLibrary
+    ? teacherLibrary.videos.length < teacherLibrary.available_video_count
+    : hasMore;
+  const loadMoreLabel = isLoadingMore || teacherLoading
     ? "正在读取"
     : `继续加载 ${Math.min(20, remainingCount)} 条`;
+  const handleTeacherChange = (teacher: string) => {
+    setTeacherFilter(teacher);
+    if (!teacher) {
+      setTeacherLibrary(undefined);
+      return;
+    }
+    if (!onFetchTeacherLibrary) return;
+    setTeacherLoading(true);
+    void onFetchTeacherLibrary(teacher, 0, 20)
+      .then((page) => setTeacherLibrary(page))
+      .catch(() => setTeacherLibrary(undefined))
+      .finally(() => setTeacherLoading(false));
+  };
+  const handleLoadMore = () => {
+    if (teacherFilter && teacherLibrary && onFetchTeacherLibrary) {
+      setTeacherLoading(true);
+      void onFetchTeacherLibrary(teacherFilter, teacherLibrary.videos.length, 20)
+        .then((page) => setTeacherLibrary({
+          ...page,
+          videos: [...teacherLibrary.videos, ...page.videos]
+        }))
+        .catch(() => undefined)
+        .finally(() => setTeacherLoading(false));
+      return;
+    }
+    onLoadMore?.();
+  };
 
   return (
     <section className="cutter-page cutter-public-library ml-workbench-page ml-workbench-page--library" data-page="public-library">
@@ -137,7 +173,7 @@ export function PublicLibraryPage({
             <p className="ml-page-description">按文案或标题浏览原素材，加入项目后开始剪切。</p>
           </div>
           <div className="ml-control-cluster">
-            <span className="ml-section-meta">共 {library.available_video_count.toLocaleString()} 个原素材</span>
+            <span className="ml-section-meta">共 {activeLibrary.available_video_count.toLocaleString()} 个原素材</span>
           </div>
         </header>
 
@@ -158,7 +194,7 @@ export function PublicLibraryPage({
               aria-label="老师筛选"
               className="ml-field-select cutter-teacher-select"
               value={teacherFilter}
-              onChange={(event) => setTeacherFilter(event.currentTarget.value)}
+              onChange={(event) => handleTeacherChange(event.currentTarget.value)}
             >
               <option value="">全部老师</option>
               {teacherOptions.map((teacher) => (
@@ -212,14 +248,14 @@ export function PublicLibraryPage({
           )}
         </div>
 
-        {hasMore ? (
+        {activeHasMore ? (
           <div className="cutter-library-pagination cutter-public-library-pagination ml-pagination-bar">
             <Button
               type="button"
               variant="secondary"
               size="sm"
-              disabled={isLoadingMore}
-              onClick={onLoadMore}
+              disabled={isLoadingMore || teacherLoading}
+              onClick={handleLoadMore}
             >
               {loadMoreLabel}
             </Button>

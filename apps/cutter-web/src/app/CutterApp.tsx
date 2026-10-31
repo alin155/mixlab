@@ -18,6 +18,7 @@ import {
   type SearchGroup,
   type SearchResponse,
   type SourceFolderOption,
+  type SourceLibraryResponse,
   type SourceVideoCard,
   type SourceVideoDetail
 } from "../api.ts";
@@ -1565,6 +1566,7 @@ function renderPage(
     searchPublicLibraryFilename: (query: string) => void;
     selectPublicSourceVideo: (sourceVideoId: string) => void;
     loadMoreSourceLibrary: () => void;
+    fetchPublicTeacherLibrary: (teacher: string, offset: number, limit: number) => Promise<SourceLibraryResponse>;
     loadMoreSearchResults: () => void;
     retryMaterialSearch: () => void;
     loadMoreLocalClips: () => void;
@@ -1831,6 +1833,7 @@ function renderPage(
       onSearchFilename={handlers.searchPublicLibraryFilename}
       onSelectSourceVideo={handlers.selectPublicSourceVideo}
       onLoadMore={handlers.loadMoreSourceLibrary}
+      onFetchTeacherLibrary={handlers.fetchPublicTeacherLibrary}
     />
   );
 }
@@ -4282,6 +4285,13 @@ export function CutterApp() {
     searchPublicLibraryFilename: handleSearchPublicLibraryFilename,
     selectPublicSourceVideo: setPublicLibrarySelectedSourceVideoId,
     loadMoreSourceLibrary: handleLoadMoreSourceLibrary,
+    async fetchPublicTeacherLibrary(teacher: string, offset: number, limit: number) {
+      const page = await client.listSourceLibrary({ limit, offset, teacher });
+      return {
+        ...page,
+        videos: page.videos.map((video) => resolveSourceVideoCardUrls(client, video))
+      };
+    },
     loadMoreSearchResults: handleLoadMoreMaterialSearchResults,
     retryMaterialSearch() {
       performMaterialSearch(searchQuery);
