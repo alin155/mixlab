@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "id": "1793421068091-740bb1e3",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793421068091-740bb1e3",
+  "created_at": "2026-10-31T04:31:08.091Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793420951970-c9424a43",
+      "1793420969296-bc1bf78d"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 2 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进本批交付收口，不新增整版发布阻塞；但快速 copy 分支尚未验收闭环。** 两例均降级为 precise，证明了回退后能够完成剪切，不能计为 copy 成功。LATEST 继续保持既定不更新。当前快照为 `269d99658ae2`、`DIFF.patch` 为空，未包含 `bdf5b6f`；本次也未读取实际安装包与 ZIP，结论限于交付消息及快照代码核对。\n\n### 消息 1793420951970-c9424a43\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：[回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-caQkhB/REVIEW-PACKET.md:27)明确两例均降级 precise；[快照逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-caQkhB/packages/ffmpeg-core/src/index.ts:523)支持无前置关键帧时回退。\n- 问题/风险：`verification passed` 不证明执行了 copy，既定 copy 冒烟仍有覆盖缺口。\n- 建议：将两例归为“降级通过”；补实际 copy 成功样例，或由 Mac 明确接受本批该分支未覆盖。\n- 需要证据：若补验，提供同一正式包的任务 ID、`cut_mode_used=copy`、质检及产物结果。\n\n### 消息 1793420969296-bc1bf78d\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[更正通知](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-caQkhB/REVIEW-PACKET.md:41)明确 ZIP 最新哈希为 `6BD3412F…614D6B5A`，原 `E21A…` 作废。\n- 问题/风险：同名 ZIP 内容已变化，针对旧包的复核结论不能自动覆盖新版。\n- 建议：最终验收记录引用更正消息及完整新哈希；此更正仅涉及证据包，不据此要求重建安装包。\n- 需要证据：无新增。\n\n## 跨消息建议\n\n1. **冻结新版证据包。** 后续补件使用修订号或哈希后缀命名，避免再次覆盖 `01822-final-bdf5b6f.zip`。\n2. **关联更正链。** 更正通知通过现有 `reply_to` 关联原交付消息；最终发布记录同时引用两条消息，保留旧哈希作废记录。\n3. **关键帧问题单独取证。** 后续保留起点、探测帧时间戳及 ffprobe 退出结果；[快照探针](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-caQkhB/packages/cutter-api/src/index.ts:3918)异常时同样返回空列表，不能仅凭降级文案确定根因。`1000ms` 修复继续作为独立后续项。"
+}
