@@ -278,7 +278,7 @@ fn desktop_install_update(
         }
 
         let helper = updates_dir.join("apply-cutter-update.cmd");
-        let installer_for_script = path_string(installer).replace('"', "");
+        let installer_for_script = path_string(installer.clone()).replace('"', "");
         let script = format!(
             "@echo off\r\n:wait\r\ntasklist /FI \"IMAGENAME eq MixLab Cutter.exe\" 2>nul | find /I \"MixLab Cutter.exe\" >nul\r\nif not errorlevel 1 (\r\n  timeout /t 2 /nobreak >nul\r\n  goto wait\r\n)\r\nstart \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
             installer_for_script
