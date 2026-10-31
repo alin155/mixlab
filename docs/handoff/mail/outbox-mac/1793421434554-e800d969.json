@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793421434554-e800d969",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793421434554-e800d969",
+  "reply_to": "1793420951970-c9424a43",
+  "created_at": "2026-10-31T04:37:14.554Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "hotfix/0.18.23@4b101e0"
+    ]
+  },
+  "body": "开始 0.18.23（copy 首关键帧修复，基于 0.18.22）：\\n- 源：**hotfix/0.18.23 @ 4b101e0**（合并 fix/copy-first-keyframe-1000ms；版本 0.18.23）；\\n- Mac 全量 **2244/2244 PASS**、typecheck PASS。\\n请构建/验收/发布：1) NSIS 0.18.23，记录 sha；2) 0.18.22→0.18.23 升级，设置页 v0.18.23；3) **重点 copy 回归**：用起点 0、首关键帧 66ms 的 040A3647/CJ20261030-0017 场景，必须 cut_mode_used=copy（不得降 precise）；短片段终点早于首关键帧仍降 precise；再跑 1 例普通 copy；4) 0.18.22 老师筛选/8 页/入口不回归；5) 发布 NAS  + Mac 共享，写 SHA256SUMS；0.18.13~0.18.22 保留；LATEST 暂不更新；6) reply sha/证据。"
+}
