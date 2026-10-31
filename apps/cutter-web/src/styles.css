@@ -2360,3 +2360,10 @@ body,
   font-size: 12px;
   white-space: nowrap;
 }
+
+.cutter-cut-mode-toggle .cutter-cut-mode-option[aria-pressed="true"],
+.cutter-cut-mode-toggle .cutter-cut-mode-option[aria-pressed="true"] .ml-button-label,
+.cutter-cut-mode-toggle .cutter-cut-mode-option[aria-pressed="true"]:hover,
+.cutter-cut-mode-toggle .cutter-cut-mode-option[aria-pressed="true"]:disabled {
+  color: #fff !important;
+}

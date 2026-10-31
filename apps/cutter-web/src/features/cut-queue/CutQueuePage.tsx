@@ -251,7 +251,12 @@ export function CutQueuePage({
   const pipelineDetail = cutPipelineDetailLabel(pipelineState);
   const projectTitle = project ? projectDisplayTitle(project) : "";
   const totalCount = Math.max(totalJobCount ?? jobs.length, jobs.length);
-  const canLoadMore = totalCount > jobs.length && Boolean(onLoadMore);
+  const projectTotal = project?.clip_count;
+  const canLoadMore =
+    totalCount > jobs.length &&
+    Boolean(onLoadMore) &&
+    (typeof projectTotal !== "number" || jobs.length < projectTotal);
+  const displayTotal = typeof projectTotal === "number" ? Math.min(totalCount, projectTotal) : totalCount;
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [statusFilter, setStatusFilter] = useState<CutTaskFilter>("all");
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>(() => preferredTaskJob(jobs)?.queue_job_id);
@@ -624,7 +629,7 @@ export function CutQueuePage({
               disabled={isLoadingMore}
               onClick={onLoadMore}
             >
-              {isLoadingMore ? "加载中" : `加载更多（已显示 ${jobs.length} / ${totalCount}）`}
+              {isLoadingMore ? "加载中" : `加载更多（已显示 ${jobs.length} / ${displayTotal}）`}
             </Button>
           ) : null}
         </div>
