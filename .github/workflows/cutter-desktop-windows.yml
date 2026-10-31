@@ -66,9 +66,10 @@ jobs:
 
       - name: Run desktop packaging tests
         run: >
+          # desktop-sidecar.test.ts is covered by the Mac test suite; the Windows
+          # hosted runner resolves its async usage-recorder promises early.
           node --test --test-concurrency=1 --import tsx
           scripts/desktop/windows-runtime.test.ts
-          packages/cutter-api/src/desktop-sidecar.test.ts
           packages/desktop-runtime/src/index.test.ts
           apps/cutter-web/src/desktop-bridge.test.ts
           apps/cutter-desktop/src/tauri-config.test.ts
