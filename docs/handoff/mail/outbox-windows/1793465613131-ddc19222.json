@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793465613131-ddc19222",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793465613131-ddc19222",
+  "reply_to": "1793465208752-0ee00abb",
+  "created_at": "2026-10-31T16:53:33.131Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【侧栏素材库数量+容量已修】\ncommit：ui/teacher-filter @ **e39dd32**（基于 e956bf9）\n值改为：公共素材 12,869 个 · 约 26 TB（估算）——数量取 available_video_count；容量先用 26TB 估算，Admin 补 file_size 后改动态。\n实测：1536/1440 侧栏均显示上述值；typecheck PASS；cutter-web 151/151 PASS。\n本地测试包：MixLab Cutter_0.18.23_x64-setup-sidebar-e39dd32.exe\nsha256=1692D1F5B8F1CB5B0514E5D1E8AC0B8BC9CC06822EC1BBF4911BF78AC31D34D1；未发布/未进 NAS/共享发布目录/LATEST 未动。\n证据：conformance-sidebar-e39dd32.zip 随后复制 Mac evidence。"
+}
