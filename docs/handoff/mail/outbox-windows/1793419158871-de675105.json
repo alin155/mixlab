@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793419158871-de675105",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793419158871-de675105",
+  "reply_to": "1793418950846-a8c45415",
+  "created_at": "2026-10-31T03:59:18.871Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【layout patch 已应用并重建本地测试包】\ncommit：ui/teacher-filter @ **034e9e5**（基数 faff455；patch sha256 708D5ED...66F1 校验一致，无冲突）。\ntypecheck PASS；cutter-web 151/151 PASS。\n布局验证：素材搜索 empty/result 下 tabs 行高 47px、宽 360px，无 202px 空白行；素材详情切到“任务”tab 正常（tabs 行 47px，不再被挤成一行）。\n8 页 1536/1440 重截完成，全部可见 h1=0、无横向滚动。\n本地测试包：MixLab Cutter_0.18.21_x64-setup-layout-034e9e5.exe\nsha256=A28FF3DA4443DA821CF0F541CB89CCC56AE3C71524AE1046C1014E10AB248170；仅本地安装，未发布/未进 NAS/共享发布目录，LATEST 未动。"
+}
