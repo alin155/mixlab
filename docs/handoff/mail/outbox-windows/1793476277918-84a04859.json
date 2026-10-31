@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793476277918-84a04859",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793476277918-84a04859",
+  "reply_to": "1793476010288-5d7c54e0",
+  "created_at": "2026-10-31T19:51:17.918Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【公共素材库方向筛选同排已修（feature，不发布）】\ncommit：ui/teacher-filter @ **a6795a7**\n- teacher select 与 orientation select 包进同一 flex 行容器，nowrap，orientation 紧跟 teacher 右侧；删除独立第二行。\n\n实测：\n- 1280：teacher y=174，orientation y=174，sameRow=true（teacherRight=756，orientationLeft=764）；\n- 1440：both y=131；\n- 1536：both y=131。\n\n回归确认：本地素材方向下拉可见；缓存页整页滚动 scrollHeight=2800 / clientHeight=684，滚动条宽度 10；首页顶栏「新建项目」正常。\n截图：public 1280/1440/1536 三张 + verify.json。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-publicrow.exe\nsha256=7F5CEA335BD7A8C0296929D0290BB28AFE721678DCB777B2C228D34B3CD9391E；未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01826-publicrow-a6795a7.zip 已复制 Mac evidence。"
+}
