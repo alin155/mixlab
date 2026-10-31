@@ -84,6 +84,7 @@ export interface CutterSourceVideoCard {
 
 export interface CutterSourceLibraryView {
   available_video_count: number;
+  total_source_size_bytes?: number;
   videos: CutterSourceVideoCard[];
   source_folders?: CutterSourceFolderOption[];
 }
@@ -705,6 +706,7 @@ export async function listCutterSourceLibrary(
 
   return {
     available_video_count: availableVideoCount,
+    total_source_size_bytes: readyManifests.reduce((sum, manifest) => sum + Math.max(0, manifest.file_size), 0),
     source_folders: sourceFolderOptionsFromManifests(
       await readVisibleSourceVideoManifests(input.library_root)
     ),
