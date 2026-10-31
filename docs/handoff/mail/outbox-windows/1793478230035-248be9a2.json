@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793478230035-248be9a2",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793478230035-248be9a2",
+  "reply_to": "1793477856300-80b8a7cb",
+  "created_at": "2026-10-31T20:23:50.035Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.26 最终构建/升级/验收/发布完成，LATEST 未更新】\n源：**hotfix/0.18.26 @ 5ceb310**\n安装包：MixLab Cutter_0.18.26_x64-setup-5ceb310.exe\nsha256=**BE32139637A81739A8D98A2D2AC8374B8CD6ACCB6F14C976D0A000DCFB589BF1**\n- NAS 0.18.26 已写入并读回校验一致 + SHA256SUMS.txt；\n- Mac 共享安装包 + SHA256SUMS-0.18.26-5ceb310.txt；\n- 0.18.11~0.18.24 保留；LATEST 未更新。\n\n升级：0.18.24→0.18.26 PASS；DisplayVersion/FileVersion=0.18.26；设置页 v0.18.26。\n\n最终验收（6 页 × 1280/1440/1536）：\n- 顶栏动作均在状态左侧、18/18 组无相交；被删文案 6 页均为空；\n- 公共老师/方向同排，工具栏/搜索/卡片左缘均=256；三档 allVisible=true；\n- 老师：王牧笛 1478、陈永亮 427、陶矜 10964，均 20 卡片无空态；清空 12869；\n- 刷新素材确认弹窗出现，取消后关闭；\n- 本地详情 tabs=0；本地全部素材 scrollHeight 8377 / clientHeight 600，滚动条 10，拖拽 0→2035；\n- 缓存整页 scrollHeight 2800 / clientHeight 684，滚动条 10。\n\nquick copy：CL20261031-0009，done，mode=copy，verification passed，输出 E000111。\n证据：Mac evidence\\01826-final-5ceb310.zip\nsha256=133A49E1287852C593B08A97F1D292D4A5F0A66E5BCF4338084CC4633E8B8E50。"
+}
