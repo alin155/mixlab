@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793464877200-8d85a307",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793464877200-8d85a307",
+  "created_at": "2026-10-31T16:41:17.200Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793464703795-2eda888a"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进三项修复，无新增已证实的发布阻塞，继续保持“不发布”。** 本包只有任务；快照为 `269d99658ae2`，`DIFF.patch` 为空，无法独立核实 `73ecd49` 后的实现。主要风险是分页修复掩盖未加载素材，以及将估算容量呈现为实测值。\n\n### 消息 1793464703795-2eda888a\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：旧快照先[筛选已加载素材](apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:245)，再按[全库数量](apps/cutter-web/src/features/local-library/LocalLibraryPage.tsx:275)决定分页；[任务](REVIEW-PACKET.md:16)另要求临时使用26TB。\n- 问题/风险：仅隐藏按钮可能使后续页的项目素材不可见；26TB并非实测容量。\n- 建议：继续实施，按下列边界收口。\n- 需要证据：分页回归、typecheck及cutter-web测试结果、本轮指定截图。\n\n## 跨消息建议\n\n1. **区分展示计数与分页进度。** [现有分页](apps/cutter-web/src/app/CutterApp.tsx:2730)以全库已加载数量作为offset，不能改用筛选后可见数。隐藏当前项目按钮前，须证明项目数据完整；补测“项目素材位于后续页”、2/2隐藏、全部素材有／无下一页及方向筛选。\n\n2. **单栏恢复要验证动作连续性。** 视频、选区、剪切动作应实际纵向排列，清除该右栏遗留的tab隐藏规则。用同一选区核对预览起止与剪切提交区间一致；任务信息仍可访问，其他页面布局保持原状。\n\n3. **明确标注容量来源。** 临时显示“约26 TB（估算）”。[现有公共库响应](apps/cutter-web/src/api.ts:56)没有全库容量汇总字段，后续不能仅累加已加载页面或部分非零`file_size`便切换为“实际大小”；由Admin提供完整发布范围的容量统计后再启用动态值。"
+}
