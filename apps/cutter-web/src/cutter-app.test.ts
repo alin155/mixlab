@@ -4832,7 +4832,7 @@ test("sidebar footer renders a simple cutter status summary", () => {
     "当前项目",
     "6月4日-2",
     "公共素材",
-    "41 个 · ≈26 TB",
+    "41 条 / ≈26 TB",
     "剪切任务",
     "1 个处理中",
     "本机服务",
@@ -4985,7 +4985,7 @@ test("sidebar footer does not swap local and public library counts", () => {
     })
   );
 
-  assert.match(html, /7,950 个 · ≈26 TB/);
+  assert.match(html, /7,950 条 \/ ≈26 TB/);
   assert.equal(html.includes("本地 146"), false);
 });
 
