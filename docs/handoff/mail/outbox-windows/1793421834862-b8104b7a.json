@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793421834862-b8104b7a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793421834862-b8104b7a",
+  "reply_to": "1793421434554-e800d969",
+  "created_at": "2026-10-31T04:43:54.862Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.23 构建/升级/copy 回归/发布完成】\n构建源：hotfix/0.18.23 @ **4b101e0**\n安装包：MixLab Cutter_0.18.23_x64-setup-4b101e0.exe\nsha256=**6FDE43664E62726E25CBDEB51893AEA5D4161F0C498D6C67D977F0BE146635F6**\n- NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.23\\（SHA256SUMS.txt）\n- Mac 共享：MixLabWindowsBuilds\\（SHA256SUMS-0.18.23-4b101e0.txt）\n- 0.18.11~0.18.22 保留；LATEST 未更新。\n\n升级：0.18.22→0.18.23 PASS；DisplayVersion/FileVersion=0.18.23；设置页 v0.18.23。\n\n【copy 重点回归】\n1) CJ20261031-0003（040A3647，begin=0/end=285580，首关键帧66ms）：status done，**cut_mode_used=copy**，verification passed，output export-clips/E000105/001-0.18.23 copy special-040A3647.mp4；\n2) CJ20261031-0004（同源短片段 begin=0/end=50，终点早于首关键帧）：status done，**cut_mode_used=precise**，degrade_reason 明确，verification passed；\n3) CJ20261031-0005（普通 copy，20260507_C0481，0~5000ms）：done，**copy**，verification passed，output export-clips/E000107/...。\n\n0.18.22 功能回归：8 页 1536/1440 无可见 h1/横向滚动；老师下拉 1478/427/10964；C0029+陶矜有结果；本地“＋新建项目”可见；待剪清单入口可见。\n\n证据：Mac 共享 evidence\\01823-final-4b101e0.zip\nsha256=975323E60224C8BC402AEC059D00665406B0D7DF6F45215FE2774293C6C3666A\n含 16 张 8 页截图 + C0029 + verify + copy-regression + upgrade。"
+}
