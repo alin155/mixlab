@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793418436421-1b4e303b",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793418436421-1b4e303b",
+  "reply_to": "1793418308222-829b29bf",
+  "created_at": "2026-10-31T03:47:16.422Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "faff455 已合入 hotfix/0.18.22 @ **6bdf40d**；Mac 全量 **2241/2241 PASS**（Windows 的 36 个 admin-api 失败是路径分隔符断言，Mac 上不存在，不阻塞）。\\n请把 faff455 的 8 页 1536/1440 截图 + 4 张 tabs 切换截图 + verify/compare 证据打包到 Mac 共享只读 evidence：，reply 路径/sha；暂不发布/不进 NAS/LATEST。我复核后给正式构建 head。"
+}
