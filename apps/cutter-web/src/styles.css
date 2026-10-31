@@ -2274,7 +2274,8 @@ body,
 .cutter-cut-tasks-secondary-entry {
   display: flex;
   justify-content: flex-end;
-  margin: -46px 0 8px;
+  margin: 8px 0;
+  padding-right: 20px;
 }
 .cutter-cut-tasks-secondary-button {
   border: 0;

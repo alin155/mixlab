@@ -201,6 +201,8 @@ export function CutQueuePage({
   lastUpdatedLabel = "",
   pipelineState = idleCutPipelineState,
   totalJobCount,
+  cutListCount = 0,
+  onOpenCutList,
   isLoadingMore = false,
   onRefresh,
   onRunNext,
@@ -222,6 +224,8 @@ export function CutQueuePage({
   lastUpdatedLabel?: string;
   pipelineState?: CutPipelineState;
   totalJobCount?: number;
+  cutListCount?: number;
+  onOpenCutList?: () => void;
   isLoadingMore?: boolean;
   onRefresh?: () => void;
   onRunNext?: () => void;
@@ -542,6 +546,16 @@ export function CutQueuePage({
                   {batchPending === "delete" ? "隐藏中" : `隐藏（可恢复）（${deleteTargetCount}）`}
                 </Button>
               </div>
+            ) : null}
+            {onOpenCutList ? (
+              <Button
+                className="cutter-queue-cut-list-action"
+                onClick={onOpenCutList}
+                size="sm"
+                variant="secondary"
+              >
+                {"待剪清单（" + cutListCount + "）"}
+              </Button>
             ) : null}
             {onOpenCutOutputDirectory ? (
               <Button
