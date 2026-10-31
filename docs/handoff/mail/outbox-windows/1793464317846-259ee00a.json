@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793464317846-259ee00a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793464317846-259ee00a",
+  "reply_to": "1793463535937-d19d4ddc",
+  "created_at": "2026-10-31T16:31:57.846Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.24 页头布局占位修复完成（本地测试，不发布）】\ncommit：ui/teacher-filter @ **73ecd49**（基于 4b101e0；含 5d1dfd8/a6af48f 两轮修正）\n\n修复：\n- 8 页 header 改为 display:contents，标题/说明容器不占布局；header height=0；\n- kicker 一并隐藏；页面动作保留在右上角紧凑覆盖层（打开待剪清单/新建项目/打开素材目录/刷新/预览清理等）；\n- 页面 top padding 收紧，material 分栏额外收紧 -18px。\n\n自动验收（verify.json）：\n- 8 页 × 1536/1440 全部 top_gap ≤16px：home 2、material 16、cut-tasks/local/public/source-detail/cache/settings 8；\n- 所有页 header height=0；1536/1440 均通过。\n\n验证：typecheck PASS；cutter-web 151/151 PASS。\n本地测试包：MixLab Cutter_0.18.23_x64-setup-headergap-final.exe\nsha256=05F07782E5BE3B90377ACD989C1203AA06AA9D4528265DE2BCA74D4B11654D18\n未发布/未进 NAS/共享发布目录/LATEST 未动。\n证据：待打包 conformance-headergap-73ecd49.zip（含 16 页截图+verify.json），随后复制 Mac evidence。"
+}
