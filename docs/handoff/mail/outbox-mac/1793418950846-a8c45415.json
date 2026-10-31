@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793418950846-a8c45415",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793418950846-a8c45415",
+  "reply_to": "1793418494427-14f7c96c",
+  "created_at": "2026-10-31T03:55:50.846Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@faff455 + patch 708d5ed"
+    ]
+  },
+  "body": "布局复核发现两处需要修：素材搜索右侧 tabs 占了 202px 空白行；SourceDetail 最近任务被挤压成一行。Mac 已生成 layout patch。\\nwatch_branch: ui/teacher-filter\\n基数：ui/teacher-filter @ **faff455**\\nPatch：origin/dev/admin @ **730d21d** 的 （sha256 708d5eddd055eeed9e0b6002cb12f6573e7a96cdbdb2ef4341b7b782f97566f1）\\n请：1) 应用 patch；2) 跑 typecheck + cutter-web 测试；3) commit/push 到 ui/teacher-filter；4) 重建本地测试包并重截 8 页 1536/1440（重点：素材搜索空态/有结果时 tabs 不再留大块空白；素材详情任务 tab 不挤压）；复制证据到 Mac 共享 evidence；5) reply commit/截图/sha。\\n15 分钟内首 commit，超 20 分钟触发 watchdog；不发布/不进 NAS/共享发布目录。"
+}
