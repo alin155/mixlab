@@ -102,7 +102,6 @@ export function PublicLibraryPage({
     else teacherOptions.push({ name: teacher, count: folder.count });
   }
   const [teacherFilter, setTeacherFilter] = useState("");
-  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
   const materialScopeValue = searchMode === "folder" ? MATERIAL_SCOPE_FOLDER_VALUE : sourceFolderFilter;
   const filtered = library.videos.filter((video) =>
     matchesOrientationFilter(video, orientationFilter) &&
@@ -221,11 +220,7 @@ export function PublicLibraryPage({
       </div>
 
       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
-        <div className="cutter-inspector-tabs" role="tablist" aria-label="公共素材详情">
-          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
-          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
+        <div className="ml-detail-stack cutter-inspector-panel is-active">
           {selected ? (
             <video
               key={selected.source_video_id}
@@ -236,8 +231,6 @@ export function PublicLibraryPage({
               preload="metadata"
             />
           ) : null}
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
           <strong>{selected?.title ?? "未选择原素材"}</strong>
           <span>{filtered.length} 条当前视图素材</span>
           <span>{publicLibraryIndexSummary({ libraryCount: library.available_video_count, runtimeStatus })}</span>
