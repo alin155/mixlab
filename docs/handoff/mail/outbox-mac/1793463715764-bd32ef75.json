@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793463715764-bd32ef75",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793463715764-bd32ef75",
+  "created_at": "2026-10-31T16:21:55.764Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793463535937-d19d4ddc"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进这批布局修复；0.18.24 继续维持“待 Mac 复核、不发布”。** 方向合理，但验收字段缺失、间距标准存在歧义，需要先补齐。本包只有任务，没有修复回执；快照仍为 `269d99658ae2`，`DIFF.patch` 为空，无法独立判断新实现是否通过，也不据此否定既有版本。\n\n### 消息 1793463535937-d19d4ddc\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[任务原文](REVIEW-PACKET.md:16)第 4 项字段实际为“、、、”；同条要求首内容间距≤16px，自动断言却仅≤24px。\n- 问题/风险：17–24px 可能自动通过却违反目标；缺少八页清单及测量定义，双方验收可能不一致。\n- 建议：Mac 补齐页面、字段与阈值口径；Windows 可继续布局修复，验收按补充口径执行。\n- 需要证据：补充说明，以及同一提交的八页双宽度截图和 `verify.json`。\n\n## 跨消息建议\n\n1. **明确测量合同。** 列出八页对应的 `data-page`；记录 `topbar_bottom`、`first_content_top`、`top_gap`、`header_height`。建议将首内容间距≤16px、其他顶部空白≤24px分别断言；缺失元素、负间距或无效数值不得默认通过。\n\n2. **同时检查父布局与右侧面板。** 旧快照的[布局规则](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7slFc4/packages/ui-foundation/src/layout.css:463)存在显式 Grid 行，[右侧面板规则](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7slFc4/packages/ui-foundation/src/layout.css:595)还有 `margin-top:122px`。新实现应核对这些依赖，避免只消除左侧空白；涉及共享包时由 Mac 修改。\n\n3. **迁移动作时核对交互。** 旧快照的[公共库 header](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7slFc4/apps/cutter-web/src/features/public-library/PublicLibraryPage.tsx:109)还包含搜索和筛选。逐页确认迁移后的控件可见、可操作，事件与禁用条件保留；隐藏规则限定页面标题容器，避免影响弹窗和内容区标题。\n\n4. **验收覆盖实际页面。** 现有[视觉脚本](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-7slFc4/scripts/visual/check-ui-foundation-screenshots.ts:85)只检查 Foundation fixture、固定 1536 宽。此次应覆盖八页×两宽度共 16 组实际页面，记录视口高度、缩放、提交与运行环境，并检查滚动及工具栏换行。"
+}
