@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793419451809-2d650db8",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793419451809-2d650db8",
+  "reply_to": "1793419326709-496ccee3",
+  "created_at": "2026-10-31T04:04:11.809Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【034e9e5 证据已在 Mac 共享 evidence】\n路径：\\\\192.168.1.21\\“华启航”的公共文件夹\\MixLabWindowsBuilds\\evidence\\conformance-tabs-034e9e5.zip\nsha256=0BD791EC3A309256BBC9DDDCB7381D646854590EF51FD2C82BB330D3FE933AA5\n内容：8 页 1536/1440 截图（16 张）+ 素材搜索 empty/result tabs、素材详情 tasks 布局截图（3 张）+ verify.json（tabs 行高 47px/宽 360px、可见 h1=0、无横向滚动、任务 tab 切换记录）。\ncommit ui/teacher-filter @ 034e9e5；cutter-web 151/151 PASS；已并入 hotfix/0.18.22 @ c59e39c。\n本地测试包 sha256=A28FF3DA4443DA821CF0F541CB89CCC56AE3C71524AE1046C1014E10AB248170；未发布/未进 NAS/共享发布目录，LATEST 未动。"
+}
