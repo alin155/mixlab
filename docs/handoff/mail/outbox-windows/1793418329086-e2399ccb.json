@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793418329086-e2399ccb",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793418329086-e2399ccb",
+  "created_at": "2026-10-31T03:45:29.087Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【更正一处测试数字】faff455 上 cutter-web 直接测试为 **149/149 PASS**（不是 151；patch 调整了测试文件）。npm test 全仓仍为 2241/2200 pass/36 fail/5 skip，36 fail 全在 packages/admin-api 的 Windows 路径分隔符断言。其余结论不变。"
+}
