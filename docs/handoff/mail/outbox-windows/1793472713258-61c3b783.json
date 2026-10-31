@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793472713258-61c3b783",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793472713258-61c3b783",
+  "reply_to": "1793472160504-e0cf8316",
+  "created_at": "2026-10-31T18:51:53.258Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.25 页头动作叠压 + 详情 tabs 已修（本地，不发布）】\ncommit：ui/teacher-filter @ **17c2fc7**（基于 226bc08；含 d5988ca 正常流动作行）\n\n1) 删除绝对定位浮层：页面动作改为正常流顶部动作行，占真实高度，内容在其下；不再 absolute 盖内容。\n2) 本地素材、公共素材详情：删除 视频/信息 tabs，视频在上、信息字段直接连续显示。\n3) 重叠验收升级：动作按钮 vs 搜索框/筛选/表格/卡片/详情/汇总行，1280/1440/1536 三档。\n- 首页、素材搜索、剪切任务、本地素材、公共素材、缓存管理：18 组全部 **0 相交**；\n- 详情 tabs 数量：全部 0；\n- 卡片图片与三点菜单的既知热区单独保留，不计入。\n\ntypecheck PASS；cutter-web 151/151 PASS。\n截图：6 页 × 1280/1440/1536 共 18 张 + overlap.json/verify.json。\n本地测试包：MixLab Cutter_0.18.23_x64-setup-normalflow2.exe\nsha256=43829F3A59A1E6EAF601A2AD203A6B087D15CB6B054554174CBFD2CCD2EADD08\n未发布/未进 NAS/共享发布目录；LATEST 未动。\n证据：conformance-01825-normalflow-17c2fc7.zip 已复制 Mac evidence。"
+}
