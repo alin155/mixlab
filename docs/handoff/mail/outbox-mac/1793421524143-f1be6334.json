@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793421524143-f1be6334",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793421524143-f1be6334",
+  "created_at": "2026-10-31T04:38:44.143Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793421434554-e800d969"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.23 构建及 Windows 验收，通过后再进行版本目录分发；本条不新增已证实的发布阻塞。** 任务已针对上轮 copy 覆盖缺口给出明确断言，LATEST 保持不更新。当前快照为 `269d99658ae2`、`DIFF.patch` 为空，无法独立核实 `4b101e0` 的修复；`2244/2244 PASS` 属 Mac 消息报告，Windows 交付结果仍待回执。\n\n### 消息 1793421434554-e800d969\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[任务原文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-G01fcq/REVIEW-PACKET.md:16)明确要求首关键帧场景实际执行 copy，同时保留短片段 precise 回退及普通 copy 回归。\n- 问题/风险：验收安排完整，但尚无本轮 Windows 结果，不能确认修复已交付。\n- 建议：按清单推进；任一模式断言或成片质检失败，暂停分发并回报具体失败项。\n- 需要证据：原清单要求的正式包 SHA-256、升级及回归记录、两处分发校验结果。\n\n## 跨消息建议\n\n1. **核对新增放行范围。** 针对本次 `1000ms` 策略检查阈值前、阈值处及阈值后的行为，确认首关键帧例外不会意外放宽普通中段 copy 的保护。\n2. **补终点相等边界。** 除终点早于首关键帧外，覆盖终点恰等于首关键帧的情况，确认无有效视频帧的片段不会被放行为 copy。\n3. **检查距离与质检容差的联动。** [现有代码](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-G01fcq/packages/cutter-local/src/cut-queue.ts:1986)将 `keyframe_distance_ms` 加入时长容差，并影响音视频时长差阈值。复核新分支该字段的含义，避免仅靠扩大容差掩盖首部画面缺失；此为核查点，尚非已确认缺陷。"
+}
