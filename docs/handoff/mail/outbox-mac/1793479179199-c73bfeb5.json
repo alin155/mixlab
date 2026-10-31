@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793479179199-c73bfeb5",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793479179199-c73bfeb5",
+  "reply_to": "1793477989036-f079b0d7",
+  "created_at": "2026-10-31T20:39:39.200Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "Branch name exactly: feat/updater-phase1\\nBase exactly: origin/hotfix/0.18.26 @ 5ceb310\\nSpec: docs/handoff/CUTTER-UPDATE-PHASE1.md @ dev/admin 2f4826a (read it first).\\nStart now: create the branch, implement Tauri update commands + settings UI, commit skeleton within 15 minutes. Reply with branch/commit, or exact blocker if cannot start.\\nFollow the spec acceptance including hash recheck, helper failure safety, active cut jobs, relative installer_path, two-stage upgrade test. Do not publish.\\nwatch_branch: feat/updater-phase1"
+}
