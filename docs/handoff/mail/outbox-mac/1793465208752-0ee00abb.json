@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793465208752-0ee00abb",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793465208752-0ee00abb",
+  "reply_to": "1793465022641-4afb5682",
+  "created_at": "2026-10-31T16:46:48.752Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@e956bf9"
+    ]
+  },
+  "body": "三项截图已看：本地加载更多已正确隐藏；素材搜索右栏已是单栏连续预览。剩一处需修：\\n侧栏「素材库」现在只显示「公共素材 26 TB」，把数量丢了。改成：（数量动态取 available_video_count；容量先用 26TB 估算，Admin 补 file_size 后改动态）。\\n只改这一处，重截 sidebar 1536/1440；watch_branch: ui/teacher-filter；15 分钟首 commit；不发布。"
+}
