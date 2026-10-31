@@ -3706,7 +3706,7 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
   assert.match(taskTableRule, /overscroll-behavior:\s*contain/);
   assert.doesNotMatch(css, /\.cutter-queue-table\.ml-table-wrap\s*{/);
   assert.equal(galleryGridRules.length, 0);
-  assert.equal(libraryScrollPaneRules.length, 2);
+  assert.equal(libraryScrollPaneRules.length, 4);
   assert.match(foundationWorkbenchPageRule, /grid-template-columns:\s*minmax\(0,\s*var\(--ml-workbench-page-main,\s*900px\)\)/);
   assert.match(foundationWorkbenchPageRule, /var\(--ml-workbench-page-side,\s*330px\)/);
   assert.match(foundationWorkbenchPageRule, /overflow:\s*hidden/);
