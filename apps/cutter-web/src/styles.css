@@ -2473,3 +2473,11 @@ body,
   justify-content: flex-end;
   gap: 8px;
 }
+
+.cutter-public-library-filter-selects {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}

@@ -153,31 +153,33 @@ export function PublicLibraryPage({
             onSubmit={(value) => onSearchFilename?.(value)}
             placeholder={searchMode === "folder" ? "搜索课程文件夹名称" : "搜索素材文件名"}
           />
-          <select
-            aria-label="老师筛选"
-            className="ml-field-select cutter-teacher-select"
-            value={teacherFilter}
-            onChange={(event) => setTeacherFilter(event.currentTarget.value)}
-          >
-            <option value="">全部老师</option>
-            {teacherOptions.map((teacher) => (
-              <option key={teacher.name} value={teacher.name}>
-                {teacher.name} {teacher.count}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="公共素材方向"
-            className="ml-field-select cutter-public-orientation-select"
-            value={orientationFilter}
-            onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
-          >
-            {orientationFilterOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="cutter-public-library-filter-selects">
+            <select
+              aria-label="老师筛选"
+              className="ml-field-select cutter-teacher-select"
+              value={teacherFilter}
+              onChange={(event) => setTeacherFilter(event.currentTarget.value)}
+            >
+              <option value="">全部老师</option>
+              {teacherOptions.map((teacher) => (
+                <option key={teacher.name} value={teacher.name}>
+                  {teacher.name} {teacher.count}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="公共素材方向"
+              className="ml-field-select cutter-public-orientation-select"
+              value={orientationFilter}
+              onChange={(event) => onSetOrientationFilter?.(event.currentTarget.value as VideoOrientationFilter)}
+            >
+              {orientationFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
 
