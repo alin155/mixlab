@@ -66,7 +66,7 @@ jobs:
 
       - name: Run desktop packaging tests
         run: >
-          node --test --import tsx
+          node --test --test-concurrency=1 --import tsx
           scripts/desktop/windows-runtime.test.ts
           packages/cutter-api/src/desktop-sidecar.test.ts
           packages/desktop-runtime/src/index.test.ts
