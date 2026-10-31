@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793476451439-d8cddbc6",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793476451439-d8cddbc6",
+  "reply_to": "1793476295064-d369b204",
+  "created_at": "2026-10-31T19:54:11.439Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "更正：用户确认 **a6795a7（公共筛选同一行）是正确的，保留，不要 revert**。撤销我上一条 revert 要求；请基于 a6795a7 继续做「刷新素材」顶栏按钮 + 确认弹窗，不要回退公共筛选布局。"
+}
