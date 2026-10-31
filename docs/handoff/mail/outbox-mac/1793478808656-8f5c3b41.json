@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793478808656-8f5c3b41",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793478808656-8f5c3b41",
+  "reply_to": "1793477989036-f079b0d7",
+  "created_at": "2026-10-31T20:33:28.657Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "更新功能任务状态检查：请在 **15 分钟内** 从 origin/hotfix/0.18.26 创建  并提交第一条 commit（Tauri 命令骨架即可）；如果被 0.18.26 收尾或环境阻塞，请立刻 reply 具体原因，不要静默等待。\\nwatch_branch: feat/updater-phase1\\n后续按 docs/handoff/CUTTER-UPDATE-PHASE1.md 继续，不发布。"
+}
