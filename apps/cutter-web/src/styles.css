@@ -2375,3 +2375,7 @@ body,
 .cutter-app .ml-table-text-button {
   min-height: 28px;
 }
+
+.cutter-sidebar-account-button {
+  min-height: 28px !important;
+}
