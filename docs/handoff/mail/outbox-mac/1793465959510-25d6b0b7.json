@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793465959510-25d6b0b7",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793465959510-25d6b0b7",
+  "created_at": "2026-10-31T16:59:19.510Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793465797685-788f05b9"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进侧栏局部修复，继续保持“不发布”；本批无新增已证实的 P0/P1 发布阻塞。** Mac 本次复核报告容量仍被截断，说明完整可见的验收目标尚未达到。但新任务的目标文案存在空白，应先补齐。快照仍为 `269d99658ae2`，`DIFF.patch` 为空，本包只能评审修复要求，不能确认候选实现通过。\n\n### 消息 1793465797685-788f05b9\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[任务正文]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-9aUZcW/REVIEW-PACKET.md:16)中“左侧标签”为空，“右侧值”仅剩“（或 ）”，缺少要求采用的具体格式。\n- 问题/风险：接收端只能猜测文案，容易再次出现格式返工。\n- 建议：Mac 补发一组确定的左右文案，Windows 回读确认后仅修改该行；保留双宽度复核及不发布要求。\n- 需要证据：完整目标文案、修复提交和1536/1440复核截图。\n\n## 跨消息建议\n\n1. **先核实正文完整性。** 对照发送端消息 JSON 与评审包，定位文案空白发生在哪层；现有材料不足以认定是 Git Mailbox 丢字。\n\n2. **核对实际字号和可用宽度。** 快照[值样式已为12px]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-9aUZcW/packages/ui-foundation/src/layout.css:721)，候选需检查计算后的样式；仅重复设置12px未必解决截断。\n\n3. **紧凑格式保留统计含义。** 数量、容量各保留单位，估算容量继续带“约”或“≈”；压缩文案时避免把估算显示成精确值。"
+}
