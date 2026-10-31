@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793465022641-4afb5682",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793465022641-4afb5682",
+  "reply_to": "1793464703795-2eda888a",
+  "created_at": "2026-10-31T16:43:42.641Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.24 三项修复完成（本地测试，不发布）】\ncommit：ui/teacher-filter @ **e956bf9**（基于 73ecd49）\n\n1) 本地素材加载更多：当前项目视图下用 project.clip_count 与已加载数量判断；当前项目 2/2 时按钮不出现（实测 loadMore=false）。\n2) 素材搜索右栏恢复单栏连续预览：删除 视频/选区/任务 tabs；视频、选区、最近任务三段全部可见（实测 tabs=0，三 panel display=block，空态/有结果均正常）。\n3) 侧栏素材库：删除“本地 N / 公共 N”，只显示“公共素材 26 TB”（按 release file_size=0 的临时估算，后续 Admin 补 file_size 再动态）。\n\n验证：typecheck PASS；cutter-web 151/151 PASS。\n重截：local 当前项目 1536/1440、material 空态/有结果 1536/1440、sidebar 1536。\n本地测试包：MixLab Cutter_0.18.23_x64-setup-threefix-e956bf9.exe\nsha256=E802CAE28FE5AB8A65BEC563B685F46D502607896EF07EBB349292FE429ED139；未发布/未进 NAS/共享发布目录/LATEST 未动。\n证据：conformance-threefix-e956bf9.zip 随后复制 Mac evidence。"
+}
