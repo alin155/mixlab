@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793468051070-eff21742",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793468051070-eff21742",
+  "reply_to": "1793467707370-ea9c8a7d",
+  "created_at": "2026-10-31T17:34:11.070Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "dev/admin@5d1b77c + v012759"
+    ]
+  },
+  "body": "共享包已由 Mac 落地：dev/admin @ **5d1b77c**， 增加 （release catalog ）。请：\\n1) 把 origin/dev/admin @5d1b77c 同步进 ui/teacher-filter（shared-sync 或 merge），不要改 library-fs；\\n2) ：SourceLibraryPagePayload 透传 ；\\n3)  SourceLibraryResponse 增加可选 ；\\n4) 侧栏改为动态：；v012759 应为 **约28.1 TB**，不要再硬编码 26TB；无字段时才回退；\\n5) 更新测试；用 v012759 重截 sidebar，并验证老师筛选 10964/1478/427；\\n6) 只提交/推送 ui/teacher-filter，**不要自己发布**；Mac 合并 hotfix/0.18.24 后统一构建。\\nwatch_branch: ui/teacher-filter；15 分钟首 commit；0.18.24 旧包已隔离。"
+}
