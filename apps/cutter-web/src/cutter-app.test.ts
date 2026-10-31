@@ -4133,7 +4133,7 @@ test("local library is independent and exposes local recut materials with orient
     })
   );
 
-  for (const text of ["本地素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017", "打开文件目录", "已打开本地素材所属项目目录"]) {
+  for (const text of ["本地素材", "当前项目", "全部素材", "横版", "竖版", "素材详情", "2-当前项目-C0017", "打开所在目录", "已打开本地素材所属项目目录"]) {
     assert.match(html, new RegExp(text));
   }
 
@@ -6369,9 +6369,9 @@ test("disk cache cleanup previews selected targets and summarizes clean results"
     })
   );
   assert.match(html, /清理操作/);
-  assert.match(html, /预览清理/);
+  assert.match(html, /清理预览/);
   assert.match(html, /工作区残留与 Release 缓存/);
-  assert.match(html, /预览清理（0）/);
+  assert.match(html, /清理预览（0）/);
   assert.match(html, /治理操作记录/);
   assert.equal(governanceAuditOperationLabel("cache_clean"), "磁盘缓存清理");
   assert.match(

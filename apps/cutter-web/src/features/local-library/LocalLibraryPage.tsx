@@ -500,7 +500,7 @@ export function LocalLibraryPage({
               size="sm"
               onClick={() => onOpenLocalClipDirectory(selected)}
             >
-              打开文件目录
+              打开所在目录
             </Button>
           ) : null}
           {selected && onDeleteLocalClip ? (

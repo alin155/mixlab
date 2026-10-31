@@ -63,7 +63,7 @@ function releaseStatus(runtimeStatus?: CutterRuntimeStatus): {
   }
 
   if (cache.ready) {
-    return { tone: "ready", label: "本机可用" };
+    return { tone: "ready", label: "可用" };
   }
 
   return { tone: "warning", label: "待同步" };
@@ -730,7 +730,7 @@ export function CacheManagementPage({
                       void loadCacheInventory().then(() => setPendingDiskClear(true));
                     }}
                   >
-                    预览清理（{selectedCacheTargets.length}）
+                    清理预览（{selectedCacheTargets.length}）
                   </Button>
                 </div>
               }
@@ -903,7 +903,7 @@ export function CacheManagementPage({
                     <div className="ml-control-cluster">
                       <Button type="button" variant="ghost" size="sm" onClick={() => void loadWorkspaceResidue()}>刷新扫描</Button>
                       <Button type="button" variant="secondary" size="sm" disabled={residueCleaning || selectedResidueIds.length === 0} onClick={() => setPendingResidueClean(true)}>
-                        预览清理（{selectedResidueIds.length}）
+                        清理预览（{selectedResidueIds.length}）
                       </Button>
                     </div>
                     {pendingResidueClean ? (

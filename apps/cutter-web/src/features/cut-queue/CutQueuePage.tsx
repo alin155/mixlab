@@ -701,7 +701,7 @@ export function CutQueuePage({
                   onClick={onOpenCutOutputDirectory}
                   variant="secondary"
                 >
-                  打开文件目录
+                  打开输出根目录
                 </Button>
               ) : null}
               {onOpenCutJobDirectory ? (
