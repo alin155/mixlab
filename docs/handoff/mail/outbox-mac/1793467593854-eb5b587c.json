@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "id": "1793467593854-eb5b587c",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793467593854-eb5b587c",
+  "created_at": "2026-10-31T17:26:33.854Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793467238432-832fb162",
+      "1793467352758-03da96e8",
+      "1793467412792-7606af7f"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 3 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进 0.18.24 构建与 Windows 验收；通过后可按任务投放版本目录，保持 LATEST 不变。** 未发现已证实的 P0/P1 发布阻塞，但尚不能判定发布通过：当前快照仍为 0.18.13，`DIFF.patch` 为空，未附证据 ZIP 实体及最终包验收回执；以下区分回执声明与独立核实结果。\n\n### 消息 1793467238432-832fb162\n\n- 判定：同意\n- 严重级别：P3\n- 事实判断：[补件回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PdUPrZ/REVIEW-PACKET.md:16)提供 ZIP 哈希，声明包含截图和 `verify.json`。\n- 问题/风险：审查对象是 `fe9d972`，零告警结果不能自动覆盖其他提交。\n- 建议：作为该提交的补充证据归档；最终结论采用本次任务要求的 0.18.24 验收结果。\n- 需要证据：无新增。\n\n### 消息 1793467352758-03da96e8\n\n- 判定：同意\n- 严重级别：P2\n- 事实判断：[发布任务](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PdUPrZ/REVIEW-PACKET.md:24)明确冻结源、升级验收、copy 回归、两处投放及保留旧版。\n- 问题/风险：LATEST 不变仍允许用户直接下载版本包，不能替代投放前验收。\n- 建议：升级、视觉审查、控件审查及 copy 全部通过后再投放；失败则保留本地候选。\n- 需要证据：最终包验收回执、两处文件哈希及 LATEST 未变记录。\n\n### 消息 1793467412792-7606af7f\n\n- 判定：需补充信息\n- 严重级别：P2\n- 事实判断：[侧栏回执](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PdUPrZ/REVIEW-PACKET.md:33)指向 `7dcccb9`，构建任务指定 `fa70a76`；材料未展示两者覆盖关系。\n- 问题/风险：不能根据通知先后，认定最终源已包含或遗漏该文案。\n- 建议：Mac 核对目标中的侧栏改动；已等价则无需重复集成，不等价才修订冻结源，Windows 继续遵守“不改代码”。\n- 需要证据：目标提交中的对应改动或等价差异记录。\n\n## 跨消息建议\n\n1. **copy 回归记录实际执行模式。** 旧快照[已有自动回退 precise 的逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-PdUPrZ/packages/ffmpeg-core/src/index.ts:523)。样例应记录 `cut_mode_used`、降级原因和输出时长，避免仅凭“导出成功”判定快速剪切通过。\n\n2. **校验清单保留历史记录。** 本次新增包使用版本目录内的 `SHA256SUMS`，或向已有清单追加；避免生成新清单时覆盖仍需保留的旧版本校验信息。\n\n3. **最终回执关联发布任务。** 使用 `reply` 关联 `1793467352758-03da96e8`，统一列出各项通过/失败及证据索引；两条 notice 作为附件引用，不将其计作发布任务已完成。"
+}
