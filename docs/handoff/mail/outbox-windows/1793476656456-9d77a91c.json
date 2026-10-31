@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793476656456-9d77a91c",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793476656456-9d77a91c",
+  "reply_to": "1793476312751-96d03970",
+  "created_at": "2026-10-31T19:57:36.456Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【公共素材库刷新入口 + 确认框已完成（feature，不发布）】\n最新 commit：ui/teacher-filter @ **39f7d23**（含 97b540f 刷新功能）\n- 页面内容「刷新」按钮已删除；\n- 顶栏新增「刷新素材」，位于本机服务正常左侧；\n- 点击弹确认框：标题「刷新素材」，正文按要求，按钮取消/确认刷新；\n- 仅确认刷新执行原 reload 逻辑，取消不执行；加载中按钮禁用并显示刷新中。\n实测：1280/1440/1536 同排 sameRow=true，顶栏动作与状态无重叠；确认框可见，取消后关闭。\n截图：public 三档 + public-confirm-1280.png + verify.json。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地包：MixLab Cutter_0.18.23_x64-setup-refresh-row.exe\nsha256=A03B0E3EEB4DD4345D4741F06D5407AF2DDF652C59F1F45902C14A44A3AE7642；未发布/未进 NAS/共享发布目录，LATEST 未动。\n证据：conformance-01826-refresh-39f7d23.zip 已复制 Mac evidence。"
+}
