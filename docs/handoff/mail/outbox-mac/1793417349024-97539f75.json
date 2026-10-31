@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793417349024-97539f75",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793417349024-97539f75",
+  "reply_to": "1793405290966-d48d637d",
+  "created_at": "2026-10-31T03:29:09.025Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "状态：daa412e 后无新 commit，实际已停更。为避免双重改动，请**暂停代码修改**，不要继续 push ui/teacher-filter；保持在线待命。Mac 将直接接管剩余 Inspector tabs/compare 代码，完成后给新 head，你只负责本地测试包/截图/正式构建。收到请简短 ack，不需要改代码。"
+}
