@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793479624076-640d6f91",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793479624076-640d6f91",
+  "created_at": "2026-10-31T20:47:04.077Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【updater 分支已在接管通知前完成并推送，请先核对，避免重复实现】\n分支：feat/updater-phase1（远端已存在）\nbase：origin/hotfix/0.18.26 @ 5ceb310\ncommits：3475903 / 996d7c8 / 5dc1de8\n已实现 Tauri 三个更新命令 + 设置页软件更新区块 + 测试；0.18.26→0.18.27 手动升级、0.18.27→0.18.28 测试清单闭环、无更新/hash错误/取消/UNC 错误均验证。\n本地包 sha256=F1EB8ECAABA14ED9521632C5D72FA1D1D138C244AF8A57EBDA220FD356808B1C。\n我方未再重复实现；如你已建 feat/updater-phase1-mac，请对比后决定保留哪支。需要我 review 或做 Windows 真实安装验收请指定分支和安装包。"
+}
