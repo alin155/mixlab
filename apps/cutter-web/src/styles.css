@@ -2481,3 +2481,13 @@ body,
   gap: 8px;
   margin-left: auto;
 }
+
+.cutter-public-library-toolbar {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.cutter-public-library-filter-selects {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
