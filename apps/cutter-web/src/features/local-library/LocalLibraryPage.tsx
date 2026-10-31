@@ -200,7 +200,6 @@ export function LocalLibraryPage({
   const [orphanCleanError, setOrphanCleanError] = useState("");
   const [orphanCleaning, setOrphanCleaning] = useState(false);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<"video" | "info">("video");
 
   async function loadLocalClipIntegrity() {
     if (!client) {
@@ -444,7 +443,7 @@ export function LocalLibraryPage({
           </section>
         ) : null}
 
-        <div className="cutter-local-library-scroll ml-scroll-region">
+        <div className="cutter-local-library-scroll ml-scroll-region" tabIndex={0} aria-label="本地素材列表">
           {viewMode === "all" ? (
             <div className="cutter-library-group-list ml-library-group-list">
               {grouped.map(([title, clips]) => (
@@ -481,11 +480,7 @@ export function LocalLibraryPage({
       </div>
 
       <InspectorPanel title="素材详情" className="ml-inspector--workbench ml-inspector--compact ml-workbench-inspector cutter-library-inspector">
-        <div className="cutter-inspector-tabs" role="tablist" aria-label="本地素材详情">
-          <button type="button" role="tab" aria-selected={inspectorTab === "video"} className={"cutter-inspector-tab" + (inspectorTab === "video" ? " is-active" : "")} onClick={() => setInspectorTab("video")}>视频</button>
-          <button type="button" role="tab" aria-selected={inspectorTab === "info"} className={"cutter-inspector-tab" + (inspectorTab === "info" ? " is-active" : "")} onClick={() => setInspectorTab("info")}>信息</button>
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "video" ? " is-active" : "")}>
+        <div className="ml-detail-stack cutter-inspector-panel is-active">
           {selected ? (
             <video
               key={selected.local_clip_id}
@@ -496,8 +491,6 @@ export function LocalLibraryPage({
               preload="metadata"
             />
           ) : null}
-        </div>
-        <div className={"ml-detail-stack cutter-inspector-panel" + (inspectorTab === "info" ? " is-active" : "")}>
           <strong>{selected?.title ?? "未选择本地素材"}</strong>
           <span>{visible.length} 条当前视图素材</span>
           <span>{selected ? `所属项目 ${projectTitleForClip(selected, projectById)}` : ""}</span>

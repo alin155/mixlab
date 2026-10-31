@@ -3706,7 +3706,7 @@ test("cutter shell keeps the workbench fixed while page content panes scroll", a
   assert.match(taskTableRule, /overscroll-behavior:\s*contain/);
   assert.doesNotMatch(css, /\.cutter-queue-table\.ml-table-wrap\s*{/);
   assert.equal(galleryGridRules.length, 0);
-  assert.equal(libraryScrollPaneRules.length, 2);
+  assert.equal(libraryScrollPaneRules.length, 4);
   assert.match(foundationWorkbenchPageRule, /grid-template-columns:\s*minmax\(0,\s*var\(--ml-workbench-page-main,\s*900px\)\)/);
   assert.match(foundationWorkbenchPageRule, /var\(--ml-workbench-page-side,\s*330px\)/);
   assert.match(foundationWorkbenchPageRule, /overflow:\s*hidden/);
@@ -5728,7 +5728,7 @@ test("cutter dark theme overrides foundation light surfaces with theme tokens", 
   assert.equal(css.includes(".cutter-library-detail-player"), false);
   assert.equal(css.includes(".cutter-local-detail-player"), false);
   assert.match(publicHtml, /class="ml-detail-stack cutter-inspector-panel/);
-  assert.match(publicHtml, /cutter-inspector-tabs/);
+  assert.doesNotMatch(publicHtml, /cutter-inspector-tabs/);
   assert.match(publicHtml, /class="ml-media-frame ml-media-frame--16x9 ml-media-frame--dark ml-media-fill"/);
   const libraryInspectorRule =
     foundationCss.match(/\.ml-workbench-inspector\s*{(?<body>[^}]+)}/)?.groups?.body ?? "";
