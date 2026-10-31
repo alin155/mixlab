@@ -551,6 +551,7 @@ export function CutterSidebarFooter({
   username,
   localCount,
   publicCount,
+  publicBytes,
   activeTaskCount,
   engineReady,
   currentProjectLabel = "未选择",
@@ -564,6 +565,7 @@ export function CutterSidebarFooter({
   username: string;
   localCount: number;
   publicCount: number;
+  publicBytes?: number;
   activeTaskCount: number;
   engineReady: boolean;
   currentProjectLabel?: string;
@@ -578,7 +580,10 @@ export function CutterSidebarFooter({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [residuePanelOpen, setResiduePanelOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
-  const libraryCountLabel = `${publicCount.toLocaleString()} 条 / ≈26 TB`;
+  const publicCapacityLabel = typeof publicBytes === "number" && publicBytes > 0
+    ? `约 ${(publicBytes / 1_000_000_000_000).toFixed(1)} TB`
+    : "≈26 TB（估算）";
+  const libraryCountLabel = `${publicCount.toLocaleString()} 条 / ${publicCapacityLabel}`;
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
   const cacheLabel = formatCutterCacheSize(displayCacheBytes);
 
@@ -4766,6 +4771,7 @@ export function CutterApp() {
               username={cutterUsername}
               localCount={data.localClips.local_clip_count}
               publicCount={data.library.available_video_count}
+              publicBytes={data.library.total_source_size_bytes}
               activeTaskCount={allVisibleQueue.filter((job) => job.status === "running").length}
               engineReady={engineReady}
               currentProjectLabel={sidebarProject ? projectDisplayTitle(sidebarProject) : "未选择"}
