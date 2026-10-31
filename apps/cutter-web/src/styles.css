@@ -2323,3 +2323,27 @@ body,
   display: grid;
 }
 
+
+/* 0.18.24: remove page-header layout boxes, keep actions in top-right overlay. */
+.cutter-page {
+  position: relative;
+}
+.cutter-page .cutter-page-header,
+.cutter-page .cutter-home-header,
+.cutter-page [class*="locator-command"] > .ml-workbench-header {
+  display: contents !important;
+}
+.cutter-page .cutter-page-header > :first-child,
+.cutter-page .cutter-home-header > .cutter-home-header-copy,
+.cutter-page [class*="locator-command"] > .ml-workbench-header > :first-child {
+  display: none !important;
+}
+.cutter-page .cutter-page-header .ml-control-cluster,
+.cutter-page .cutter-home-header .cutter-home-header-actions,
+.cutter-page [class*="locator-command"] > .ml-workbench-header .ml-control-cluster {
+  position: absolute !important;
+  top: 8px !important;
+  right: 16px !important;
+  z-index: 30 !important;
+  margin: 0 !important;
+}
