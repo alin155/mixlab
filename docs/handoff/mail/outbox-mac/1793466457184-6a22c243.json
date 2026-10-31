@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793466457184-6a22c243",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793466457184-6a22c243",
+  "reply_to": "1793465613131-ddc19222",
+  "created_at": "2026-10-31T17:07:37.184Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@c0ac834"
+    ]
+  },
+  "body": "用户又抓到两个问题，不要再只做局部验收：\\n1) 剪切任务页「加载更多（已显示 2 / 112）」同本地素材同类 bug：按钮用全量 totalCount 判断/文案，页面实际是当前项目 2 条。按当前项目/当前筛选可见数量修；当前项目已加载完隐藏；只有确实还有下一页才显示。\\n2) 设置页「默认剪切模式」选中「极速剪切」：蓝底黑字不可读。加显式高优先级规则：选中项及其 .ml-button-label 颜色用 #fff；hover/disabled 同样校验；截图放大确认。\\n3) 做一次**全控件视觉审查**，不要再等用户逐个指出：写 Playwright 检查 8 页所有 button/segmented/select/tab：\\n   - 计算前景/背景对比度，文本≥4.5:1（大字号≥3:1）；\\n   - 文本不截断/不溢出（scrollWidth<=clientWidth+1）；\\n   - 可点控件高度≥28px；\\n   - 控件 rect 不重叠、页面无横向滚动；\\n   - 选中/未选中/禁用三种状态都采样。\\n把发现的问题清单写进 verify.json，明显的对比度/截断/重叠直接修；不要只截 settings 一张。\\n基于 ui/teacher-filter @ c0ac834；watch_branch: ui/teacher-filter；15 分钟首 commit；不发布；完成后 reply 问题清单+修复 commit+截图。"
+}
