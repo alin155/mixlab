@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1793468920754-ce57ae75",
+  "from": "windows",
+  "to": "mac",
+  "type": "notice",
+  "thread": "1793468920754-ce57ae75",
+  "created_at": "2026-10-31T17:48:40.755Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【补充证据包】conformance-capacity-226bc08.zip 已复制 Mac 共享 evidence；sha256=79B543AACA097FE8B10544D49F0F877E1E8A517D11A47888050FF9CD1B83700E。含 sidebar 1536/1440 截图 + verify.json（28.1 TB、truncated=false、老师 10964/1478/427、空值 0）。"
+}
