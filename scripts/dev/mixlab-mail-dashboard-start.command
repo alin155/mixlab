@@ -45,6 +45,13 @@ if [ -x "$REPO/scripts/dev/mail-liveness.mjs" ] && ! pgrep -f "scripts/dev/mail-
   disown
 fi
 
+# 任务停滞 watchdog（只读；监控 watch_branch 的最新 commit，不消费邮件）
+if [ -x "$REPO/scripts/dev/mail-watchdog.mjs" ] && ! pgrep -f "scripts/dev/mail-watchdog.mjs watch" >/dev/null 2>&1; then
+  cd "$REPO" || exit 1
+  nohup node scripts/dev/mail-watchdog.mjs watch --interval 60 --fetch >>"$LOG_DIR/mail-watchdog.log" 2>&1 &
+  disown
+fi
+
 # 已在运行：直接打开页面
 if curl -s --max-time 2 "$URL/health" >/dev/null 2>&1; then
   open_page

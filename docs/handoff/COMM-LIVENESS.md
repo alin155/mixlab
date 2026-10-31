@@ -24,6 +24,20 @@
 - 告警：macOS 通知 + ~/Library/Logs/MixLab/mail-liveness.log；同一异常 key 只通知一次，恢复后重新布防。
 - 随看板启动/停止：mixlab-mail-dashboard-start.command / stop.command。
 
+## 2.1 已实现：任务停滞 watchdog
+
+脚本：scripts/dev/mail-watchdog.mjs
+
+- **只读**：读取 pending 任务与远端分支 commit，不消费邮件、不自动发消息。
+- 代码类任务必须在下发正文声明 `watch_branch: ui/xxx`；模板见 MAIL-TASK-TEMPLATE.md。
+- 判定：
+  - 任务创建后无新 commit，超过 20 分钟 = stall；
+  - 最后一次 commit 超过 20 分钟 = stall；
+  - 超过 30 分钟 = 建议 Mac 接管。
+- 阈值可用 `--stall` / `--takeover` 调整；同一任务/状态只通知一次。
+- 启动：随 dashboard start 脚本常驻，日志 ~/Library/Logs/MixLab/mail-watchdog.log。
+- 手动检查：`node scripts/dev/mail-watchdog.mjs check --json`。
+
 ## 3. 尚未实现 / 下一步
 
 ### 3.1 协议（必须先修消费语义）
