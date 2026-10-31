@@ -482,11 +482,13 @@ export function parseFfprobeKeyframeTimes(stdout: string): number[] {
 }
 
 export const MAX_COPY_KEYFRAME_DISTANCE_MS = 500;
+export const MAX_COPY_START_KEYFRAME_DISTANCE_MS = 1_000;
 
 export interface CopyKeyframeDecisionInput {
   cut_mode: CutMode;
   begin_ms: number;
   keyframe_times_ms: number[];
+  end_ms?: number;
   max_keyframe_distance_ms?: number;
 }
 
@@ -521,6 +523,27 @@ export function decideCopyCutMode(input: CopyKeyframeDecisionInput): CopyKeyfram
   }
 
   if (previousKeyframe === undefined) {
+    // The cut starts before the first keyframe (typically begin=0). Stream-copy
+    // can still start at that first keyframe if it is close enough; otherwise
+    // the beginning would be silently dropped and copy should degrade.
+    const firstKeyframe = keyframeTimes.find((keyframeTime) => keyframeTime >= beginMs);
+    if (firstKeyframe !== undefined) {
+      const firstKeyframeDistance = Math.max(0, Math.round(firstKeyframe - beginMs));
+      const endsBeforeFirstKeyframe = typeof input.end_ms === "number" && input.end_ms <= firstKeyframe;
+      if (!endsBeforeFirstKeyframe && firstKeyframeDistance <= MAX_COPY_START_KEYFRAME_DISTANCE_MS) {
+        return {
+          cut_mode_used: "copy",
+          keyframe_distance_ms: firstKeyframeDistance
+        };
+      }
+      return {
+        cut_mode_used: "precise",
+        keyframe_distance_ms: firstKeyframeDistance,
+        degrade_reason: endsBeforeFirstKeyframe
+          ? "首个关键帧晚于剪切终点，已自动降级为精准剪切"
+          : "起点前无关键帧，首个关键帧距起点 " + firstKeyframeDistance + "ms，超过 " + MAX_COPY_START_KEYFRAME_DISTANCE_MS + "ms 起始关键帧阈值，已自动降级为精准剪切"
+      };
+    }
     return {
       cut_mode_used: "precise",
       degrade_reason: "无法定位源视频关键帧，已自动降级为精准剪切"
