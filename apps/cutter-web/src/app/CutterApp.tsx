@@ -578,7 +578,7 @@ export function CutterSidebarFooter({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [residuePanelOpen, setResiduePanelOpen] = useState(false);
   const [localCacheBytes, setLocalCacheBytes] = useState(() => cacheBytes ?? cutterLocalCacheSnapshot().bytes);
-  const libraryCountLabel = `本地 ${localCount} / 公共 ${publicCount}`;
+  const libraryCountLabel = "公共素材 26 TB";
   const displayCacheBytes = cacheBytes ?? localCacheBytes;
   const cacheLabel = formatCutterCacheSize(displayCacheBytes);
 

@@ -247,6 +247,7 @@ export function LocalLibraryPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
   const projectById = new Map(projects.map((project) => [project.project_id, project]));
+  const currentProject = currentProjectId ? projectById.get(currentProjectId) : undefined;
   const filtered = query
     ? catalog.clips.filter((clip) => `${clip.title} ${clip.source_title} ${clip.selected_text}`.includes(query))
     : catalog.clips;
@@ -277,7 +278,14 @@ export function LocalLibraryPage({
     currentProjectId && projectById.has(currentProjectId)
       ? projectDisplayTitle(projectById.get(currentProjectId)!)
       : "当前项目";
-  const canLoadMore = catalog.clips.length < catalog.local_clip_count && Boolean(onLoadMore);
+  const scopedTotal =
+    viewMode === "current-project"
+      ? (currentProject?.clip_count ?? scoped.length)
+      : catalog.local_clip_count;
+  const canLoadMore =
+    Boolean(onLoadMore) &&
+    catalog.clips.length < catalog.local_clip_count &&
+    (viewMode !== "current-project" || scoped.length < scopedTotal);
 
   const galleryItems = (clips: readonly LocalClip[]) =>
     clips.map((clip) => ({

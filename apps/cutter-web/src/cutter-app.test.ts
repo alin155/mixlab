@@ -4832,7 +4832,7 @@ test("sidebar footer renders a simple cutter status summary", () => {
     "当前项目",
     "6月4日-2",
     "素材库",
-    "本地 18 / 公共 41",
+    "公共素材 26 TB",
     "剪切任务",
     "1 个处理中",
     "本机服务",
@@ -4985,8 +4985,8 @@ test("sidebar footer does not swap local and public library counts", () => {
     })
   );
 
-  assert.match(html, /本地 146 \/ 公共 7950/);
-  assert.equal(html.includes("本地 7950 / 公共 146"), false);
+  assert.match(html, /公共素材 26 TB/);
+  assert.equal(html.includes("本地 146"), false);
 });
 
 test("sidebar exposes workspace residue as a sidebar status entry", () => {
