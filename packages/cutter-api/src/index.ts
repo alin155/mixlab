@@ -4875,15 +4875,46 @@ async function loadSourceLibraryPageWithState(
   }
 
   const promise = (async (): Promise<SourceLibraryPagePayload> => {
-    const library = await listCutterSourceLibrary({
-      library_root: input.library_root,
-      ...(state.release_root ? { release_root: state.release_root } : {}),
-      limit,
-      offset,
-      source_folder_name: sourceFolderName,
-      filename_query: filenameQuery,
-      folder_query: folderQuery ?? (teacherName ? normalizeTeacherName(teacherName) : undefined)
-    });
+    const teacherFolders = teacherName
+      ? (TEACHER_FOLDER_NAMES[normalizeTeacherName(teacherName)] ?? [])
+      : [];
+    const library = teacherFolders.length > 0
+      ? await (async () => {
+          const videos: Awaited<ReturnType<typeof listCutterSourceLibrary>>["videos"] = [];
+          let availableVideoCount = 0;
+          let totalSourceSizeBytes = 0;
+          let sourceFolders: Awaited<ReturnType<typeof listCutterSourceLibrary>>["source_folders"];
+          for (const folder of teacherFolders) {
+            const folderPage = await listCutterSourceLibrary({
+              library_root: input.library_root,
+              ...(state.release_root ? { release_root: state.release_root } : {}),
+              limit: offset + limit,
+              offset: 0,
+              source_folder_name: folder,
+              filename_query: filenameQuery,
+              folder_query: folderQuery
+            });
+            videos.push(...folderPage.videos);
+            availableVideoCount += folderPage.available_video_count;
+            totalSourceSizeBytes += folderPage.total_source_size_bytes ?? 0;
+            sourceFolders ??= folderPage.source_folders;
+          }
+          return {
+            available_video_count: availableVideoCount,
+            total_source_size_bytes: totalSourceSizeBytes,
+            ...(sourceFolders ? { source_folders: sourceFolders } : {}),
+            videos: videos.slice(offset, offset + limit)
+          };
+        })()
+      : await listCutterSourceLibrary({
+          library_root: input.library_root,
+          ...(state.release_root ? { release_root: state.release_root } : {}),
+          limit,
+          offset,
+          source_folder_name: sourceFolderName,
+          filename_query: filenameQuery,
+          folder_query: folderQuery
+        });
 
     return {
       library_id: await readLibraryIdBestEffort(input),
