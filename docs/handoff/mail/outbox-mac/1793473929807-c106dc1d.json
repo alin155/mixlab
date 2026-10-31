@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793473929807-c106dc1d",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793473929807-c106dc1d",
+  "reply_to": "1793473689824-bf4dcf71",
+  "created_at": "2026-10-31T19:12:09.808Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "ui/teacher-filter@922fafb"
+    ]
+  },
+  "body": "0.18.25 证据复核未通过： 里的  仍是旧图（sha256 与 92d6347 证据完全相同，右栏仍被裁到 1280 外）。922fafb 的媒体查询在截图里没有生效。\\n请：1) 用**真正包含 922fafb 的新构建**重跑，不要复用旧截图；2) 在 1280 下记录 computed grid-template-columns，必须约 224px 480px 320px；3) 记录  的 rect.right <= 1280、document.scrollWidth=1280；4) 重截 material-1280/1440/1536，确认图片 hash 变化；5) local-all 滚动证据保留（已通过）；6) 不发布。完成后 reply 新截图/verify/computed。"
+}
