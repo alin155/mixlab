@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793465400597-d1c7fd62",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793465400597-d1c7fd62",
+  "created_at": "2026-10-31T16:50:00.597Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793465208752-0ee00abb"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进侧栏数量恢复，无新增已证实的 P0/P1 发布阻塞，继续保持“不发布”。** 本包只有任务，快照仍为 `269d99658ae2`，`DIFF.patch` 为空，因此只能评审修复方向，不能确认候选实现通过。新增关注点是：`available_video_count` 在筛选响应中可能表示命中数量，需要明确侧栏的统计范围。\n\n### 消息 1793465208752-0ee00abb\n\n- 判定：警惕\n- 严重级别：P2\n- 事实判断：快照[已向侧栏传入数量]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6LEa5y/apps/cutter-web/src/app/CutterApp.tsx:4632)；但[文件名筛选返回的同名字段]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6LEa5y/packages/library-fs/src/cutter-source-library.ts:584)为 `matched.length`。\n- 问题/风险：若直接复用筛选响应，侧栏可能把命中数显示成公共库总量。\n- 建议：恢复数量时明确采用无筛选总数，本轮限定侧栏展示修改。\n- 需要证据：实际增量补丁、1536/1440截图及筛选前后计数对照。\n\n## 跨消息建议\n\n1. **复用已有总量数据，避免加载全库。** 现有[验证样例]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6LEa5y/apps/cutter-web/src/api.test.ts:720)允许 `videos=[]`、总数为1372；侧栏不能取 `videos.length`，也无需为了显示数量新增全量请求。\n\n2. **核对动态更新和零值。** 手工检查总数为0、刷新后数量变化、切换筛选三种情况；避免用真值判断吞掉0，或初始化后一直显示旧数量。\n\n3. **确认数字实际可见。** 现有[侧栏样式]( /var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-6LEa5y/packages/ui-foundation/src/layout.css:721)会单行省略。双宽度截图应使用真实较大数量，确认“数量＋容量”没有截掉数字；如需调整，优先限定在 Cutter 该行，避免扩大到共享布局。"
+}
