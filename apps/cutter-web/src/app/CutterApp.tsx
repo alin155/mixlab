@@ -1714,6 +1714,7 @@ function renderPage(
         onSelectLocalClip={handlers.selectLocalClip}
         onOpenLocalClipDirectory={handlers.openLocalClipDirectory}
         onDeleteLocalClip={handlers.deleteLocalClip}
+        onCreateProject={handlers.createProject}
         onLoadMore={handlers.loadMoreLocalClips}
         isLoadingMore={viewState.localClipsLoadingMore}
         client={viewState.cacheApiClient}
@@ -1727,11 +1728,13 @@ function renderPage(
   if (route === "cut-tasks") {
     return (
       <div className="cutter-cut-tasks-shell" data-cut-tasks-tab={viewState.cutTasksTab}>
-        <CutTasksTabNav
-          activeTab={viewState.cutTasksTab}
-          cutListCount={cutList.length}
-          onSelectTab={handlers.selectCutTasksTab}
-        />
+        {viewState.cutTasksTab === "cut-list" ? (
+          <CutTasksTabNav
+            activeTab={viewState.cutTasksTab}
+            cutListCount={cutList.length}
+            onSelectTab={handlers.selectCutTasksTab}
+          />
+        ) : null}
         {viewState.cutTasksTab === "cut-list" ? (
           <CutListPage
             items={cutList}
@@ -1749,6 +1752,8 @@ function renderPage(
             lastUpdatedLabel={viewState.lastQueueUpdatedLabel}
             pipelineState={viewState.cutPipelineState}
             totalJobCount={viewState.cutJobsTotalCount}
+            cutListCount={cutList.length}
+            onOpenCutList={() => handlers.selectCutTasksTab("cut-list")}
             isLoadingMore={viewState.cutJobsLoadingMore}
             onRefresh={handlers.refreshQueue}
             onRunNext={handlers.runNextJob}
