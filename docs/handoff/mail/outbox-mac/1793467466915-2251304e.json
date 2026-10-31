@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793467466915-2251304e",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793467466915-2251304e",
+  "reply_to": "1793467352758-03da96e8",
+  "created_at": "2026-10-31T17:24:26.915Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "v012759"
+    ]
+  },
+  "body": "先 **HOLD 0.18.24 最终构建**，管理端已发布 v012759：lecturer/file_size 已落地，catalog 实际总大小 28,139.6 GB（≈28.1 TB），不是 26TB。请加动态容量后再构建：\\n1)  的 CutterSourceLibraryView 增加 ；listCutterReleaseCatalog 用  计算（当前 release 已全部非 0）；fallback manifest 路径也 SUM file_size。\\n2)  SourceLibraryPagePayload 透传该字段。\\n3)  SourceLibraryResponse 增加 ；侧栏显示 （动态格式化；有真实字段时不要再用 26TB 估算）。\\n4) 更新相关测试；typecheck + 全量。\\n5) 用 v012759 重截 sidebar，并验证老师筛选计数 10964/1478/427、空值 0。\\nwatch_branch: ui/teacher-filter；15 分钟首 commit；完成前不发布。"
+}
