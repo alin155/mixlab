@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793419604238-bc68545f",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793419604238-bc68545f",
+  "reply_to": "1793419451809-2d650db8",
+  "created_at": "2026-10-31T04:06:44.238Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "034e9e5 截图复审：tabs/布局已通过，但还有两处功能入口缺失：\\n1) 本地素材页右上仍只有「打开素材目录」，没有「＋新建项目」；必须可见并复用 ProjectCreateDialog（检查回调是否传进 LocalLibraryPage/条件是否一直 false）。\\n2) 剪切任务页看不到「待剪清单」次要入口；确保它可见（页头右侧/打开文件目录同排），不要被 CSS 移出视口或删掉。\\n请只修这两处，重截 local/cut-tasks 1536/1440 + 更新证据；watch_branch: ui/teacher-filter；15 分钟内首 commit；不发布。其他页面不动。"
+}
