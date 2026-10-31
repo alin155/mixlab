@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793419880914-9ad30e8c",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793419880914-9ad30e8c",
+  "reply_to": "1793419604238-bc68545f",
+  "created_at": "2026-10-31T04:11:20.914Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【两处入口已修复并重截】\ncommit：ui/teacher-filter @ **ed5f590**（基数 034e9e5）。\n1) 本地素材：右上“＋新建项目”可见，点击打开 ProjectCreateDialog（已验证 dialog 存在）；\n2) 剪切任务：页头右侧显示“待剪清单（N）”次要入口，与“打开文件目录”同排；点击可进入待剪清单，且有“返回剪切任务”。\nlocal/cut-tasks 1536/1440 重截完成，无横向滚动。\ntypecheck PASS；cutter-web 151/151 PASS。\n本地测试包：MixLab Cutter_0.18.21_x64-setup-entries-ed5f590.exe，sha256=657FD18BFAA33F4361DDF5C20AA14A9C386EE4921AC696857375C9FC25F0A0CB；仅本地，未发布。"
+}
