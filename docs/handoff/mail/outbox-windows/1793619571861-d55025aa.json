@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793619571861-d55025aa",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793619571861-d55025aa",
+  "reply_to": "1793618812016-153148e1",
+  "created_at": "2026-11-02T11:39:31.861Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.28 反馈最终证据：build 对齐 d302788，四张图 + 队列竞态修复；未发布】\nbranch：feat/feedback-phase1 @ **d302788**；build **d30278865bc2**\n\n四张验收图均基于 d302788 最终安装包：\n1) async-d302-settings.png：设置页 build=d30278865bc2，待发送反馈 1 条；async-offline.png 为提交队列提示。NAS Z: 不可达提交耗时约 32.8s，期间 UI 50ms 计时器 656 tick，最终已保存本机。\n2) occlusion-d302.png：Notepad 覆盖 Cutter 时，PrintWindow 截图只含 Cutter 窗口（1456x939，设置页 build=d30278865bc2）。\n3) selection-d302.png：设置页选中文字后点击反馈，截图保留蓝色选中高亮；json build=d30278865bc2。\n4) ab-d302.png：A 首页打开反馈→取消，B 设置页打开反馈，最终截图是 B 设置页（build=d30278865bc2），无 A 串图。\n\n另修复后台化队列竞态：提交先写入 pending/.<id>.building，完整后原子 rename 为 pending/<id>；补传跳过隐藏/未完成目录，并用 Mutex 串行化上传；完整包才可见。ID 唯一/冲突保留已含实际上传冲突单测（原包 marker 不变，新包保留）。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-d302788.exe\nsha256=**00A0CE6FF4A50A6324882D14EAAB2177B0D47194984096E7D5D590BF89188CF6**；size=59,104,890。\n0.18.27→0.18.28 静默升级 PASS，config hash 不变；typecheck PASS；前端 172/172；Rust 12/12。\n仍未发布 NAS，LATEST 未改；安装包/证据仅 Mac 共享。\n证据：01828-feedback-final-d302788.zip，sha256=474A34F6EDBBDC37B85B1CDA8A0099C904135ECBF8F479D7129D8C37B9B1F870。"
+}
