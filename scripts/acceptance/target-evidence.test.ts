@@ -2532,23 +2532,25 @@ test("packages GitHub Actions provenance into target evidence drafts when availa
     process.env.GITHUB_REPOSITORY = "alin155/mixlab";
     process.env.GITHUB_RUN_ID = "1234567890";
     process.env.GITHUB_SHA = TEST_COMMIT_SHA;
-    process.env.MIXLAB_WINDOWS_INSTALLER_FILE_NAME = "MixLab Cutter_0.18.26_x64-setup.exe";
     process.env.MIXLAB_WINDOWS_INSTALLER_SHA256 = TEST_INSTALLER_SHA256;
     delete process.env.MIXLAB_WINDOWS_INSTALLER_WORKFLOW_RUN_URL;
     delete process.env.MIXLAB_WINDOWS_INSTALLER_VERSION;
     delete process.env.MIXLAB_NAS_IMAGE_TAG;
     delete process.env.MIXLAB_PREPROCESS_COUNT_REFRESH_INTERVAL;
 
+    const appVersion = JSON.parse(readFileSync(path.join(process.cwd(), "apps/cutter-desktop/package.json"), "utf8")).version as string;
+    const installerFileName = "MixLab Cutter_" + appVersion + "_x64-setup.exe";
     process.env.GITHUB_WORKFLOW = "Cutter Desktop Windows Package";
+    process.env.MIXLAB_WINDOWS_INSTALLER_FILE_NAME = installerFileName;
     const windowsKitDir = path.join(tempRoot, "windows-workflow-kit");
     await packageAcceptanceEvidenceKit(windowsKitDir);
     const windowsDraft = JSON.parse(readFileSync(path.join(windowsKitDir, "windows", "windows-acc-008.json"), "utf8"));
     const windowsNasDraft = JSON.parse(readFileSync(path.join(windowsKitDir, "nas", "nas-acc-009.json"), "utf8"));
     assert.deepEqual(windowsDraft.artifact_provenance, artifactProvenance());
-    assert.equal(windowsDraft.installer.file_name, "MixLab Cutter_0.18.26_x64-setup.exe");
+    assert.equal(windowsDraft.installer.file_name, installerFileName);
     assert.equal(windowsDraft.installer.file_sha256, TEST_INSTALLER_SHA256);
     assert.equal(windowsDraft.installer.workflow_run_url, TEST_WORKFLOW_RUN_URL);
-    assert.equal(windowsDraft.installer.version, "0.18.26");
+    assert.equal(windowsDraft.installer.version, appVersion);
     assert.equal(windowsNasDraft.deployment.image_tag, "");
     assert.equal(windowsNasDraft.deployment.preprocess_count_refresh_interval, 0);
     const windowsDraftMetadataReport = await validateEvidenceKitDraftMetadata({ kitDir: windowsKitDir });
@@ -2609,8 +2611,9 @@ test("evidence kit draft metadata validation rejects missing CI prefilled target
     process.env.GITHUB_REPOSITORY = "alin155/mixlab";
     process.env.GITHUB_RUN_ID = "1234567890";
     process.env.GITHUB_SHA = TEST_COMMIT_SHA;
+    const appVersion = JSON.parse(readFileSync(path.join(process.cwd(), "apps/cutter-desktop/package.json"), "utf8")).version as string;
     process.env.GITHUB_WORKFLOW = "Cutter Desktop Windows Package";
-    process.env.MIXLAB_WINDOWS_INSTALLER_FILE_NAME = "MixLab Cutter_0.18.26_x64-setup.exe";
+    process.env.MIXLAB_WINDOWS_INSTALLER_FILE_NAME = "MixLab Cutter_" + appVersion + "_x64-setup.exe";
     process.env.MIXLAB_WINDOWS_INSTALLER_SHA256 = TEST_INSTALLER_SHA256;
 
     const windowsKitDir = path.join(tempRoot, "tampered-windows-kit");
