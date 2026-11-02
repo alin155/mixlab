@@ -2188,4 +2188,35 @@ mod tests {
         assert!(existing_still_there);
     }
 
+
+    #[test]
+    fn feedback_upload_preserves_existing_package_on_conflict() {
+        let root = temp_library_root("feedback-actual-conflict");
+        let source = root.join("source");
+        let nas_root = root.join("nas");
+        let inbox = nas_root.join("inbox");
+        let feedback_id = "FB-20261102-7777";
+        let existing = inbox.join(feedback_id);
+        fs::create_dir_all(&existing).expect("create existing");
+        fs::write(existing.join("marker.txt"), "original").expect("write existing marker");
+        fs::create_dir_all(&source).expect("create source");
+        fs::write(source.join("feedback.json"), "{}").expect("write source");
+        std::env::set_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT", nas_root.to_string_lossy().to_string());
+        let result = try_upload_feedback(&source, feedback_id);
+        std::env::remove_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT");
+        let original_intact = fs::read_to_string(existing.join("marker.txt")).unwrap_or_default() == "original";
+        let uploaded = fs::read_dir(&inbox)
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|entry| entry.file_name().to_string_lossy().starts_with("FB-20261102-7777-"))
+                    .count()
+            })
+            .unwrap_or(0);
+        fs::remove_dir_all(root).ok();
+        assert!(result.is_ok());
+        assert!(original_intact);
+        assert_eq!(uploaded, 1);
+    }
+
 }
