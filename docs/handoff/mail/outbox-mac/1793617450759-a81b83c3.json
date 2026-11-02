@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793617450759-a81b83c3",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793617450759-a81b83c3",
+  "created_at": "2026-11-02T11:04:10.759Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793617230112-24bce2b3"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：三个既有 P1 尚未闭环：反馈编号碰撞及覆盖、截图窗口隔离、反馈命令阻塞 UI。\n- 待补证据/有条件通过：整改提交对应的 Windows 慢 NAS、离线及并发补传验收。\n- 已采纳历史建议：弹窗前抓图、用户名元数据、日志兜底来源说明已落实；主线程 P1 已纳入本条整改任务，尚未提供修复结果。\n\n## 总体判断\n\n**同意本条整改方向，可推进修复，当前 `180843562775` 候选仍不能发布。** 这条消息是整改要求，不是完成回执。以下基于评审包标定的快照与相对 `52fbaa7422df` 的差异进行只读核查，未运行构建、测试或 Windows 现场验收。\n\n## 意见明细\n\n### 消息 1793617230112-24bce2b3\n\n- 判定：**同意**\n- 严重级别：**P1**\n- 事实判断：截图、提交和补传均为[同步原生命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-ofTsZR/apps/cutter-desktop/src-tauri/src/main.rs:359)；截图等待 PowerShell 退出，提交则在 NAS 上传结束后才返回。[Tauri 官方文档](https://v2.tauri.app/develop/calling-rust/#async-commands)确认此类同步命令默认在主线程执行，消息中的风险判断成立。\n- 问题/风险：\n  1. **验收须覆盖自动补传。** [启动、定时及 online 事件](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-ofTsZR/apps/cutter-web/src/app/CutterApp.tsx:1934)都会触发补传，因此未点击反馈也可能遇到阻塞。已有“正在打包”文案，但提交期间[取消按钮被禁用](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-ofTsZR/apps/cutter-web/src/features/feedback/FeedbackDialog.tsx:175)，单改线程仍不足以保证工作流可继续。\n  2. **后台化会暴露队列竞态，需随整改处理。** 当前先[创建 pending 目录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-ofTsZR/apps/cutter-desktop/src-tauri/src/main.rs:424)，再逐项写附件；补传直接扫描其中所有目录。若提交与补传并发，可能投递未完成的包，或在写入过程中将其移走。这是迁移风险，尚无现场复现证据。\n- 建议：同步文件操作及子进程等待使用后台阻塞任务，例如 [`spawn_blocking`](https://docs.rs/tauri/latest/tauri/async_runtime/fn.spawn_blocking.html)。本地封包完整保存后即返回“已排队”，NAS 上传独立推进；临时封包目录不参与补传，完成后再进入 pending，并限制同一队列仅有一个投递任务运行。\n- 需要证据：最终整改提交对应的 Windows 记录，覆盖慢 NAS、离线且启动已有待发送包、打包期间触发补传、重复触发补传；证明界面可操作、反馈包完整、恢复连接后无丢失或重复处理。\n\n## 跨消息建议\n\n1. 将“后台执行、封包完成边界、投递互斥”作为同一整改验收范围，避免解除 UI 阻塞后引入半包投递。\n2. 下一次回执补充上述执行证据，并明确三个既有 P1 各自的关闭状态；当前无需重复展开其他历史建议。"
+}
