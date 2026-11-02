@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793621693061-75a09d25",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793621693061-75a09d25",
+  "reply_to": "1793621371203-bb6579f9",
+  "created_at": "2026-11-02T12:14:53.062Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【79fa35c 确定性并发测试已补，测试-only commit，安装包不变】\ntest commit：**358020d**（相对 79fa35c 仅新增 105 行测试，app 代码未变）\n\n新增测试：feedback_submit_and_flush_are_deterministically_serialized\n- 使用临时 LOCALAPPDATA/feedback + MIXLAB_CUTTER_FEEDBACK_NAS_ROOT；\n- 覆盖顺序 A：submit 先持 FEEDBACK_UPLOAD_LOCK 完成上传/归档，flush 再扫描 → 只上传 1 包、pending 0、已有 sent marker 保留、新 sent 保留；\n- 覆盖顺序 B：flush 先上传归档，再走 submit 路径 → 不重复上传/不删归档；\n- 每单包断言 NAS 包内 feedback.json/context.json 完整，重复 20 次无 flaky。\n\nRust 全量：**14/14 PASS**（运行 2.41s，EXIT=0）。\n最终安装包保持 79fa35c：MixLab Cutter_0.18.28_x64-setup-79fa35c.exe\nsha256=**CA650107FC845A5C50E679B597FED10F505DF4987C53E52FBCB7E743DEC4B335**；size=59,107,515。\n0.18.27→0.18.28 升级 PASS（此前记录，installer.sha256 已附）。\n\n证据：01828-feedback-concurrency-358020d.zip\nsha256=52B140483322521119C38346643740515609BA5742DAE667987DE8160981FB1D；已放 Mac 共享。\n仍未发布 NAS，LATEST 未改。"
+}
