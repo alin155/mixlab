@@ -1711,6 +1711,7 @@ function renderPage(
         onNavigateHit={handlers.navigateHit}
         onLoadMoreSearchResults={handlers.loadMoreSearchResults}
         onRetrySearch={handlers.retryMaterialSearch}
+        onOpenFeedback={viewState.onOpenFeedback}
         onCutSelection={handlers.addSelectedSpan}
         onAddToCutList={handlers.addSelectionToCutList}
         onCancelSelection={handlers.cancelTranscriptSelection}

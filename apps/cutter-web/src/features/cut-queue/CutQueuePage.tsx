@@ -212,6 +212,7 @@ export function CutQueuePage({
   onOpenCutOutputDirectory,
   onOpenCutJobDirectory,
   onLoadMore,
+  onOpenFeedback,
   verificationEnabled = true,
   hiddenJobCount = 0,
   onRestoreHiddenJobs,
@@ -234,6 +235,7 @@ export function CutQueuePage({
   onCancelJob?: (cutJobId: string) => void;
   onOpenCutOutputDirectory?: () => void;
   onOpenCutJobDirectory?: (job: CutQueueJob) => void;
+  onOpenFeedback?: () => void;
   onLoadMore?: () => void;
   /**
    * Capability negotiation result for output verification. Default true keeps
@@ -605,7 +607,7 @@ export function CutQueuePage({
             className="cutter-queue-table is-workbench"
           columns={taskColumns}
           density="compact"
-          empty={<span className="cutter-queue-empty ml-empty-inline">当前筛选没有剪切任务。</span>}
+          empty={<span className="cutter-queue-empty ml-empty-inline">当前筛选没有剪切任务。{onOpenFeedback ? <Button type="button" variant="secondary" size="sm" onClick={onOpenFeedback}>反馈这里</Button> : null}</span>}
           getRowKey={(job) => job.queue_job_id}
           onRowClick={(job) => setSelectedJobId(job.queue_job_id)}
           rows={visibleJobs}

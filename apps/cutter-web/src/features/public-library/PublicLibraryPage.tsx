@@ -71,7 +71,8 @@ export function PublicLibraryPage({
   onSearchFilename,
   onSelectSourceVideo,
   onLoadMore,
-  onFetchTeacherLibrary
+  onFetchTeacherLibrary,
+  onOpenFeedback
 }: {
   library: SourceLibraryResponse;
   selectedSourceVideoId?: string;
@@ -90,6 +91,7 @@ export function PublicLibraryPage({
   onSelectSourceVideo?: (sourceVideoId: string) => void;
   onLoadMore?: () => void;
   onFetchTeacherLibrary?: (teacher: string, offset: number, limit: number) => Promise<SourceLibraryResponse>;
+  onOpenFeedback?: () => void;
 }) {
   const sourceFolderOptions = sourceFolders.filter((folder) => folder.name.trim().length > 0);
   const teacherAliases: Record<string, string> = { "陶矜2": "陶矜" };
@@ -244,6 +246,7 @@ export function PublicLibraryPage({
             <div className="cutter-library-empty-state ml-empty-panel">
               <strong>当前筛选没有可用原素材</strong>
               <span>切回全部或横版查看已经发布的公共素材。</span>
+              {onOpenFeedback ? <Button type="button" variant="secondary" size="sm" onClick={onOpenFeedback}>反馈这里</Button> : null}
             </div>
           )}
         </div>

@@ -627,7 +627,8 @@ export function MaterialLocatorPage({
   onAddToCutList,
   onCancelSelection,
   onOpenCutOutputDirectory,
-  onRetrySearch
+  onRetrySearch,
+  onOpenFeedback
 }: {
   library: SourceLibraryResponse;
   localClips: LocalClipCatalog;
@@ -679,6 +680,7 @@ export function MaterialLocatorPage({
   onCancelSelection?: () => void;
   onOpenCutOutputDirectory?: () => void;
   onRetrySearch?: () => void;
+  onOpenFeedback?: () => void;
   onSetCutMode?: (mode: CutMode) => void;
 }) {
   const sections = buildMaterialLocatorSections({
@@ -1511,11 +1513,14 @@ export function MaterialLocatorPage({
                   <div className="cutter-locator-search-error ml-empty-panel ml-empty-panel--plain" role="alert">
                     <strong>搜索失败</strong>
                     <span>本机搜索服务可能暂时不可用，可重试或稍后再试。</span>
-                    {onRetrySearch ? (
-                      <Button type="button" onClick={onRetrySearch} size="sm" variant="secondary">
-                        重新搜索
-                      </Button>
-                    ) : null}
+                    <div className="cutter-feedback-inline-actions">
+                      {onRetrySearch ? (
+                        <Button type="button" onClick={onRetrySearch} size="sm" variant="secondary">
+                          重新搜索
+                        </Button>
+                      ) : null}
+                      {onOpenFeedback ? <Button type="button" onClick={onOpenFeedback} size="sm" variant="secondary">反馈这里</Button> : null}
+                    </div>
                   </div>
                 ) : null}
                 {!hasActiveQuery ? (
@@ -1532,6 +1537,7 @@ export function MaterialLocatorPage({
                   <div className="cutter-locator-empty-state ml-empty-panel ml-empty-panel--plain">
                     <strong>没有找到可选素材</strong>
                     <span>可以换一个关键词，或到公共素材库确认可用素材是否已经发布。</span>
+                    {onOpenFeedback ? <Button type="button" onClick={onOpenFeedback} size="sm" variant="secondary">反馈这里</Button> : null}
                   </div>
                 ) : (
                   sections.map((section) => (
