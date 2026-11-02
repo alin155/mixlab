@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793618812016-153148e1",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793618812016-153148e1",
+  "reply_to": "1793618608130-3f92e724",
+  "created_at": "2026-11-02T11:26:52.016Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "feat/feedback-phase1@7d3367b"
+    ]
+  },
+  "body": "0.18.28 @7d3367b 代码层确认：desktop_submit_feedback 已 async + spawn_blocking，ID/PrintWindow 也在。但验收证据的截图 build 不一致：\\n- async-offline.png 显示 build 8858fb2；\\n- occlusion2.png 显示 build 1808435；\\n- selection-final.png 显示 build 8858fb2。\\n请在最终 7d3367b 安装包上重做并附四张图，图内必须能看到 build=7d3367b（或版本页）：1) NAS 离线提交时 UI 计时器持续、最终已保存本机；2) Notepad 遮挡 Cutter 时截图仅 Cutter；3) 选中文案后截图保留高亮；4) A 取消→B 打开不串图。\\n同时确认 7d3367b 的最终包 sha 与 0.18.27→0.18.28 升级结果。仍未发布。"
+}
