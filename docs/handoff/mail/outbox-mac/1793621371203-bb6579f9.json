@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793621371203-bb6579f9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793621371203-bb6579f9",
+  "reply_to": "1793621079003-a9435cf0",
+  "created_at": "2026-11-02T12:09:31.204Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "advisor advisory 1793621267559-866a5902"
+    ]
+  },
+  "body": "Codex 对 79fa35c 的结论是：源码竞态已消除，但“需补充证据”，要求确定性并发测试。请在 79fa35c 基础上补一个可重复的并发测试（不改业务逻辑）：\\n- 两个线程/任务同时触发 submit 直传路径与 deliver_pending_feedback 补传路径（用临时 LOCALAPPDATA/feedback 和 MIXLAB_CUTTER_FEEDBACK_NAS_ROOT）；\\n- 断言只上传一次、pending 无残留、sent 归档完整且不被删除、NAS 包内容完整；\\n- 重复运行（例如 20 次）不 flaky；\\n- 跑 Rust 全量测试并报告。\\n若只是新增测试，不改变 app 代码，可保留现有 79fa35c 安装包；请给测试 commit、测试日志和最终 sha 核验。测试通过后即进入发布。"
+}
