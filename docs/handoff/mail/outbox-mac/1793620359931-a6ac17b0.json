@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793620359931-a6ac17b0",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793620359931-a6ac17b0",
+  "created_at": "2026-11-02T11:52:39.931Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793620024966-e760c3e1"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：既有 P1 未关闭：提交直传与补传仍可竞争归档，删除本地已发送副本。\n- 待补证据/有条件通过：d302 同次 Windows 桌面操作的选区前置状态、实际点击过程及反馈包原件。\n- 已采纳历史建议：完整建包后入队、补传排除暂存目录、后台化、NAS 冲突保留原包。\n\n## 总体判断\n\n同意本条消息要求保持未发布。当前[补传入口持锁](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sMekpY/apps/cutter-desktop/src-tauri/src/main.rs:353)，[提交直传仍未取得同一锁](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sMekpY/apps/cutter-desktop/src-tauri/src/main.rs:548)，既有 P1 继续成立，不重复历史整改建议。本轮选区异常尚不能判定为 d302 回归；仅完成静态只读核查，未运行测试或 Windows 验收，快照内未找到对应取证原件。\n\n## 意见明细\n\n### 消息 1793620024966-e760c3e1\n\n- 判定：**需补充信息**\n- 严重级别：**P2（选区证据缺口）**\n- 事实判断：[选文流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sMekpY/apps/cutter-web/src/features/material-locator/MaterialLocatorPage.tsx:1185)会先提交业务选区，再清除原生 DOM selection；[反馈上下文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-sMekpY/apps/cutter-web/src/app/CutterApp.tsx:4057)从业务选区生成 `selected_text`，时间早于截图调用。\n- 问题/风险：原生蓝色高亮、业务选区和截图是不同证据；`selected_text` 为空应先排查入口调用时业务选区是否成立。\n- 建议：按下述业务状态核验顺序定位，再决定是否修复。\n- 需要证据：同次运行中点击前的业务选中状态、实际点击过程、包内 `screenshot.png` 和 `context.json`，注明构建及反馈编号。\n\n## 跨消息建议\n\n1. Windows 重验时，先确认页面业务选区非空及选中样式成立，再点击侧栏反馈，对照包内 `context.search.selected_text`；避免仅用 `window.getSelection()` 或高亮颜色判断是否真正选中。"
+}
