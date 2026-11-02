@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1793612777208-11409989",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793612777208-11409989",
+  "created_at": "2026-11-02T09:46:17.208Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "dev/admin@a6923a1 + NAS CutterFeedback"
+    ]
+  },
+  "body": "开始 0.18.28 反馈系统 Phase 1（Mac 已认可方案）。\\n规格：docs/handoff/CUTTER-FEEDBACK-PHASE1.md @ dev/admin **a6923a1**（先读）。\\n分支：feat/feedback-phase1，base origin/main @ 52fbaa7；版本 0.18.28。\\n实现：\\n1) 全局侧栏底部「反馈」入口 + 设置页入口 + 错误/空态/剪切失败处「反馈这里」；不占顶栏。\\n2) 反馈弹窗：类别（找不到/剪错了/太慢/卡住/建议）、一句话描述、期望结果（可选）、截图勾选；提交后显示编号。\\n3) 自动采集：版本/build/release、页面/项目/筛选、搜索词/老师/结果数/选中文本/视频ID/时间范围、剪切任务ID/mode/输出/校验/degrade_reason、最近2-5分钟操作轨迹、错误/日志尾部、关键耗时、NAS/API/searchd状态；密码/token/Cookie 不采集。\\n4) 截图：Tauri 原生抓当前窗口，失败不阻塞；用户可取消。\\n5) 反馈包：本地 pending 目录，写 feedback.json/context.json/events.jsonl/screenshot.png/logs；ID ；NAS ；先写  再 rename；NAS 不可用本地队列，启动/每5分钟/网络恢复重试；设置页显示待发送数量。\\n6) Mac watcher 已就绪：scripts/dev/feedback-watch.mjs；包结构必须匹配。\\n验收：表单/自动采集/截图可取消/包结构/无敏感信息/NAS在线自动入箱/离线排队恢复/上下文入口/编号/设置待发送；typecheck+测试；0.18.28 构建后先别发布，Mac 复核。watch_branch: feat/feedback-phase1；15分钟首commit。"
+}
