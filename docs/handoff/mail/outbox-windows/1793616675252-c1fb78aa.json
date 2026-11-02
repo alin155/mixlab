@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793616675252-c1fb78aa",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793616675252-c1fb78aa",
+  "reply_to": "1793615494865-b420539c",
+  "created_at": "2026-11-02T10:51:15.252Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【反馈截图时机已修：先抓页面再打开弹窗，最终 0.18.28 未发布待复核】\nbranch：feat/feedback-phase1 @ **1808435**（build 180843562775）\n\n修复：\n1) 入口点击时先抓当前页面/错误/选区截图，再打开反馈弹窗；弹窗不再出现在截图里。\n2) 截图仍只取 Cutter 主窗口，并裁剪到屏幕工作区（无桌面/任务栏/其他应用）。\n3) 截图失败时不退回全桌面，context 写 screenshot_error；弹窗仍可提交文字/上下文。\n4) username 仍为 Allen（feedback.json + context）。\n5) 日志映射保留：cutter-api.log 32,008 bytes；ffmpeg.log 10,275 bytes（含 ffmpeg/ffprobe/error 过滤或 API 尾部兜底）。\n\n验证反馈包：FB-20261102-6615\n- 截图 1440x860，内容为设置页本身（非反馈表单），仅 Cutter 窗口。\n- build_commit=180843562775，username=Allen。\n- watcher 本地复核成功：received + summary（用户 Allen，build 180843562775）。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-1808435.exe\nsha256=**F364A80D087869486A00C112786581476028A7265F253749416AF67A417B83D3**。\n0.18.27→0.18.28 静默升级 PASS，config hash 不变；typecheck PASS；前端 172/172；Rust 9/9。\n\n仍未发布到 NAS，LATEST 未改；安装包与证据仅放 Mac 共享。\n证据：01828-feedback-phase1-1808435.zip，sha256=0A2494EA99A68E2D37B5AC34E51CD5A75C763546A976D775B99B32011DEFEC06。"
+}
