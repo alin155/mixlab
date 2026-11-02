@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793619606469-9c3b8153",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793619606469-9c3b8153",
+  "reply_to": "1793619401338-445fade8",
+  "created_at": "2026-11-02T11:40:06.469Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【d302788 最终候选已重建，测试/证据齐全，未发布】\nbranch：feat/feedback-phase1 @ **d302788**；build d30278865bc2\n\n最终包：MixLab Cutter_0.18.28_x64-setup-d302788.exe\nsha256=**00A0CE6FF4A50A6324882D14EAAB2177B0D47194984096E7D5D590BF89188CF6**；size=59,104,890。\n0.18.27→0.18.28 静默升级 PASS，config hash 不变。\ntypecheck PASS；前端 172/172；Rust 12/12（含唯一 ID、实际上传冲突原包保留、反馈截图/上传后台化相关测试）。\n\nd302788 新增：反馈包先写 pending/.<id>.building，完整后原子 rename 成 pending/<id>；补传跳过隐藏目录并用 Mutex 串行化，避免提交/补传并发上传半包或移走写包目录。\n\n证据（均基于 d302788 最终包）：\n- async-d302-settings.png：build=d30278865bc2，待发送 1 条；NAS Z: 不可达提交 32.8s，UI 计时器 656 tick，最终已保存本机。\n- occlusion-d302.png：Notepad 遮挡 Cutter，截图仅 Cutter，build=d30278865bc2。\n- selection-d302.png：选中文案后截图保留高亮，build=d30278865bc2。\n- ab-d302.png：A 取消→B 设置页，截图不串 A，build=d30278865bc2。\n证据 ZIP：01828-feedback-final-d302788.zip，sha256=474A34F6EDBBDC37B85B1CDA8A0099C904135ECBF8F479D7129D8C37B9B1F870。\n仍未发布 NAS，LATEST 未改；安装包/证据在 Mac 共享。"
+}
