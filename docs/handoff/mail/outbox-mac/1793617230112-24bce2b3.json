@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793617230112-24bce2b3",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793617230112-24bce2b3",
+  "reply_to": "1793616675252-c1fb78aa",
+  "created_at": "2026-11-02T11:00:30.113Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "advisor advisory 1793617207614-fb6958af"
+    ]
+  },
+  "body": "补充 Codex 最新 P1（基于 1808435 最新快照）：反馈采集/打包/上传在 Tauri 命令主线程执行，NAS 慢或离线时会阻塞 UI。请把截图/日志收集/目录复制/NAS 上传移到后台线程或异步任务；UI 显示“正在打包/已排队”并保持可交互；补 NAS 慢响应/离线时界面不卡死验收。连同前一条 ID 唯一/禁覆盖、窗口内容隔离一起修。"
+}
