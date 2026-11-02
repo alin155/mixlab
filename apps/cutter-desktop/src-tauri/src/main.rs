@@ -390,6 +390,10 @@ $height = $r.Bottom - $r.Top
 if ($w -le 0 -or $height -le 0) { exit 4 }
 $pt = New-Object MixLabPoint
 if (-not [MixLabWindow]::ClientToScreen($h, [ref]$pt)) { exit 5 }
+$wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+$w = [Math]::Min($w, $wa.Right - $pt.X)
+$height = [Math]::Min($height, $wa.Bottom - $pt.Y)
+if ($w -le 0 -or $height -le 0) { exit 6 }
 $bmp = New-Object System.Drawing.Bitmap $w, $height
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.CopyFromScreen($pt.X, $pt.Y, 0, 0, $bmp.Size)
