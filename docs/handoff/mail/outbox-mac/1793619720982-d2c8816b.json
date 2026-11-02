@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793619720982-d2c8816b",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793619720982-d2c8816b",
+  "created_at": "2026-11-02T11:42:00.982Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793619401338-445fade8"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**P1：提交直传未接入补传锁，仍可并发上传、归档同一反馈，导致本地已发送归档被删除。**\n- 待补证据/有条件通过：修复后的确定性并发测试；最终候选测试、升级、反馈包原件及安装包 SHA256/size。\n- 已采纳历史建议：隐藏暂存目录、完成后重命名入队、pending 排除暂存目录；此前后台化和 NAS 冲突原包保护仍在。\n\n## 总体判断\n\n同意本条消息要求重建候选并保持未发布。`d30278865bc2` 已实质修复“未完成反馈包被补传扫描”的路径，但上传锁只约束补传，提交直传仍可与其竞争归档，因此尚不能关闭队列并发问题。本次依据快照及相对 `52fbaa7422df` 的差异静态核查，未运行构建、测试或 Windows 现场验收。\n\n## 意见明细\n\n### 消息 1793619401338-445fade8\n\n- 判定：**阻塞发布**\n- 严重级别：**P1**\n- 事实判断：\n  - [建包流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-NSqL4N/apps/cutter-desktop/src-tauri/src/main.rs:502)先写 `.<id>.building`，完成后于第 548 行重命名；[计数与补传](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-NSqL4N/apps/cutter-desktop/src-tauri/src/main.rs:325)均跳过点号目录。这部分整改成立。\n  - [补传函数](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-NSqL4N/apps/cutter-desktop/src-tauri/src/main.rs:352)持有 `FEEDBACK_UPLOAD_LOCK`；[提交直传](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-NSqL4N/apps/cutter-desktop/src-tauri/src/main.rs:549)未持有该锁。\n  - [归档函数](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-NSqL4N/apps/cutter-desktop/src-tauri/src/main.rs:340)先删除已有 `sent/<id>`，再移动源目录，且不返回归档结果。\n\n- 问题/风险：存在以下可达交错：提交完成 NAS 上传后、归档前暂停；补传扫描到同一 pending 包，通过冲突后缀再次上传成功；随后两者先后归档。第一次归档成功，第二次会删除该成功归档，再因源目录已不存在而失败，回退复制还可能留下空目录。结果是 **NAS 重复包、本地成功归档丢失，调用仍报告上传成功**。这是静态推导，尚无现场复现证据。\n\n- 建议：提交与补传共用覆盖“领取、上传、归档”的临界区，领取时重新检查 pending/sent 状态；归档不得先删除已有成功副本，并应返回可检查的结果。仅增加暂存目录计数截图不足以关闭此项。\n\n- 需要证据：用受控暂停覆盖“入队后”和“NAS 上传成功、归档前”的提交与补传交错，验证完整包、归档保留和返回状态一致。现有 [Rust 冲突测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-NSqL4N/apps/cutter-desktop/src-tauri/src/main.rs:2211)为串行测试，不能覆盖该交错；另需本条消息要求的最终构建与升级原始记录。\n\n## 跨消息建议\n\n1. 先关闭上述上传归档竞态，再冻结候选并集中验收；若修复产生新提交，安装包、截图和反馈 `build_commit` 应统一绑定修复后的提交，避免再次验收过期候选。"
+}
