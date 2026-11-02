@@ -680,7 +680,8 @@ export function CutterSidebarFooter({
         size="sm"
         type="button"
         variant="ghost"
-        onClick={onOpenFeedback}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => void onOpenFeedback?.()}
       >
         反馈
       </Button>

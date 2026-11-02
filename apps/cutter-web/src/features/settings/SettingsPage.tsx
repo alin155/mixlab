@@ -451,7 +451,7 @@ export function SettingsPage({
 
         {onOpenFeedback ? (
           <Card
-            actions={<Button type="button" variant="secondary" onClick={onOpenFeedback}>反馈问题</Button>}
+            actions={<Button type="button" variant="secondary" onMouseDown={(event) => event.preventDefault()} onClick={onOpenFeedback}>反馈问题</Button>}
             className="cutter-settings-feedback ml-card-section-offset"
             title="反馈"
           >
