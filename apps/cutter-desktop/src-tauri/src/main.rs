@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
+    sync::Mutex,
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     env, fs,
@@ -40,6 +41,8 @@ const SEARCHD_PORT: u16 = 3790;
 const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
 const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
 const SEARCHD_API_TIMEOUT_MS: &str = "20000";
+static FEEDBACK_UPLOAD_LOCK: Mutex<()> = Mutex::new(());
+
 const UPDATE_MANIFEST_ENV: &str = "MIXLAB_CUTTER_UPDATE_MANIFEST";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -321,7 +324,16 @@ fn try_upload_feedback(directory: &Path, feedback_id: &str) -> Result<(), String
 
 fn pending_feedback_count() -> usize {
     fs::read_dir(feedback_pending_dir())
-        .map(|entries| entries.flatten().filter(|entry| entry.path().is_dir()).count())
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|entry| {
+                    let name = entry.file_name();
+                    let name = name.to_string_lossy();
+                    entry.path().is_dir() && !name.starts_with('.')
+                })
+                .count()
+        })
         .unwrap_or(0)
 }
 
@@ -338,6 +350,7 @@ fn move_feedback_to_sent(directory: &Path, feedback_id: &str) {
 }
 
 fn deliver_pending_feedback() -> (usize, usize) {
+    let _upload_guard = FEEDBACK_UPLOAD_LOCK.lock().ok();
     let pending = feedback_pending_dir();
     let mut sent = 0usize;
     let mut remaining = 0usize;
@@ -350,6 +363,9 @@ fn deliver_pending_feedback() -> (usize, usize) {
             let Some(id) = entry.file_name().to_str().map(str::to_string) else {
                 continue;
             };
+            if id.starts_with('.') {
+                continue;
+            }
             match try_upload_feedback(&path, &id) {
                 Ok(()) => {
                     move_feedback_to_sent(&path, &id);
@@ -483,8 +499,10 @@ fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> R
     fs::create_dir_all(&pending).map_err(|error| format!("创建反馈队列失败：{error}"))?;
     fs::create_dir_all(&sent).map_err(|error| format!("创建反馈队列失败：{error}"))?;
     let feedback_id = feedback_id_for_directory(&pending, &sent);
+    let staging = pending.join(format!(".{feedback_id}.building"));
     let directory = pending.join(&feedback_id);
-    fs::create_dir_all(&directory).map_err(|error| format!("创建反馈包失败：{error}"))?;
+    let _ = fs::remove_dir_all(&staging);
+    fs::create_dir_all(&staging).map_err(|error| format!("创建反馈包失败：{error}"))?;
     let created_at = chrono_like_timestamp();
     let app_version = env!("CARGO_PKG_VERSION").to_string();
     let build_commit = submission
@@ -516,17 +534,18 @@ fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> R
         "errors": submission.context.get("errors").cloned().unwrap_or_else(|| json!([])),
         "attachments": if submission.screenshot_png_base64.is_some() { json!(["screenshot.png", "events.jsonl"]) } else { json!(["events.jsonl"]) },
     });
-    fs::write(directory.join("feedback.json"), serde_json::to_vec_pretty(&feedback).map_err(|error| error.to_string())?)
+    fs::write(staging.join("feedback.json"), serde_json::to_vec_pretty(&feedback).map_err(|error| error.to_string())?)
         .map_err(|error| format!("写入反馈包失败：{error}"))?;
     let context_bytes = serde_json::to_vec_pretty(&submission.context).map_err(|error| error.to_string())?;
-    fs::write(directory.join("context.json"), context_bytes).map_err(|error| format!("写入反馈上下文失败：{error}"))?;
+    fs::write(staging.join("context.json"), context_bytes).map_err(|error| format!("写入反馈上下文失败：{error}"))?;
     let events = submission.events.iter().map(|event| event.to_string()).collect::<Vec<_>>().join("\n");
-    fs::write(directory.join("events.jsonl"), format!("{events}\n")).map_err(|error| format!("写入操作轨迹失败：{error}"))?;
+    fs::write(staging.join("events.jsonl"), format!("{events}\n")).map_err(|error| format!("写入操作轨迹失败：{error}"))?;
     if let Some(encoded) = submission.screenshot_png_base64.as_deref() {
         let bytes = BASE64.decode(encoded).map_err(|error| format!("截图数据无效：{error}"))?;
-        fs::write(directory.join("screenshot.png"), bytes).map_err(|error| format!("写入截图失败：{error}"))?;
+        fs::write(staging.join("screenshot.png"), bytes).map_err(|error| format!("写入截图失败：{error}"))?;
     }
-    write_feedback_log_tails(&directory);
+    write_feedback_log_tails(&staging);
+    fs::rename(&staging, &directory).map_err(|error| format!("反馈包入队失败：{error}"))?;
     let delivered = match try_upload_feedback(&directory, &feedback_id) {
         Ok(()) => {
             move_feedback_to_sent(&directory, &feedback_id);
