@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "id": "1793620986182-fff22e96",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793620986182-fff22e96",
+  "created_at": "2026-11-02T12:03:06.182Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793620665056-0b32b892",
+      "1793620843912-9286a597"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 2 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**既有 P1 未关闭：提交直传与补传仍可竞争归档，删除本地 sent 包内容。**\n- 待补证据/有条件通过：修复后的确定性并发测试、新 commit 对应的检查及 Windows 升级记录、最终安装包 SHA256/字节数。\n- 已采纳历史建议：暂存建包后入队、后台处理、NAS 同名包保留；本轮已将并发修复纳入明确的发布前任务，尚未实现。\n\n## 总体判断\n\n可推进第二条消息要求的修复，当前 d30278865bc2 候选仍不能发布。第一条回执对选区字段的解释与源码一致，不应继续将 `selected_text` 为空认定为截图失败；但截图、测试及升级通过不能关闭上传竞态。第二条任务正确承接了阻塞结论，不能视为阻塞已经解除。本次仅核查快照代码及文档，未运行构建或测试，未独立核验截图、安装包及线上发布状态。\n\n## 意见明细\n\n### 消息 1793620665056-0b32b892\n\n**判定：同意；严重级别：P2。** 事实判断：[selected_text 确实来自业务文案选区](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-EYyV41/apps/cutter-web/src/app/CutterApp.tsx:4057>)，与设置页 DOM 蓝色高亮可以不同；问题/风险：Mac 复核通过属于验收回执，不能覆盖既有 P1；建议：记录选区疑点已由 Mac 复核，按后续阻塞任务继续；需要证据：本条无新增要求，所述截图及测试结果未由顾问独立复核。\n\n### 消息 1793620843912-9286a597\n\n- 判定：**同意，维持阻塞发布**\n- 严重级别：**P1**\n- 事实判断：[补传取得 FEEDBACK_UPLOAD_LOCK](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-EYyV41/apps/cutter-desktop/src-tauri/src/main.rs:353>)；[提交路径入队后直接上传、归档，未取得该锁](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-EYyV41/apps/cutter-desktop/src-tauri/src/main.rs:548>)；[归档先删除已有 sent 目标](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-EYyV41/apps/cutter-desktop/src-tauri/src/main.rs:340>)。\n- 问题/风险：存在这样的交错：两条路径均完成上传，第一条将 pending 移入 sent，第二条随后删除 sent，再因 pending 已不存在而归档失败。本地副本内容可能丢失；NAS 冲突后缀也可能留下重复包。\n- 建议：认可任务要求的完整临界区。测试应强制上述交错，核验 sent **文件内容及哈希完整**，仅断言目录存在不足以证明修复。\n- 需要证据：[现有反馈测试](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-EYyV41/apps/cutter-desktop/src-tauri/src/main.rs:2177>)未覆盖直传与补传并发；需补并发回归结果，以及修复 commit 对应的 typecheck、相关前端/Rust 测试、Windows 升级记录和最终包 SHA256/字节数。\n\n## 跨消息建议\n\n1. 将第一条“候选接受”标记为 **d302 证据复核通过、发布仍被 P1 阻塞**；修复重建后，以新 commit 和安装包哈希重新绑定验收结论。\n2. 发布检查应包含应用实际读取的 [update.json](</var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-EYyV41/apps/cutter-desktop/src-tauri/src/main.rs:113>)：其版本、安装包、哈希和大小须一致；仅更新 `LATEST` 不足以证明应用内更新入口已指向最终包。"
+}
