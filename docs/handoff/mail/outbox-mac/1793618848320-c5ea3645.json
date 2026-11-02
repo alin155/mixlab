@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793618848320-c5ea3645",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793618848320-c5ea3645",
+  "created_at": "2026-11-02T11:27:28.320Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793618608130-3f92e724"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**P1 后台化后，提交与补传可并发操作尚未完成的反馈包，存在上传残缺包、提前移动源目录的风险。**\n- 待补证据/有条件通过：修复后的提交与补传并发、重复补传、离线重连验收；最终候选证据 ZIP 原件及有效 NAS 目标说明。\n- 已采纳历史建议：提交与补传均已使用 `async + spawn_blocking`；前序窗口隔离截图、选区保留和 NAS 原包保护实现仍在。\n\n## 总体判断\n\n`7d3367b67e95` 已落实上一轮要求的线程整改，但后台化使此前预警的队列竞态成为可达路径，当前候选仍应保持未发布。以下依据评审包、源码及相对 `52fbaa7422df` 的 `DIFF.patch` 静态核查；未修改文件，未运行构建、测试或 Windows 现场验收。\n\n## 意见明细\n\n### 消息 1793618608130-3f92e724\n\n- 判定：**阻塞发布**\n- 严重级别：**P1**\n- 事实判断：\n  - [补传入口](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-desktop/src-tauri/src/main.rs:394)和[提交入口](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-desktop/src-tauri/src/main.rs:549)均已进入 `spawn_blocking`，符合将阻塞操作移至专用执行器的整改方向。[Tauri API 文档](https://docs.rs/tauri/latest/tauri/async_runtime/fn.spawn_blocking.html)\n  - [建包流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-desktop/src-tauri/src/main.rs:480)先创建 `pending/<id>`，再依次写入正文、上下文、截图和日志；[补传扫描](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-desktop/src-tauri/src/main.rs:340)会处理其中所有目录，没有完成标记、互斥或逐包认领。\n  - [启动、定时及 online 事件](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-web/src/app/CutterApp.tsx:1941)均可触发补传，也没有阻止重复进入。\n\n- 问题/风险：提交仍在写包时，补传可能复制其当前内容并发布为 NAS 正式目录，随后将本地目录移至 `sent`；提交后续写入可能失败，NAS 则留下缺少附件或日志的正式包。这是静态可达的并发风险，尚无现场复现证据。单次离线提交期间计时器持续增长，不能覆盖该路径。\n\n- 建议：保留后台执行；在原生后台任务内让提交投递与补传共用队列互斥，并在打包完成后才原子入队，使扫描器只看见完整包。\n\n- 需要证据：\n  1. 用同步屏障固定触发“建包中补传”和“两次补传重叠”，检查 NAS 包内容完整、本地状态一致、失败后仍可重试。[现有反馈单测](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-desktop/src-tauri/src/main.rs:2158)未覆盖这些路径。\n  2. 补最终候选的 Windows 自动补传及离线重连记录。回执写的是 `Z:` 不可达，而[代码默认目标为 UNC 路径](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-S5z7Lx/apps/cutter-desktop/src-tauri/src/main.rs:162)，需记录实际生效的目标及覆盖配置。\n  3. 提供回执引用的证据 ZIP；当前快照未包含该原件，安装包哈希、截图和升级结果暂只能按回执记录。\n\n## 跨消息建议\n\n1. Mac 将本次并发闭环结果与最终候选 commit、安装包哈希绑定验收；若整改产生新候选，应更新对应证据后再推进发布。"
+}
