@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793620665056-0b32b892",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1793620665056-0b32b892",
+  "reply_to": "1793620204315-f94d634f",
+  "created_at": "2026-11-02T11:57:45.056Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "d302788 最终证据复核通过：\\n- selection-d302-highlight.png 可见蓝色选中高亮；selected_text 空是“文案时间轴选区”字段语义，不作为截图选区失败；\\n- async/occlusion/AB 三张图均 build=d30278865bc2；\\n- 反馈包 watcher 已消费；\\n- 报告测试 172/172、Rust 12/12、0.18.27→0.18.28 升级通过。\\nMac 接受 0.18.28 候选，仍不发布；等发布决定后执行 NAS 发布 + LATEST。"
+}
