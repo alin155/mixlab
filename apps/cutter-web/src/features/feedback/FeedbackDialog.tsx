@@ -34,6 +34,7 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [screenshotSkipped, setScreenshotSkipped] = useState(false);
+  const [screenshotError, setScreenshotError] = useState("");
   const [result, setResult] = useState<SubmitResult | null>(null);
   const desktopAvailable = resolveDesktopBridgeEnvironment().desktop_available;
 
@@ -48,6 +49,7 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
     setIncludeScreenshot(true);
     setError("");
     setScreenshotSkipped(false);
+    setScreenshotError("");
     setResult(null);
     onClose();
   }
@@ -70,8 +72,10 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
       try {
         screenshot = (await captureDesktopFeedbackScreenshot()) ?? undefined;
         setScreenshotSkipped(!screenshot);
-      } catch {
+        setScreenshotError(screenshot ? "" : "当前窗口截图不可用");
+      } catch (captureError) {
         setScreenshotSkipped(true);
+        setScreenshotError(captureError instanceof Error ? captureError.message : "当前窗口截图不可用");
       }
     }
     try {
@@ -82,7 +86,8 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
         context: sanitizeFeedbackContext({
           ...context,
           ...(appVersion ? { app_version: appVersion } : {}),
-          ...(buildCommit ? { build_commit: buildCommit } : {})
+          ...(buildCommit ? { build_commit: buildCommit } : {}),
+          ...(screenshotError ? { screenshot_error: screenshotError } : {})
         }),
         events,
         ...(screenshot ? { screenshotPngBase64: screenshot } : {})

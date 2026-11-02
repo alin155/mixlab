@@ -4035,6 +4035,10 @@ export function CutterApp() {
     recordFeedbackEvent("open-feedback", route);
     setFeedbackContext({
       page: route,
+      username:
+        data?.runtimeStatus?.current_user.display_name ||
+        data?.runtimeStatus?.current_user.username ||
+        "",
       project_id: currentProject?.project_id ?? currentProjectId ?? "",
       project_title: currentProject ? projectDisplayTitle(currentProject) : "",
       filters: {

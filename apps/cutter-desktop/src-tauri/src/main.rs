@@ -203,32 +203,68 @@ fn copy_feedback_directory(source: &Path, destination: &Path) -> Result<(), Stri
     Ok(())
 }
 
+fn feedback_tail(value: &str, max_chars: usize) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= max_chars {
+        return value.to_string();
+    }
+    chars[chars.len() - max_chars..].iter().collect()
+}
+
 fn write_feedback_log_tails(directory: &Path) {
     let logs_dir = directory.join("logs");
     let _ = fs::create_dir_all(&logs_dir);
-    let candidates = [
-        ("app.log", env::var("APPDATA").ok().map(|root| PathBuf::from(root).join("MixLab Cutter").join("logs"))),
-        ("cutter-api.log", None),
-        ("ffmpeg.log", None),
-    ];
-    for (name, source_dir) in candidates {
-        let mut content = String::new();
-        if let Some(source_dir) = source_dir {
-            if let Ok(entries) = fs::read_dir(source_dir) {
-                for entry in entries.flatten() {
-                    if entry.path().extension().and_then(|value| value.to_str()) == Some("log") {
-                        if let Ok(text) = fs::read_to_string(entry.path()) {
-                            content.push_str(&text);
-                            content.push('\n');
-                        }
-                    }
+    let mut app_log = String::new();
+    let mut api_log = String::new();
+    let mut ffmpeg_log = String::new();
+    if let Ok(appdata) = env::var("APPDATA") {
+        let source_dir = PathBuf::from(appdata).join("MixLab Cutter").join("logs");
+        if let Ok(entries) = fs::read_dir(source_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+                let Ok(text) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                if name.contains("cutter-api") || name.contains("sidecar") {
+                    api_log.push_str(&text);
+                    api_log.push('\n');
+                }
+                if name.contains("ffmpeg") {
+                    ffmpeg_log.push_str(&text);
+                    ffmpeg_log.push('\n');
+                }
+                if name.contains("desktop-host") || name.contains("app") || name.contains("mixlab-searchd") {
+                    app_log.push_str(&text);
+                    app_log.push('\n');
                 }
             }
         }
-        let mut tail: String = content.chars().rev().take(32_000).collect();
-        tail = tail.chars().rev().collect();
-        let _ = fs::write(logs_dir.join(name), tail);
     }
+    if ffmpeg_log.trim().is_empty() {
+        let filtered = api_log
+            .lines()
+            .filter(|line| {
+                let lower = line.to_ascii_lowercase();
+                lower.contains("ffmpeg") || lower.contains("ffprobe") || lower.contains("error")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        ffmpeg_log = if filtered.trim().is_empty() {
+            format!("[本次会话未捕获 ffmpeg 专属行；以下为 cutter-api 尾部]\n{}", feedback_tail(&api_log, 4_000))
+        } else {
+            filtered
+        };
+    }
+    if app_log.trim().is_empty() {
+        app_log = api_log.clone();
+    }
+    let _ = fs::write(logs_dir.join("app.log"), feedback_tail(&app_log, 32_000));
+    let _ = fs::write(logs_dir.join("cutter-api.log"), feedback_tail(&api_log, 32_000));
+    let _ = fs::write(logs_dir.join("ffmpeg.log"), feedback_tail(&ffmpeg_log, 32_000));
 }
 
 fn try_upload_feedback(directory: &Path, feedback_id: &str) -> Result<(), String> {
@@ -328,12 +364,42 @@ fn desktop_flush_feedback_queue() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 fn desktop_capture_feedback_screenshot() -> Result<Option<String>, String> {
-    let path = env::temp_dir().join(format!("mixlab-feedback-screen-{}.png", std::process::id()));
-    let escaped = path.to_string_lossy().replace('\'', "''");
-    let script = format!(
-        "Add-Type -AssemblyName System.Windows.Forms\nAdd-Type -AssemblyName System.Drawing\n$b=[System.Windows.Forms.SystemInformation]::VirtualScreen\n$bmp=New-Object System.Drawing.Bitmap $b.Width,$b.Height\n$g=[System.Drawing.Graphics]::FromImage($bmp)\n$g.CopyFromScreen($b.Left,$b.Top,0,0,$bmp.Size)\n$bmp.Save('{}',[System.Drawing.Imaging.ImageFormat]::Png)\n$g.Dispose()\n$bmp.Dispose()\n",
-        escaped
-    );
+    let path = env::temp_dir().join(format!("mixlab-feedback-window-{}.png", std::process::id()));
+    let escaped_path = path.to_string_lossy().replace('\'', "''");
+    let script = r#"Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public struct MixLabRect { public int Left; public int Top; public int Right; public int Bottom; }
+public struct MixLabPoint { public int X; public int Y; }
+public class MixLabWindow {
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out MixLabRect rect);
+  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref MixLabPoint point);
+}
+'@
+[MixLabWindow]::SetProcessDPIAware() | Out-Null
+$p = Get-Process -Id __PID__ -ErrorAction Stop
+$h = $p.MainWindowHandle
+if ($h -eq [IntPtr]::Zero) { exit 2 }
+$r = New-Object MixLabRect
+if (-not [MixLabWindow]::GetClientRect($h, [ref]$r)) { exit 3 }
+$w = $r.Right - $r.Left
+$height = $r.Bottom - $r.Top
+if ($w -le 0 -or $height -le 0) { exit 4 }
+$pt = New-Object MixLabPoint
+if (-not [MixLabWindow]::ClientToScreen($h, [ref]$pt)) { exit 5 }
+$bmp = New-Object System.Drawing.Bitmap $w, $height
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($pt.X, $pt.Y, 0, 0, $bmp.Size)
+$bmp.Save('__PATH__', [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose()
+$bmp.Dispose()
+"#;
+    let script = script
+        .replace("__PID__", &std::process::id().to_string())
+        .replace("__PATH__", &escaped_path);
     let mut command = Command::new("powershell.exe");
     command.args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", &script]);
     #[cfg(windows)]
@@ -380,6 +446,7 @@ fn desktop_submit_feedback(app: AppHandle, submission: FeedbackSubmission) -> Re
         "message": submission.message,
         "expected": submission.expected.clone().unwrap_or_default(),
         "app_version": app_version,
+        "username": submission.context.get("username").and_then(Value::as_str).unwrap_or("unknown"),
         "build_commit": build_commit,
         "release_version": release_version,
         "page": submission.context.get("page").and_then(Value::as_str).unwrap_or("unknown"),
