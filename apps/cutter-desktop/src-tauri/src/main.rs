@@ -337,11 +337,19 @@ fn pending_feedback_count() -> usize {
         .unwrap_or(0)
 }
 
+fn feedback_sent_destination(sent: &Path, feedback_id: &str) -> PathBuf {
+    let original = sent.join(feedback_id);
+    if original.exists() {
+        sent.join(format!("{feedback_id}-{}", feedback_unique_suffix()))
+    } else {
+        original
+    }
+}
+
 fn move_feedback_to_sent(directory: &Path, feedback_id: &str) {
     let sent = feedback_sent_dir();
     let _ = fs::create_dir_all(&sent);
-    let target = sent.join(feedback_id);
-    let _ = fs::remove_dir_all(&target);
+    let target = feedback_sent_destination(&sent, feedback_id);
     if fs::rename(directory, &target).is_err() {
         if copy_feedback_directory(directory, &target).is_ok() {
             let _ = fs::remove_dir_all(directory);
@@ -546,18 +554,23 @@ fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> R
     }
     write_feedback_log_tails(&staging);
     fs::rename(&staging, &directory).map_err(|error| format!("反馈包入队失败：{error}"))?;
-    let delivered = match try_upload_feedback(&directory, &feedback_id) {
-        Ok(()) => {
-            move_feedback_to_sent(&directory, &feedback_id);
-            true
+    let _upload_guard = FEEDBACK_UPLOAD_LOCK.lock().ok();
+    let delivered = if directory.exists() {
+        match try_upload_feedback(&directory, &feedback_id) {
+            Ok(()) => {
+                move_feedback_to_sent(&directory, &feedback_id);
+                true
+            }
+            Err(error) => {
+                let _ = fs::write(
+                    directory.join("upload-error.json"),
+                    serde_json::to_vec_pretty(&json!({ "error": error, "updated_at": chrono_like_timestamp() })).unwrap_or_default(),
+                );
+                false
+            }
         }
-        Err(error) => {
-            let _ = fs::write(
-                directory.join("upload-error.json"),
-                serde_json::to_vec_pretty(&json!({ "error": error, "updated_at": chrono_like_timestamp() })).unwrap_or_default(),
-            );
-            false
-        }
+    } else {
+        true
     };
     let pending_count = pending_feedback_count();
     desktop_host_log(&app, "feedback_submitted", json!({ "feedback_id": feedback_id, "delivered": delivered }));
@@ -2236,6 +2249,25 @@ mod tests {
         assert!(result.is_ok());
         assert!(original_intact);
         assert_eq!(uploaded, 1);
+    }
+
+
+    #[test]
+    fn feedback_sent_destination_preserves_existing_archive() {
+        let root = temp_library_root("feedback-sent-conflict");
+        let sent = root.join("sent");
+        let existing = sent.join("FB-20261102-8888");
+        fs::create_dir_all(&existing).expect("create sent archive");
+        fs::write(existing.join("marker.txt"), "kept").expect("write marker");
+        let destination = feedback_sent_destination(&sent, "FB-20261102-8888");
+        let preserved = fs::read_to_string(existing.join("marker.txt")).unwrap_or_default() == "kept";
+        let suffixed = destination
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|name| name.starts_with("FB-20261102-8888-"));
+        fs::remove_dir_all(root).ok();
+        assert!(preserved);
+        assert!(suffixed);
     }
 
 }
