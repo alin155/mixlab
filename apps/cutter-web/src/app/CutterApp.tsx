@@ -57,7 +57,7 @@ import type { CutTasksTab } from "../features/cut-tasks/cut-tasks-tab.ts";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { FeedbackDialog } from "../features/feedback/FeedbackDialog.tsx";
 import { recentFeedbackEvents, recordFeedbackEvent } from "../features/feedback/feedback.ts";
-import { desktopFeedbackPendingCount, flushDesktopFeedbackQueue } from "../desktop-bridge.ts";
+import { captureDesktopFeedbackScreenshot, desktopFeedbackPendingCount, flushDesktopFeedbackQueue } from "../desktop-bridge.ts";
 import {
   DesktopFirstRunPage,
   type DesktopSetupDiagnostics,
@@ -1929,6 +1929,8 @@ export function CutterApp() {
   const [recoverableError, setRecoverableError] = useState<CutterErrorPresentation | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackContext, setFeedbackContext] = useState<Record<string, unknown>>({});
+  const [feedbackScreenshot, setFeedbackScreenshot] = useState<string | undefined>();
+  const [feedbackScreenshotError, setFeedbackScreenshotError] = useState("");
   useEffect(() => {
     if (!isDesktopMode) {
       return undefined;
@@ -4031,7 +4033,7 @@ export function CutterApp() {
     }
   }
 
-  function openFeedback() {
+  async function openFeedback() {
     recordFeedbackEvent("open-feedback", route);
     setFeedbackContext({
       page: route,
@@ -4065,6 +4067,20 @@ export function CutterApp() {
       api_available: Boolean(data),
       searchd_available: Boolean(data?.runtimeStatus?.search_backend?.healthy)
     });
+    let screenshot: string | undefined;
+    let screenshotError = "";
+    if (isDesktopMode) {
+      try {
+        screenshot = (await captureDesktopFeedbackScreenshot()) ?? undefined;
+        if (!screenshot) {
+          screenshotError = "当前窗口截图不可用";
+        }
+      } catch (captureError) {
+        screenshotError = captureError instanceof Error ? captureError.message : "当前窗口截图不可用";
+      }
+    }
+    setFeedbackScreenshot(screenshot);
+    setFeedbackScreenshotError(screenshotError);
     setFeedbackOpen(true);
   }
 
@@ -4893,8 +4909,14 @@ export function CutterApp() {
             buildCommit={buildCommit}
             context={feedbackContext}
             events={recentFeedbackEvents()}
+            initialScreenshot={feedbackScreenshot}
+            initialScreenshotError={feedbackScreenshotError}
             open={feedbackOpen}
-            onClose={() => setFeedbackOpen(false)}
+            onClose={() => {
+              setFeedbackOpen(false);
+              setFeedbackScreenshot(undefined);
+              setFeedbackScreenshotError("");
+            }}
           />
           <CutterTopbar
             engineReady={engineReady}

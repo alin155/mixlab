@@ -1,10 +1,6 @@
 import { Button } from "@mixlab/ui-foundation";
 import { useState } from "react";
-import {
-  captureDesktopFeedbackScreenshot,
-  resolveDesktopBridgeEnvironment,
-  submitDesktopFeedback
-} from "../../desktop-bridge.ts";
+import { resolveDesktopBridgeEnvironment, submitDesktopFeedback } from "../../desktop-bridge.ts";
 import {
   FEEDBACK_CATEGORIES,
   sanitizeFeedbackContext,
@@ -19,6 +15,8 @@ export interface FeedbackDialogProps {
   events: FeedbackEvent[];
   appVersion?: string;
   buildCommit?: string;
+  initialScreenshot?: string;
+  initialScreenshotError?: string;
 }
 
 interface SubmitResult {
@@ -26,15 +24,15 @@ interface SubmitResult {
   delivered: boolean;
 }
 
-export function FeedbackDialog({ open, onClose, context, events, appVersion, buildCommit }: FeedbackDialogProps) {
+export function FeedbackDialog({ open, onClose, context, events, appVersion, buildCommit, initialScreenshot, initialScreenshotError }: FeedbackDialogProps) {
   const [category, setCategory] = useState<FeedbackCategory>("找不到");
   const [message, setMessage] = useState("");
   const [expected, setExpected] = useState("");
   const [includeScreenshot, setIncludeScreenshot] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [screenshotSkipped, setScreenshotSkipped] = useState(false);
-  const [screenshotError, setScreenshotError] = useState("");
+  const [screenshotSkipped, setScreenshotSkipped] = useState(Boolean(initialScreenshotError));
+  const [screenshotError, setScreenshotError] = useState(initialScreenshotError ?? "");
   const [result, setResult] = useState<SubmitResult | null>(null);
   const desktopAvailable = resolveDesktopBridgeEnvironment().desktop_available;
 
@@ -67,16 +65,16 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
     }
     setSubmitting(true);
     setError("");
-    let screenshot: string | undefined;
-    if (includeScreenshot) {
-      try {
-        screenshot = (await captureDesktopFeedbackScreenshot()) ?? undefined;
-        setScreenshotSkipped(!screenshot);
-        setScreenshotError(screenshot ? "" : "当前窗口截图不可用");
-      } catch (captureError) {
-        setScreenshotSkipped(true);
-        setScreenshotError(captureError instanceof Error ? captureError.message : "当前窗口截图不可用");
-      }
+    const screenshot = includeScreenshot ? initialScreenshot : undefined;
+    const activeScreenshotError = includeScreenshot
+      ? initialScreenshotError || (screenshot ? "" : "当前窗口截图不可用")
+      : "";
+    if (activeScreenshotError) {
+      setScreenshotSkipped(true);
+      setScreenshotError(activeScreenshotError);
+    } else {
+      setScreenshotSkipped(false);
+      setScreenshotError("");
     }
     try {
       const submitted = await submitDesktopFeedback({
@@ -87,7 +85,7 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
           ...context,
           ...(appVersion ? { app_version: appVersion } : {}),
           ...(buildCommit ? { build_commit: buildCommit } : {}),
-          ...(screenshotError ? { screenshot_error: screenshotError } : {})
+          ...(activeScreenshotError ? { screenshot_error: activeScreenshotError } : {})
         }),
         events,
         ...(screenshot ? { screenshotPngBase64: screenshot } : {})
