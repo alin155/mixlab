@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793619280459-9044fd5e",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793619280459-9044fd5e",
+  "created_at": "2026-11-02T11:34:40.459Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793619055408-aa1cf49f"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**既有 P1：建包与补传并发处理未完成反馈包，当前快照仍未修复。**本轮未发现新增 P0/P1。\n- 待补证据/有条件通过：队列并发修复及验收；最终候选证据 ZIP 原件、安装包哈希与升级记录。\n- 已采纳历史建议：提交及补传后台化、窗口截图隔离与超时降级、选区保留、NAS 冲突原包保护；冲突测试已调用实际上传函数。\n\n## 总体判断\n\n本条回执补充了慢 NAS 下界面响应、最终构建遮挡截图及升级通过的报告，但**不能关闭队列并发 P1**。`5d4750ac605f` 仍允许补传扫描正在写入的反馈目录，应继续保持未发布。本次依据评审包、源码与相对基线的差异进行只读核查；未运行构建或测试，快照中未见所述证据 ZIP，现场结果及哈希尚未独立复核。\n\n## 意见明细\n\n### 消息 1793619055408-aa1cf49f\n\n- 判定：**阻塞发布**\n- 严重级别：**P1（沿用未关闭项）**\n- 事实判断：\n  - 提交及补传均已进入 `async + spawn_blocking`，后台化整改属实。\n  - [建包流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-YJDGhd/apps/cutter-desktop/src-tauri/src/main.rs:480)先创建 `pending/<id>`，随后逐项写正文、上下文、截图和日志；[补传流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-YJDGhd/apps/cutter-desktop/src-tauri/src/main.rs:340)扫描所有子目录并上传、归档，仍无完成标记或共同互斥。\n  - [自动补传入口](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-YJDGhd/apps/cutter-web/src/app/CutterApp.tsx:1936)由启动、定时器及 `online` 事件触发，可与提交重叠。\n  - [新增冲突测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-YJDGhd/apps/cutter-desktop/src-tauri/src/main.rs:2193)验证串行上传时原包保留，未覆盖建包与补传交错。\n- 问题/风险：补传可能在附件写完前上传并移动源目录，导致 NAS 正式包缺附件、后续本地写入失败；重复补传也缺少同包消费保护。界面计时器持续运行不能排除该风险。\n- 建议：将建包、直接上传、补传及归档纳入同一后台串行机制，或实现等效的“完整包才可见＋每包单一消费者”约束，再重建候选。\n- 需要证据：可控交错验收，覆盖建包中触发补传、两个补传重叠、离线后重连；核对必需文件完整、成功归档后本地包保留、无非预期重复包。另提供修复后候选的原始证据与安装包校验记录。\n\n## 跨消息建议\n\n1. Mailbox 中将本条标记为“性能与截图证据补充”，继续关联未关闭的队列 P1；避免依据“P1 补齐”标题直接关单。"
+}
