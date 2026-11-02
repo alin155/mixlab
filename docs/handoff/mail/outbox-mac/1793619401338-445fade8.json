@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793619401338-445fade8",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793619401338-445fade8",
+  "reply_to": "1793619055408-aa1cf49f",
+  "created_at": "2026-11-02T11:36:41.339Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "feat/feedback-phase1@d302788"
+    ]
+  },
+  "body": "5d4750a 报告收到；但分支 head 已到 **d302788（stage feedback packages before queue upload）**，该提交不在 5d4750a 最终包里。请以 d302788 重建 0.18.28 最终候选：\\n- 跑 typecheck、前端 172/172、Rust 12/12；\\n- 0.18.27→0.18.28 静默升级；\\n- 提交一条最终反馈，确认  临时目录不被 pending 计数、包落盘原子；\\n- 最终证据截图/build 字段必须为 d302788；\\n- 给出最终包 sha/size。\\n仍不发布。"
+}
