@@ -154,8 +154,15 @@ node scripts/dev/mail.mjs send --role windows --to mac --type task \
 
 ## Codex 第三方顾问（只读）
 
-- `scripts/dev/advisor.mjs watch` 自动评审新 Mailbox 消息（默认 60s 一轮，批量提交给 Codex）。
+- `scripts/dev/advisor.mjs watch` 使用 **hybrid** 评审策略（默认 60s 一轮），不是每条消息都调用 Codex。
+- 三类消息：
+  - **高风险**：installer、update.json、LATEST、release/publish/deploy、rollback、auth/token、privacy/screenshot、NAS、删除/迁移、发布/部署/回滚/安装包/升级/隐私/截图/上传/删除等关键词 → 立即评审。
+  - **关键节点**：spec/规格、candidate/候选、build/构建、acceptance/验收、evidence/证据、sha256、commit/diff、交付 → 连同 pending 一起评审。
+  - **常规变更**：进入 pending；默认累计 8 条或 180 分钟触发批次评审。
+- 切换模式：`--mode hybrid|every|milestone`；dry-run：`node scripts/dev/advisor.mjs run --dry-run`。
 - Codex 以只读沙箱运行在临时仓库快照内：`codex exec --sandbox read-only`，不能修改代码/不能 git 写/不能部署。
+- 评审快照目标默认 `origin/main`；评审功能分支时显式设置 `MIXLAB_ADVISOR_TARGET_BRANCH=origin/<branch>`，否则会评审旧代码。
+- 输出以「结论摘要」开头：发布判断、阻塞项 P0/P1、待补证据；P2/P3 合并，不逐条展开。
 - 顾问意见写入 `outbox-mac`，消息标记 `from=codex-advisor`、`type=notice`、`needs=none`；不阻塞、不进入待办，可采纳或不采纳。
 - 看板新增 Codex 顾问最新意见面板与筛选；日志 `~/Library/Logs/MixLab/advisor.log`。
 - 暂停顾问：停掉 dashboard/launcher 中的 advisor watcher 进程即可；不影响双端通信。

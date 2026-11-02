@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { DEFAULT_MODE, selectReviewScope } from "./advisor-routing.mjs";
 
 const ROLE_BRANCH = "dev/admin";
 const PEER_BRANCH = "dev/cutter";
@@ -24,14 +25,28 @@ const NL = String.fromCharCode(10);
 const CODEX_CLI = process.env.MIXLAB_CODEX_CLI || "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex";
 
 function parseArgs(argv) {
-  const args = { command: "run", interval: 60, limit: 20, noPush: false };
+  const args = {
+    command: "run",
+    interval: 60,
+    limit: 20,
+    noPush: false,
+    dryRun: false,
+    mode: process.env.MIXLAB_ADVISOR_MODE || DEFAULT_MODE,
+    batchSize: Number(process.env.MIXLAB_ADVISOR_BATCH_SIZE || 8),
+    batchAgeMinutes: Number(process.env.MIXLAB_ADVISOR_BATCH_AGE_MINUTES || 180)
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const value = argv[i];
     if (value === "run" || value === "watch") args.command = value;
     else if (value === "--interval") args.interval = Math.max(15, Number(argv[++i] || 60));
     else if (value === "--limit") args.limit = Math.max(1, Number(argv[++i] || 20));
+    else if (value === "--mode") args.mode = String(argv[++i] || DEFAULT_MODE);
+    else if (value === "--batch-size") args.batchSize = Math.max(1, Number(argv[++i] || 8));
+    else if (value === "--batch-age-minutes") args.batchAgeMinutes = Math.max(1, Number(argv[++i] || 180));
+    else if (value === "--dry-run") args.dryRun = true;
     else if (value === "--no-push") args.noPush = true;
   }
+  if (!["hybrid", "every", "milestone"].includes(args.mode)) args.mode = DEFAULT_MODE;
   return args;
 }
 
@@ -79,7 +94,10 @@ async function loadState(repo) {
   const parsed = raw ? parseJson(raw) : null;
   return {
     reviewed_ids: Array.isArray(parsed?.reviewed_ids) ? parsed.reviewed_ids : [],
-    last_run: typeof parsed?.last_run === "string" ? parsed.last_run : ""
+    pending_ids: Array.isArray(parsed?.pending_ids) ? parsed.pending_ids : [],
+    pending_since: typeof parsed?.pending_since === "string" ? parsed.pending_since : "",
+    last_run: typeof parsed?.last_run === "string" ? parsed.last_run : "",
+    last_review_kind: typeof parsed?.last_review_kind === "string" ? parsed.last_review_kind : ""
   };
 }
 
@@ -120,15 +138,24 @@ function summary(message) {
   ].join("\n");
 }
 
-function makePrompt(count, info) {
+function makePrompt(count, info, scope) {
   const lines = [
     "你是 MixLab Cutter 的第三方技术顾问（Codex），独立评审 Mac/Windows 通过 Git Mailbox 的方案与结果。",
     "评审对象：仓库快照已切换到 " + (info.target || "main") + "（" + (info.targetCommit || "").slice(0, 12) + "）；对比基线 main（" + (info.mainCommit || "").slice(0, 12) + "）。",
     "严格约束：只给建议，不参与实施，不修改任何文件，不执行写操作或 git 写操作。",
     "先读 REVIEW-PACKET.md；可继续阅读快照里的代码、docs、DIFF.patch、TARGET-COMMITS.txt 核实事实。",
-    "输出格式（中文 Markdown，开头写【Codex 顾问意见】）：",
+    "本次评审类型：" + (scope?.reviewKind || "auto") + "（触发原因：" + (scope?.reason || "") + "），共 " + count + " 条消息。",
+    "输出格式（中文 Markdown，开头写【Codex 顾问意见】；结论摘要优先，详细意见控制在必要范围）：",
+    "## 结论摘要",
+    "- 发布判断：可推进 / 需补充证据 / 阻塞发布",
+    "- 评审类型：" + (scope?.reviewKind || "auto"),
+    "- 阻塞项（P0/P1）：没有则写“无”",
+    "- 待补证据/有条件通过：没有则写“无”",
+    "- 已采纳历史建议：没有则写“无”",
     "## 总体判断",
     "一段话说明本批是否可推进/是否阻塞发布。",
+    "## 意见明细",
+    "只对 P0/P1 和新增风险展开；P2/P3 用一句话列出即可，不要逐条重复历史建议。",
     "### 消息 <message_id>",
     "- 判定：同意 / 警惕 / 需补充信息 / 阻塞发布",
     "- 严重级别：P0/P1/P2/P3",
@@ -137,17 +164,15 @@ function makePrompt(count, info) {
     "- 建议：具体到下一步",
     "- 需要证据：如果没有就写无",
     "## 跨消息建议",
-    "3-5 条。不要重复之前顾问已提出且未出现回归的事项；每条消息意见尽量不超过 300 字。",
+    "1-3 条，只保留会改变下一步行动的建议；不要重复之前顾问已提出且未出现回归的事项。",
     "历史反馈：" + (info.feedback ? info.feedback.summary : "暂无") + "。如果某条建议已被拒绝且没有新证据，不要重复；参考不采纳原因调整建议范围。"
   ];
-  lines.push("本次评审消息数量：" + count);
   return lines.join(NL);
 }
 
 async function snapshot(repo, messages) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "mixlab-advisor-"));
-  const target = process.env.MIXLAB_ADVISOR_TARGET_BRANCH ||
-    (gitTry(["rev-parse", "--verify", "origin/hotfix/0.18.13"]) ? "origin/hotfix/0.18.13" : "main");
+  const target = process.env.MIXLAB_ADVISOR_TARGET_BRANCH || "origin/main";
   const targetCommit = gitTry(["rev-parse", target]) || "";
   const mainCommit = gitTry(["rev-parse", "main"]) || "";
   let archiveTarget = target;
@@ -264,8 +289,13 @@ function requireReadFile(filePath) {
   }
 }
 
-async function postAdvisory(repo, advice, messages, options, info) {
+async function postAdvisory(repo, advice, messages, options, info, scope) {
   const id = Date.now() + "-" + randomUUID().slice(0, 8);
+  const label = scope?.reviewKind === "high" ? "高风险即时评审"
+    : scope?.reviewKind === "milestone" ? "关键节点评审"
+    : scope?.reviewKind === "batch" ? "批次评审"
+    : scope?.reviewKind === "every" ? "逐条评审"
+    : "自动评审";
   const message = {
     schema_version: "1",
     id: id,
@@ -274,8 +304,15 @@ async function postAdvisory(repo, advice, messages, options, info) {
     type: "notice",
     thread: id,
     created_at: new Date().toISOString(),
-    flags: { needs: "none", advisor: true, reviewed_ids: messages.map((message) => message.id).slice(-100) },
-    body: "【Codex 顾问意见｜自动评审 " + messages.length + " 条】\n\n" + advice
+    flags: {
+      needs: "none",
+      advisor: true,
+      review_mode: options.mode,
+      review_kind: scope?.reviewKind || "",
+      review_reason: scope?.reason || "",
+      reviewed_ids: messages.map((message) => message.id).slice(-100)
+    },
+    body: "【Codex 顾问意见｜" + label + " " + messages.length + " 条】\n\n" + advice
   };
   const relativeFile = OUTBOX_MAC + "/" + id + ".json";
   await mkdir(path.join(repo, OUTBOX_MAC), { recursive: true });
@@ -303,24 +340,47 @@ async function runOnce(args) {
   const messages = [...await localMessages(repo, OUTBOX_MAC), ...remoteMessages(PEER_BRANCH, OUTBOX_WIN)]
     .filter((message) => message.from === "mac" || message.from === "windows")
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-  const reviewed = new Set(state.reviewed_ids);
-  let fresh = messages.filter((message) => !reviewed.has(message.id));
-  if (state.reviewed_ids.length === 0) fresh = fresh.slice(-args.limit);
-  if (fresh.length > args.limit) fresh = fresh.slice(-args.limit);
-  if (fresh.length === 0) {
-    state.last_run = new Date().toISOString();
+  const scope = selectReviewScope({
+    messages,
+    reviewedIds: state.reviewed_ids,
+    pendingIds: state.pending_ids,
+    pendingSince: state.pending_since,
+    mode: args.mode,
+    batchSize: args.batchSize,
+    batchAgeMs: args.batchAgeMinutes * 60 * 1000
+  });
+  const selected = scope.selected.slice(-args.limit);
+  state.last_run = new Date().toISOString();
+  state.last_review_kind = scope.reviewKind;
+
+  if (selected.length === 0) {
+    state.pending_ids = scope.pendingIds;
+    state.pending_since = scope.pendingSince;
     await saveState(repo, state);
-    console.log("[advisor] no new messages");
-    return { reviewed: 0 };
+    console.log("[advisor] no review (" + scope.reason + "), pending=" + state.pending_ids.length);
+    return { reviewed: 0, pending: state.pending_ids.length, reason: scope.reason };
   }
-  console.log("[advisor] reviewing " + fresh.length + " messages");
+
+  if (args.dryRun) {
+    console.log(JSON.stringify({
+      dry_run: true,
+      mode: args.mode,
+      review_kind: scope.reviewKind,
+      reason: scope.reason,
+      selected: selected.map((message) => ({ id: message.id, from: message.from, type: message.type })),
+      pending_before: state.pending_ids.length
+    }, null, 2));
+    return { dry_run: true, selected: selected.map((message) => message.id), review_kind: scope.reviewKind };
+  }
+
+  console.log("[advisor] reviewing " + selected.length + " messages (" + scope.reviewKind + ": " + scope.reason + ")");
   const startedAt = Date.now();
-  const info = await snapshot(repo, fresh);
+  const info = await snapshot(repo, selected);
   console.log("[advisor] snapshot ready target=" + info.target + "@" + (info.targetCommit || "").slice(0, 12));
   let advice = "";
   try {
     console.log("[advisor] codex start");
-    advice = await runCodex(info.dir, makePrompt(fresh.length, info));
+    advice = await runCodex(info.dir, makePrompt(selected.length, info, scope));
     console.log("[advisor] codex done");
   } finally {
     await rm(info.dir, { recursive: true, force: true });
@@ -330,15 +390,17 @@ async function runOnce(args) {
     return { reviewed: 0, skipped_branch_change: true };
   }
 
-  const posted = await postAdvisory(repo, advice, fresh, args, info);
-  state.reviewed_ids = state.reviewed_ids.concat(fresh.map((message) => message.id)).slice(-2000);
+  const posted = await postAdvisory(repo, advice, selected, args, info, scope);
+  state.reviewed_ids = state.reviewed_ids.concat(selected.map((message) => message.id)).slice(-2000);
+  state.pending_ids = [];
+  state.pending_since = "";
   state.last_run = new Date().toISOString();
   state.last_target = info.target;
   state.last_target_commit = info.targetCommit;
   state.last_duration_ms = Date.now() - startedAt;
   await saveState(repo, state);
   console.log("[advisor] posted " + posted.id + " (" + posted.file + ")");
-  return { reviewed: fresh.length, advisory_id: posted.id };
+  return { reviewed: selected.length, advisory_id: posted.id, review_kind: scope.reviewKind };
 }
 
 async function main() {

@@ -100,5 +100,9 @@ node scripts/dev/shared-sync.mjs --apply    # 执行（确认未手改共享包�
 
 ## Codex 顾问（只读第三方）
 
-- `scripts/dev/advisor.mjs` 自动把新消息提交给 Codex 做第三方评审；Codex 只读沙箱、不参与实施、不改代码。
-- 顾问消息 `from=codex-advisor`，`needs=none`，不阻塞；Mac/Windows 可采纳或不采纳，并在回复中说明理由。
+- `scripts/dev/advisor.mjs` 默认使用 **hybrid 模式**：高风险消息即时评审，常规变更进入 pending，等关键节点/批阈值再评审；结论摘要化。
+- 高风险触发包括 installer/update/release/publish/deploy/auth/token/privacy/screenshot/NAS/删除/迁移/发布/部署/回滚等。
+- 里程碑触发包括 spec/规格/candidate/候选/build/构建/acceptance/验收/evidence/证据/sha256/commit/diff/交付。
+- 分批参数：默认 8 条或 180 分钟强制评审；`--mode every|milestone|hybrid` 可切换。
+- Codex 只读沙箱、不参与实施、不改代码；顾问消息 `from=codex-advisor`，`needs=none`，不阻塞。
+- 每条建议用 `advisor-feedback.mjs` 记录 adopted/rejected/deferred，避免重复；Mac/Windows 可采纳或不采纳，并在回复中说明理由。
