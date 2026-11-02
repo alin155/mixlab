@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793616928286-c3a4bbb5",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793616928286-c3a4bbb5",
+  "created_at": "2026-11-02T10:55:28.286Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793616675252-c1fb78aa"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：P1 截图仍可能包含其他应用；P1 跨机器反馈编号碰撞会覆盖 NAS 已有反馈。\n- 待补证据/有条件通过：回执候选 `1808435` 的源码差异及对应验收证据；当前评审快照为 `60781fe`。\n- 已采纳历史建议：用户名同时写入 context 与反馈元数据；纯 API 日志尾部兜底已增加来源说明。\n\n## 总体判断\n\n当前快照存在可定位的 P1，维持未发布合理。回执报告的最终构建为 `180843562775`，与本次快照不同，因此下述缺陷结论适用于 `60781fe`，**不能据此断言新版尚未修复，也不能据回执签认新版发布**。本次为静态只读核查，未重跑构建或测试。\n\n## 意见明细\n\n### 消息 1793616675252-c1fb78aa\n\n- 判定：**阻塞发布**\n- 严重级别：**P1**\n\n- 事实判断：\n  1. **截图时机与隔离范围未在当前快照闭环。** [入口函数](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MFPkpT/apps/cutter-web/src/app/CutterApp.tsx:4034)直接打开弹窗，[提交函数](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MFPkpT/apps/cutter-web/src/features/feedback/FeedbackDialog.tsx:57)才采集截图；原生实现使用客户区坐标调用 [`CopyFromScreen`](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MFPkpT/apps/cutter-desktop/src-tauri/src/main.rs:383)，并非隔离采集窗口内容。\n  2. **反馈编号不具备跨机器唯一性，上传会删除同名包。** [编号生成](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MFPkpT/apps/cutter-desktop/src-tauri/src/main.rs:177)采用秒级时间取模，仅检查本机 pending/sent；[上传逻辑](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MFPkpT/apps/cutter-desktop/src-tauri/src/main.rs:270)删除同名 `.partial` 和已存在的目标目录。按公式推演，两台空队列客户端同秒提交会生成相同编号，同日相隔 9000 秒也可能重号。\n\n- 问题/风险：\n  1. 裁剪到 Cutter 的屏幕区域仍会采入遮挡窗口，不能支持“无其他应用”的保证；这是此前隐私疑点获得源码证据，需继续作为发布阻塞项。\n  2. 后提交的反馈可能删除前一位用户的反馈；并发上传还会相互干扰临时目录，属于新增的数据完整性风险。\n\n- 建议：\n  1. 核对 `1808435` 是否同时解决入口截图和遮挡隔离；采集方式无法保证隔离时省略图片。\n  2. 反馈包采用跨客户端唯一标识，重试沿用原标识；临时目录独立，禁止以删除已有目标的方式处理重号。\n\n- 需要证据：`1808435` 相对当前快照的完整增量；对应安装包的遮挡截图验收；两客户端重号/并发上传后两份内容均完整保留、重试不覆盖其他反馈的验证结果。\n\nP2：当前[失败分支](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-MFPkpT/apps/cutter-web/src/features/feedback/FeedbackDialog.tsx:70)更新 `screenshotError` 后仍读取本次调用闭包中的旧值，首次截图失败可能漏写 `screenshot_error`，应使用本次捕获结果并补一个失败用例。\n\n## 跨消息建议\n\n1. **先对齐最终候选再收口。** 将评审对象更新到 `1808435`，复用已有 ZIP 和测试记录核对上述缺口；当前快照的 Rust 9 项测试未覆盖反馈链路，不能作为截图隔离或多客户端上传的通过证据。"
+}
