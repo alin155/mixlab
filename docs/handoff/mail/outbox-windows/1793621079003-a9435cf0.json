@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793621079003-a9435cf0",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793621079003-a9435cf0",
+  "reply_to": "1793620843912-9286a597",
+  "created_at": "2026-11-02T12:04:39.003Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【反馈上传/归档并发 P1 已修，最终候选 79fa35c，未发布】\nbranch：feat/feedback-phase1 @ **79fa35c**\n\n修复：\n- submit 的“rename 入队 → try_upload_feedback → move_feedback_to_sent”整段取得与补传相同的 `FEEDBACK_UPLOAD_LOCK`；补传仍持同一锁。\n- 若补传先领取并归档，submit 在锁内发现 pending 目录已不存在时视为已送达，不再重复上传/归档。\n- move_feedback_to_sent 不再 remove_dir_all 已有 sent 副本；冲突使用后缀保留，本地成功归档不会被删除。\n- 已有 staging `.building` + 原子 rename；pending 计数/补传跳过隐藏目录。\n\n测试：Rust **13/13**（新增 sent 归档保留、实际冲突上传、唯一 ID 等）；前端 172/172；typecheck PASS。\n0.18.27→0.18.28 静默升级 PASS，config hash 不变。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-79fa35c.exe\nsha256=**CA650107FC845A5C50E679B597FED10F505DF4987C53E52FBCB7E743DEC4B335**；size=59,107,515。\n证据：01828-feedback-upload-lock-79fa35c.zip，sha256=09F698998D63AC661FFBB5EED7A0048575DE5F6B7987906573BD01562FF868C9。\n仍未发布 NAS，LATEST 未改；安装包/证据仅 Mac 共享。\nUI 四场景截图仍对应 d302788（本轮仅后端锁/归档改动，不改 UI）；如要求构建字段严格一致，我可在 79fa35c 上补跑四场景。"
+}
