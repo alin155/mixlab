@@ -2223,6 +2223,7 @@ mod tests {
 
     #[test]
     fn feedback_upload_preserves_existing_package_on_conflict() {
+        let _env_guard = FEEDBACK_TEST_ENV_LOCK.lock().expect("test env lock");
         let root = temp_library_root("feedback-actual-conflict");
         let source = root.join("source");
         let nas_root = root.join("nas");
@@ -2268,6 +2269,110 @@ mod tests {
         fs::remove_dir_all(root).ok();
         assert!(preserved);
         assert!(suffixed);
+    }
+
+
+    static FEEDBACK_TEST_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn feedback_test_pending(id: &str) -> PathBuf {
+        let directory = feedback_pending_dir().join(id);
+        fs::create_dir_all(&directory).expect("create pending directory");
+        fs::write(directory.join("feedback.json"), r#"{"feedback_id":"test"}"#).expect("write feedback");
+        fs::write(directory.join("context.json"), r#"{"page":"test"}"#).expect("write context");
+        directory
+    }
+
+    fn feedback_test_submit_path(id: &str) {
+        let _guard = FEEDBACK_UPLOAD_LOCK.lock().expect("upload lock");
+        let directory = feedback_pending_dir().join(id);
+        if !directory.exists() {
+            return;
+        }
+        try_upload_feedback(&directory, id).expect("upload feedback");
+        move_feedback_to_sent(&directory, id);
+    }
+
+    #[test]
+    fn feedback_submit_and_flush_are_deterministically_serialized() {
+        let _env_guard = FEEDBACK_TEST_ENV_LOCK.lock().expect("test env lock");
+        let root = temp_library_root("feedback-concurrency");
+        let local = root.join("local");
+        let nas = root.join("nas");
+        let old_local = std::env::var("LOCALAPPDATA").ok();
+        let old_nas = std::env::var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT").ok();
+        std::env::set_var("LOCALAPPDATA", &local);
+        std::env::set_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT", &nas);
+
+        for run in 0..20 {
+            let id = format!("FB-20261102-{:08}", 80000000 + run);
+            let _pending = feedback_test_pending(&id);
+            let sent_dir = feedback_sent_dir();
+            fs::create_dir_all(&sent_dir).expect("create sent");
+            let existing = sent_dir.join(&id);
+            fs::create_dir_all(&existing).expect("create existing sent");
+            fs::write(existing.join("marker.txt"), "preserve-me").expect("write sent marker");
+
+            let (lock_held_tx, lock_held_rx) = std::sync::mpsc::channel();
+            let submit_id = id.clone();
+            let submit_thread = std::thread::spawn(move || {
+                let _guard = FEEDBACK_UPLOAD_LOCK.lock().expect("submit upload lock");
+                lock_held_tx.send(()).expect("signal lock");
+                std::thread::sleep(Duration::from_millis(100));
+                let directory = feedback_pending_dir().join(&submit_id);
+                if directory.exists() {
+                    try_upload_feedback(&directory, &submit_id).expect("submit upload");
+                    move_feedback_to_sent(&directory, &submit_id);
+                }
+            });
+            lock_held_rx.recv().expect("wait submit lock");
+            let flush_thread = std::thread::spawn(deliver_pending_feedback);
+            submit_thread.join().expect("join submit");
+            flush_thread.join().expect("join flush");
+
+            let inbox = nas.join("inbox");
+            let uploaded = fs::read_dir(&inbox)
+                .map(|entries| entries.flatten().filter(|entry| entry.path().is_dir()).count())
+                .unwrap_or(0);
+            let pending = fs::read_dir(feedback_pending_dir())
+                .map(|entries| entries.flatten().filter(|entry| entry.path().is_dir()).count())
+                .unwrap_or(0);
+            let sent_marker = existing.join("marker.txt").is_file();
+            let sent_archives = fs::read_dir(&sent_dir)
+                .map(|entries| entries.flatten().filter(|entry| entry.path().is_dir()).count())
+                .unwrap_or(0);
+            assert_eq!(uploaded, 1, "only one NAS upload expected, run {run}");
+            assert_eq!(pending, 0, "no pending residue expected, run {run}");
+            assert!(sent_marker, "existing sent marker must survive, run {run}");
+            assert!(sent_archives >= 2, "new sent archive must be preserved, run {run}");
+            let package = fs::read_dir(&inbox)
+                .ok()
+                .and_then(|mut entries| entries.find_map(|entry| entry.ok().filter(|entry| entry.path().is_dir())))
+                .expect("find uploaded package");
+            assert!(package.path().join("feedback.json").is_file());
+            assert!(package.path().join("context.json").is_file());
+
+            // Flush first, then submit: submit must not re-upload or delete archives.
+            let id2 = format!("FB-20261102-{:08}", 81000000 + run);
+            let _pending2 = feedback_test_pending(&id2);
+            deliver_pending_feedback();
+            feedback_test_submit_path(&id2);
+            let inbox_count = fs::read_dir(&inbox)
+                .map(|entries| entries.flatten().filter(|entry| entry.path().is_dir()).count())
+                .unwrap_or(0);
+            assert_eq!(inbox_count, 2, "flush-first run must upload exactly once, run {run}");
+            fs::remove_dir_all(root.join("nas")).ok();
+            fs::remove_dir_all(root.join("local")).ok();
+        }
+
+        std::env::remove_var("LOCALAPPDATA");
+        std::env::remove_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT");
+        if let Some(value) = old_local {
+            std::env::set_var("LOCALAPPDATA", value);
+        }
+        if let Some(value) = old_nas {
+            std::env::set_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT", value);
+        }
+        fs::remove_dir_all(root).ok();
     }
 
 }
