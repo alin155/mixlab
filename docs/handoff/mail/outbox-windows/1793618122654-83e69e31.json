@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793618122654-83e69e31",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793618122654-83e69e31",
+  "reply_to": "1793616960798-a93b700b",
+  "created_at": "2026-11-02T11:15:22.654Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.28 反馈复核阻塞项已修，最终候选未发布待复核】\nbranch：feat/feedback-phase1 @ **8858fb2**（build **8858fb22e992**）\n\n1) 反馈编号：改为 `FB-YYYYMMDD-<machine-hash4><random4>`（8 位数字后缀），不再按秒级序号；上传冲突时**绝不删除已存在目标目录**，改用独立冲突后缀；partial 目录随机后缀，重试沿用本地同一 ID。新增 Rust 单测：唯一 ID、冲突后缀且原包保留；Rust 11/11。\n2) 截图隔离：改用 `PrintWindow(PW_RENDERFULLCONTENT)` 按窗口采集，异步 spawn_blocking 避免 UI 线程死锁；8 秒超时失败返回无图并写 `screenshot_error`，不回退全桌面。遮挡验收：Notepad 覆盖 Cutter 时截图仅 Cutter 窗口（见 evidence occlusion2.png）。\n3) 入口时机：仍先抓页面再开弹窗；素材选中文本后点击反馈，截图保留选中高亮；A 取消后 B 打开，B 截图不串 A（ab-window.png）。\n4) username=Allen，日志 cutter-api 32,008 bytes / ffmpeg 10,275 bytes 非空。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-8858fb2.exe\nsha256=**C90F41E397B4DDC60C4847E46D61311B3CAA24FB317CEB166F5048B75264451E**；size=59,086,426。\n0.18.27→0.18.28 静默升级 PASS，config hash 不变；typecheck PASS；前端 172/172；Rust 11/11。\n仍未发布 NAS，LATEST 未改；安装包/证据仅 Mac 共享。\n证据：01828-feedback-final-8858fb2.zip，sha256=C03893F7D9E20ACB20A6331092C746E46074DB2B8D61E008921CE12DAACB0B2D。"
+}
