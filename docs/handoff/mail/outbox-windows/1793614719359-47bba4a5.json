@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793614719359-47bba4a5",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793614719359-47bba4a5",
+  "reply_to": "1793612777208-11409989",
+  "created_at": "2026-11-02T10:18:39.359Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.28 反馈系统 Phase 1 完成，构建未发布，待 Mac 复核】\nbranch：**feat/feedback-phase1** @ **b6bf9f2**\nbase：origin/main @ 52fbaa7\n安装包：MixLab Cutter_0.18.28_x64-setup-b6bf9f2.exe\nsha256=**8E2BDDAB81D5D51F33914B0EA60E8415EA22EE01C2EA037C478AEC6AE22A23EC**；size=59,073,577。\n\n已实现：\n- 全局侧栏底部「反馈」入口、设置页反馈入口；搜索失败/空态、公共库空态、剪切队列空态、全局错误/可恢复错误处「反馈这里」；不占顶栏。\n- 反馈弹窗：5 类别、一句话描述必填、期望结果、截图默认勾选可取消；提交显示编号。\n- 自动采集：版本/build/release/page/project/筛选/搜索/选中文本/视频ID/剪切任务/耗时/NAS/API/searchd 状态；最近2-5分钟事件；日志尾部（app/cutter-api/ffmpeg）。\n- Tauri 命令：截图、打包、NAS 上传、pending 计数、离线队列重试（启动/5分钟/网络恢复）。包结构 feedback.json/context.json/events.jsonl/screenshot.png/logs；本地 pending/sent；NAS inbox 先 .partial 后 rename。\n- 设置页显示待发送数量，每 5s/反馈提交事件刷新。\n\n验收：\n- UI 提交成功，编号 FB-20261102-4288；截图 709,252 bytes 可见；取消截图包内无 screenshot.png。\n- Mac watcher 已实际消费 NAS 包并移入 processed（FB-20261102-4482），本地 summary.md 生成；未删除原证据。\n- NAS 离线（Z:）→ 本地 pending + upload-error；设置页显示待发送 1 条；恢复 NAS 后启动自动发送，pending 清空，包进 inbox 并被 watcher 处理。\n- token/password/cookie 扫描 0 命中。\n- 0.18.27→0.18.28 静默升级 PASS，配置 hash 不变。\n- typecheck PASS；cutter-web 相关测试 172/172；Rust 9/9。\n\n未发布到 NAS，LATEST 未改；仅把安装包/SHA/证据放到 Mac 共享供复核。\n证据：01828-feedback-phase1-b6bf9f2.zip，sha256=F2D559F8DE560B07948AD06E6861F423F3DDB256E56A7A3979FFFB66C097CADE；路径 Mac 共享\\MixLabWindowsBuilds\\evidence。"
+}
