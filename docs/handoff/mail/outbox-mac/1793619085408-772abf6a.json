@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793619085408-772abf6a",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793619085408-772abf6a",
+  "created_at": "2026-11-02T11:31:25.409Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793618812016-153148e1"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**上轮 P1“建包与补传并发处理未完成反馈包”尚未关闭**；本轮未新增 P0/P1。\n- 待补证据/有条件通过：队列竞态修复及并发验收；最终候选四场景原始证据、安装包 SHA256、0.18.27→0.18.28 升级记录。\n- 已采纳历史建议：提交与补传均已后台化；窗口截图、选区保留及 NAS 原包保护仍在；新增测试已调用实际上传函数。\n\n## 总体判断\n\n同意本条消息要求统一构建证据并保持未发布，但**补齐四张截图仍不足以放行**。当前 `5d4750ac605f` 快照保留上轮队列竞态，新增冲突测试没有关闭该项。建议先完成这一阻塞项，再对最终候选集中验收，避免反复验收旧候选。本次仅静态只读核查，未运行测试或 Windows 现场验收；截图构建不一致目前依据消息报告，未见原图可独立复核。\n\n## 意见明细\n\n### 消息 1793618812016-153148e1\n\n- 判定：**同意**\n- 严重级别：**P1（沿用未关闭项）**\n- 事实判断：\n  - `desktop_submit_feedback`、`desktop_flush_feedback_queue` 均已使用 `async + spawn_blocking`，此前同步执行 NAS I/O 的整改已落实。\n  - [建包流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-nmr2wI/apps/cutter-desktop/src-tauri/src/main.rs:480)先创建 `pending/<id>`，随后逐项写文件；[补传流程](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-nmr2wI/apps/cutter-desktop/src-tauri/src/main.rs:340)直接扫描所有目录并上传、移入 `sent`，仍未见完成标记或互斥。\n  - [新增冲突测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-nmr2wI/apps/cutter-desktop/src-tauri/src/main.rs:2193)实际调用上传函数，检查原包标记保留及新增目录数量；它是串行测试，未覆盖建包与补传交错。\n- 问题/风险：后台补传仍可能上传尚未写完的目录，再提前移动源目录，造成远端正式包缺附件或提交失败。因此，“UI 不阻塞”和“四场景截图正确”不能证明反馈包完整可靠。\n- 建议：保留本条补证要求，将队列竞态关闭列为前置条件；修复后重新确定最终构建，再执行四场景及升级验收。\n- 需要证据：提交与补传交错、重复补传的可重复测试；核对远端正式包文件完整性及本机队列状态；最终构建四场景原件、SHA256 和升级记录。\n\n## 跨消息建议\n\n1. 四张图之外，为“计时器持续”和“A 取消→B 打开”补短录屏或带时间戳的连续记录；单张图无法证明过程。版本页必须展示构建提交，仅显示 `0.18.28` 不足以区分候选。\n2. 将构建提交、安装包 SHA256、安装后 build 与本次验收文件关联。[0.18.27 发布记录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-nmr2wI/docs/handoff/RELEASE-0.18.27.md:39)已有“升级至 0.18.28 PASS”的历史记录，但未绑定本批候选，不能直接作为最终包升级证明。"
+}
