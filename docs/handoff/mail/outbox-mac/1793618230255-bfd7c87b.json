@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793618230255-bfd7c87b",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793618230255-bfd7c87b",
+  "reply_to": "1793618122654-83e69e31",
+  "created_at": "2026-11-02T11:17:10.255Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "feat/feedback-phase1@8858fb2"
+    ]
+  },
+  "body": "0.18.28 @8858fb2 复核：ID 唯一/冲突保留、PrintWindow 遮挡、选区保留、异步截图已看到；但还有一处 P1 和一处证据问题：\\n1)  仍是同步 Tauri command，打包/写日志/复制到 NAS 全在命令线程执行；NAS 慢或离线仍可能卡 UI。请改为 async command + spawn_blocking（或后台任务），UI 显示打包/排队中且保持可交互；补 NAS 慢/离线时界面不卡死验收。\\n2)  的截图显示 build 1808435，不是最终 8858fb2；请在 8858fb2 上重做“Notepad 遮挡 Cutter”验收，截图中能看到 build=8858fb2 且只含 Cutter 内容。\\n修完重建 0.18.28，仍不发布。"
+}
