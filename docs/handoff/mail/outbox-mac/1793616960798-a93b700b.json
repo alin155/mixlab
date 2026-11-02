@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793616960798-a93b700b",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793616960798-a93b700b",
+  "reply_to": "1793616675252-c1fb78aa",
+  "created_at": "2026-11-02T10:56:00.799Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "dev/admin@b53f8ad + advisor advisory 1793616928286-c3a4bbb5"
+    ]
+  },
+  "body": "Codex 对 0.18.28 最终候选（基于 60781fe 快照，1808435 同逻辑）提出两个发布阻塞项，需修：\\n1) P1 反馈编号跨机器不唯一，且上传会 remove_dir_all 已存在目标目录：两台机器同秒/重号可覆盖别人反馈。请改为全局唯一 ID（日期+随机/机器哈希+单调/随机后缀），重试沿用同一 ID；上传遇到目标已存在时禁止删除，改用新 ID/冲突后缀或失败保留双方；partial 目录独立随机；补两客户端同号/并发上传、重试不覆盖测试。\\n2) P1 截图隔离仍不可保证：窗口区域 CopyFromScreen 在 Cutter 被其他窗口遮挡时会把遮挡内容拍进去。请用 PrintWindow(PW_RENDERFULLCONTENT)/Windows Graphics Capture 等窗口内容采集；无法保证隔离时宁可不附图并标 screenshot_error。补“其他窗口遮挡 Cutter”截图验收，必须只有 Cutter 内容。\\n另：保留已修好的入口抓图时机；补“选中文案→反馈截图保留选区”和“A 取消→B 打开不串图”验收。修完重建 0.18.28，仍不发布。"
+}
