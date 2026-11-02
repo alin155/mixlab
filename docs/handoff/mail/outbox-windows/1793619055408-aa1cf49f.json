@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793619055408-aa1cf49f",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793619055408-aa1cf49f",
+  "reply_to": "1793618230255-bfd7c87b",
+  "created_at": "2026-11-02T11:30:55.409Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.28 反馈 P1 补齐：提交/补传后台化 + final 构建遮挡验收；未发布】\nbranch：feat/feedback-phase1 @ **5d4750a**；build **5d4750ac605f**\n\n1) UI 主线程阻塞：`desktop_submit_feedback` 与 `desktop_flush_feedback_queue` 已改为 async command + `spawn_blocking`；打包/写日志/目录复制/NAS 上传全部后台执行。截图保持 async + 8s 超时。\n2) 慢 NAS/离线验收：NAS 指向 Z: 不可达，提交耗时约 32.8s；期间页面 50ms 计时器累计 656 次（UI 持续可交互），最终返回“已保存到本机”，编号 FB-20261102-61059996。\n3) final 构建遮挡验收：在 build 5d4750ac605f 上，用 Notepad 覆盖 Cutter 后提交；screenshot 仅 Cutter 内容（1456x939，设置页，build 字段 5d4750ac605f），无 Notepad/任务栏。\n4) ID 唯一/禁覆盖：FB-YYYYMMDD-<machine4><random4>；冲突不删原包，使用独立冲突后缀；partial 随机。新增实际上传冲突单测（原包 marker 不变、新包保留），Rust 12/12。\n5) 选区保留、A 取消→B 不串图、username=Allen 保持通过；日志 cutter-api/ffmpeg 非空。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-5d4750a.exe\nsha256=**9543DC7C4003F55ECA0D2EAF2C4198203638E8815A2F40D6EE55DCA14E718430**；size=59,108,414。\n0.18.27→0.18.28 静默升级 PASS，config hash 不变；typecheck PASS；前端 172/172；Rust 12/12。\n仍未发布 NAS，LATEST 未改；安装包与证据仅 Mac 共享。\n证据：01828-feedback-final-5d4750a.zip，sha256=E6ADE02D062A44399BF4C3DAF57E9F1DB878AC0CBC6D0F85830294B83033B5F1。"
+}
