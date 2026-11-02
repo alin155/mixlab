@@ -1931,6 +1931,7 @@ export function CutterApp() {
   const [feedbackContext, setFeedbackContext] = useState<Record<string, unknown>>({});
   const [feedbackScreenshot, setFeedbackScreenshot] = useState<string | undefined>();
   const [feedbackScreenshotError, setFeedbackScreenshotError] = useState("");
+  const feedbackCaptureIdRef = useRef(0);
   useEffect(() => {
     if (!isDesktopMode) {
       return undefined;
@@ -4034,6 +4035,8 @@ export function CutterApp() {
   }
 
   async function openFeedback() {
+    const captureId = feedbackCaptureIdRef.current + 1;
+    feedbackCaptureIdRef.current = captureId;
     recordFeedbackEvent("open-feedback", route);
     setFeedbackContext({
       page: route,
@@ -4078,6 +4081,9 @@ export function CutterApp() {
       } catch (captureError) {
         screenshotError = captureError instanceof Error ? captureError.message : "当前窗口截图不可用";
       }
+    }
+    if (feedbackCaptureIdRef.current !== captureId) {
+      return;
     }
     setFeedbackScreenshot(screenshot);
     setFeedbackScreenshotError(screenshotError);
@@ -4913,6 +4919,7 @@ export function CutterApp() {
             initialScreenshotError={feedbackScreenshotError}
             open={feedbackOpen}
             onClose={() => {
+              feedbackCaptureIdRef.current += 1;
               setFeedbackOpen(false);
               setFeedbackScreenshot(undefined);
               setFeedbackScreenshotError("");

@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
     env, fs,
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
@@ -174,18 +176,39 @@ fn feedback_sent_dir() -> PathBuf {
     feedback_root().join("sent")
 }
 
+fn feedback_machine_suffix() -> u64 {
+    let mut hasher = DefaultHasher::new();
+    env::var("COMPUTERNAME").unwrap_or_default().hash(&mut hasher);
+    env::var("USERNAME").unwrap_or_default().hash(&mut hasher);
+    hasher.finish()
+}
+
+fn feedback_unique_suffix() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.subsec_nanos() as u64)
+        .unwrap_or(0);
+    let machine = feedback_machine_suffix() % 10_000;
+    let random = (nanos ^ (std::process::id() as u64).rotate_left(13)) % 10_000;
+    format!("{machine:04}{random:04}")
+}
+
 fn feedback_id_for_directory(pending: &Path, sent: &Path) -> String {
     let now = time::OffsetDateTime::now_utc();
     let date = format!("{:04}{:02}{:02}", now.year(), u8::from(now.month()), now.day());
-    let start = (now.unix_timestamp().unsigned_abs() as usize % 9000) + 1;
     for offset in 0..1000 {
-        let sequence = (start + offset) % 10000;
-        let id = format!("FB-{date}-{sequence:04}");
+        let suffix = feedback_unique_suffix();
+        let suffix = if offset == 0 {
+            suffix
+        } else {
+            format!("{:08}", (suffix.parse::<u64>().unwrap_or(0) + offset as u64) % 100_000_000)
+        };
+        let id = format!("FB-{date}-{suffix}");
         if !pending.join(&id).exists() && !sent.join(&id).exists() {
             return id;
         }
     }
-    format!("FB-{date}-{:04}", (now.unix_timestamp().unsigned_abs() as usize) % 10000)
+    format!("FB-{date}-{:08}", (now.unix_timestamp().unsigned_abs() as u64) % 100_000_000)
 }
 
 fn copy_feedback_directory(source: &Path, destination: &Path) -> Result<(), String> {
@@ -267,16 +290,27 @@ fn write_feedback_log_tails(directory: &Path) {
     let _ = fs::write(logs_dir.join("ffmpeg.log"), feedback_tail(&ffmpeg_log, 32_000));
 }
 
+fn feedback_upload_destination(inbox: &Path, feedback_id: &str) -> PathBuf {
+    let original = inbox.join(feedback_id);
+    if original.exists() {
+        inbox.join(format!("{feedback_id}-{}", feedback_unique_suffix()))
+    } else {
+        original
+    }
+}
+
 fn try_upload_feedback(directory: &Path, feedback_id: &str) -> Result<(), String> {
     let nas_root = feedback_nas_root();
     let inbox = nas_root.join("inbox");
     fs::create_dir_all(&inbox).map_err(|error| format!("NAS 收件箱不可用：{error}"))?;
-    let destination = inbox.join(feedback_id);
-    let partial = inbox.join(format!("{feedback_id}.partial"));
-    let _ = fs::remove_dir_all(&partial);
+    // Never delete an existing feedback package. A collision gets a conflict suffix
+    // so both packages are preserved for Mac-side review.
+    let destination = feedback_upload_destination(&inbox, feedback_id);
+    let partial = inbox.join(format!("{feedback_id}-{}.partial", feedback_unique_suffix()));
     copy_feedback_directory(directory, &partial)?;
     if destination.exists() {
-        let _ = fs::remove_dir_all(&destination);
+        let _ = fs::remove_dir_all(&partial);
+        return Err("NAS 收件箱已存在同名反馈，已保留原包并改用冲突后缀失败".into());
     }
     fs::rename(&partial, &destination).map_err(|error| {
         let _ = fs::remove_dir_all(&partial);
@@ -362,21 +396,18 @@ fn desktop_flush_feedback_queue() -> Result<serde_json::Value, String> {
     Ok(json!({ "sent": sent, "pending": pending }))
 }
 
-#[tauri::command]
-fn desktop_capture_feedback_screenshot() -> Result<Option<String>, String> {
+fn capture_feedback_screenshot_blocking() -> Result<Option<String>, String> {
     let path = env::temp_dir().join(format!("mixlab-feedback-window-{}.png", std::process::id()));
     let escaped_path = path.to_string_lossy().replace('\'', "''");
-    let script = r#"Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
+    let script = r#"Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public struct MixLabRect { public int Left; public int Top; public int Right; public int Bottom; }
-public struct MixLabPoint { public int X; public int Y; }
 public class MixLabWindow {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
-  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hWnd, out MixLabRect rect);
-  [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hWnd, ref MixLabPoint point);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out MixLabRect rect);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint flags);
 }
 '@
 [MixLabWindow]::SetProcessDPIAware() | Out-Null
@@ -384,21 +415,18 @@ $p = Get-Process -Id __PID__ -ErrorAction Stop
 $h = $p.MainWindowHandle
 if ($h -eq [IntPtr]::Zero) { exit 2 }
 $r = New-Object MixLabRect
-if (-not [MixLabWindow]::GetClientRect($h, [ref]$r)) { exit 3 }
+if (-not [MixLabWindow]::GetWindowRect($h, [ref]$r)) { exit 3 }
 $w = $r.Right - $r.Left
 $height = $r.Bottom - $r.Top
 if ($w -le 0 -or $height -le 0) { exit 4 }
-$pt = New-Object MixLabPoint
-if (-not [MixLabWindow]::ClientToScreen($h, [ref]$pt)) { exit 5 }
-$wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-$w = [Math]::Min($w, $wa.Right - $pt.X)
-$height = [Math]::Min($height, $wa.Bottom - $pt.Y)
-if ($w -le 0 -or $height -le 0) { exit 6 }
 $bmp = New-Object System.Drawing.Bitmap $w, $height
 $g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.CopyFromScreen($pt.X, $pt.Y, 0, 0, $bmp.Size)
-$bmp.Save('__PATH__', [System.Drawing.Imaging.ImageFormat]::Png)
+$hdc = $g.GetHdc()
+$ok = [MixLabWindow]::PrintWindow($h, $hdc, 2)
+$g.ReleaseHdc($hdc)
 $g.Dispose()
+if (-not $ok) { $bmp.Dispose(); exit 5 }
+$bmp.Save('__PATH__', [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
 "#;
     let script = script
@@ -409,14 +437,40 @@ $bmp.Dispose()
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
     command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    let status = command.status().map_err(|error| format!("截图命令启动失败：{error}"))?;
-    if !status.success() || !path.is_file() {
+    let mut child = command.spawn().map_err(|error| format!("截图命令启动失败：{error}"))?;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(100)),
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_file(&path);
+                return Ok(None);
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_file(&path);
+                return Err(format!("截图进程等待失败：{error}"));
+            }
+        }
+    }
+    if !path.is_file() {
         let _ = fs::remove_file(&path);
         return Ok(None);
     }
     let bytes = fs::read(&path).map_err(|error| format!("读取截图失败：{error}"))?;
     let _ = fs::remove_file(&path);
     Ok(Some(BASE64.encode(bytes)))
+}
+
+#[tauri::command]
+async fn desktop_capture_feedback_screenshot() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(capture_feedback_screenshot_blocking)
+        .await
+        .map_err(|error| format!("截图任务失败：{error}"))?
 }
 
 #[tauri::command]
@@ -2088,6 +2142,40 @@ mod tests {
         let digest = file_sha256(&file).expect("hash");
         fs::remove_dir_all(root).ok();
         assert_eq!(digest, "6ee040147a5059533e22f613ccdcb1eb433c7eb3a50e2385f92a44ad0fff24d3");
+    }
+
+
+    #[test]
+    fn feedback_ids_are_unique_across_calls() {
+        let root = temp_library_root("feedback-unique");
+        let pending = root.join("pending");
+        let sent = root.join("sent");
+        fs::create_dir_all(&pending).expect("create pending");
+        fs::create_dir_all(&sent).expect("create sent");
+        let first = feedback_id_for_directory(&pending, &sent);
+        let second = feedback_id_for_directory(&pending, &sent);
+        fs::remove_dir_all(root).ok();
+        assert_ne!(first, second);
+        assert!(first.starts_with("FB-"));
+        assert!(first.len() >= 16);
+    }
+
+    #[test]
+    fn feedback_upload_uses_conflict_suffix_without_touching_existing_package() {
+        let root = temp_library_root("feedback-conflict");
+        let inbox = root.join("inbox");
+        let existing = inbox.join("FB-20261102-1234");
+        fs::create_dir_all(&existing).expect("create existing");
+        fs::write(existing.join("feedback.json"), "{}").expect("write existing");
+        let destination = feedback_upload_destination(&inbox, "FB-20261102-1234");
+        let conflict_suffix = destination
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|name| name.starts_with("FB-20261102-1234-"));
+        let existing_still_there = existing.join("feedback.json").is_file();
+        fs::remove_dir_all(root).ok();
+        assert!(conflict_suffix);
+        assert!(existing_still_there);
     }
 
 }
