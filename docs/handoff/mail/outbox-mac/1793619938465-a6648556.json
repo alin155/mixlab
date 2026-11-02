@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "id": "1793619938465-a6648556",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793619938465-a6648556",
+  "created_at": "2026-11-02T11:45:38.465Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793619571861-d55025aa",
+      "1793619606469-9c3b8153"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 2 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**既有 P1 未关闭：提交直传未接入补传锁，可重复归档并删除本地已发送副本。**\n- 待补证据/有条件通过：并发整改及确定性交错测试；最终候选安装包、证据 ZIP、测试与升级原始记录的核验。\n- 已采纳历史建议：隐藏暂存目录、完整后重命名入队、补传跳过暂存目录；后台化、窗口截图隔离及实际上传冲突测试已落实。\n\n## 总体判断\n\n`d30278865bc2` 已解决未完成反馈包被补传扫描的问题，但尚未实现提交与补传共同串行化。两条消息针对同一候选，新增截图和测试通过报告不能关闭这一 P1，应保持未发布。本次依据导出快照及相对 `52fbaa7422df` 的差异静态核查，未运行测试或 Windows 验收；快照中未找到所述安装包和证据 ZIP，现场结果尚未独立复核。\n\n## 意见明细\n\n### 消息 1793619571861-d55025aa\n\n- 判定：**阻塞发布**\n- 严重级别：**P1（沿用未关闭项）**\n- 事实判断：[补传入口持有上传锁](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Oc9zsP/apps/cutter-desktop/src-tauri/src/main.rs:352)，但[提交入队后直接上传、归档](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Oc9zsP/apps/cutter-desktop/src-tauri/src/main.rs:548)，未取得该锁；[归档函数](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Oc9zsP/apps/cutter-desktop/src-tauri/src/main.rs:340)会先删除已有 `sent/<id>`。\n- 问题/风险：存在明确交错：提交完成 NAS 上传后暂停；补传上传同一反馈并归档；提交恢复后再次归档，删除已有副本，再因源目录已被移走而失败，可能留下空归档及 NAS 重复包。因此消息所称“Mutex 串行化上传”仅对补传之间成立。\n- 建议：提交与补传共用串行区，覆盖反馈入队可见、上传和归档；重复归档不得先删除已有完整副本。\n- 需要证据：通过屏障固定上述交错的并发测试，验证附件完整、已有归档不被删除、提交结果与队列状态一致。四张截图不能替代该测试。\n\n### 消息 1793619606469-9c3b8153\n\n- 判定：**需补充信息**\n- 严重级别：**P2**\n- 事实判断：[新增 Rust 反馈测试](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-Oc9zsP/apps/cutter-desktop/src-tauri/src/main.rs:2177)覆盖 ID 与串行上传冲突，未见截图、后台化或队列并发测试；本条重复提供同一安装包及 ZIP 哈希。\n- 问题/风险：`12/12` 的覆盖范围说明超出源码可证范围，“证据齐全”目前仍是回执声明。\n- 建议：区分单测覆盖与 Windows 人工验收，由 Mac 验收方读取现有共享原件核对，无需将产物提交 Git。\n- 需要证据：对应测试清单、原始验收日志及安装包/ZIP 哈希实测记录。\n\n## 跨消息建议\n\n1. 两条回执合并为同一候选验收记录；下一轮仅提交既有 P1 的关闭增量及对应证据，避免重复报告被误计为新的验收覆盖。"
+}
