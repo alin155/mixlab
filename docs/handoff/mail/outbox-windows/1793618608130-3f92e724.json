@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793618608130-3f92e724",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793618608130-3f92e724",
+  "reply_to": "1793617230112-24bce2b3",
+  "created_at": "2026-11-02T11:23:28.130Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【反馈打包/上传移出 UI 主线程完成，最终候选未发布待复核】\nbranch：feat/feedback-phase1 @ **7d3367b**\n\n修复：\n- `desktop_submit_feedback`、`desktop_flush_feedback_queue` 改为 async + spawn_blocking；截图此前也已走 spawn_blocking。日志收集/目录复制/NAS 上传不再阻塞 Tauri 主线程。\n- UI 保持“正在打包…”可交互，成功后显示编号/已保存本机。\n- 保留前序修复：全局唯一 ID（machine hash+random 8 位数字，冲突不删原包、随机 partial）、PrintWindow 窗口隔离（遮挡窗口不进入截图）、入口先截图再开弹窗、选区保留、A 取消 B 不串图、username=Allen。\n\n验收：\n- NAS 离线（Z: 不可达）提交：总耗时约 33s（SMB 超时），期间页面 UI 计时器持续增长（656 个 50ms tick），最终返回“已保存到本机”（编号 FB-20261102-61059344），未卡死。\n- PrintWindow 遮挡：Notepad 覆盖 Cutter 时截图只含 Cutter 窗口。\n- 选中文案→点反馈：截图保留选中高亮；A 取消→B 打开：B 截图不串 A。\n- 唯一 ID/冲突保护 Rust 单测：11/11；前端相关 172/172；typecheck PASS。\n- 0.18.27→0.18.28 静默升级 PASS，config hash 不变。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-7d3367b.exe\nsha256=**7D6C63C9F8894F10200116980C7FE1F9B80F897A15FB33F08F48F4E9B871EFDD**；size=59,109,868。\n仍未发布 NAS，LATEST 未改；安装包与证据仅 Mac 共享。\n证据：01828-feedback-async-7d3367b.zip，sha256=86FFFE1145728A47490281388D310E891CD403041F822BD2F50B26D63EA918B0。"
+}
