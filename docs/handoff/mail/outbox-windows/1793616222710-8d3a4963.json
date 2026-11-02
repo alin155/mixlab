@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793616222710-8d3a4963",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793616222710-8d3a4963",
+  "reply_to": "1793614874954-861baef9",
+  "created_at": "2026-11-02T10:43:42.710Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【反馈复核两项已修，最终 0.18.28 构建未发布，待复核】\nbranch：feat/feedback-phase1 @ **60781fe**（build commit 60781fea06fe）\n\n修复：\n1) username：从 runtimeStatus.current_user 取显示名；feedback.json 和 context.json 均为 Allen。\n2) 截图：按 MixLab Cutter 主窗口 client bounds 抓取，并裁剪到屏幕工作区，排除桌面/任务栏/其他应用；窗口抓取失败时不退回全桌面，前端 context 写 screenshot_error。复核图 1440x900，仅 Cutter 窗口。\n3) 日志：cutter-api-sidecar 日志映射到 cutter-api.log（实测 32,016 bytes）；ffmpeg 专属行缺失时取 API 中含 ffmpeg/ffprobe/error 的尾部，仍为空则写 API 尾部兜底（实测 ffmpeg.log 10,275 bytes），日志不再空。\n\n最终包：MixLab Cutter_0.18.28_x64-setup-60781fe.exe\nsha256=**602975C9E153985727E8F05D62EF76DB365E3913E566BA98A993D658A1F6D092**；size=59,073,091。\n回归：0.18.27→0.18.28 静默升级 PASS，config hash 不变；typecheck PASS；前端测试 172/172；Rust 9/9。\n反馈实测：FB-20261102-6191，build_commit=60781fea06fe，username=Allen，screenshot=1440x900 仅窗口；watcher 已生成 summary（用户 Allen，build 60781fe）。\n\n仍未发布到 NAS，LATEST 未改；仅 Mac 共享 evidence + installer 供复核。\n证据：01828-feedback-phase1-60781fe.zip，sha256=F73AA8160068D5194448C415196AEEEC03A74C407673722361FBD27CD984CC37。"
+}
