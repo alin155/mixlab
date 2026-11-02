@@ -391,9 +391,13 @@ fn desktop_feedback_pending_count() -> usize {
 }
 
 #[tauri::command]
-fn desktop_flush_feedback_queue() -> Result<serde_json::Value, String> {
-    let (sent, pending) = deliver_pending_feedback();
-    Ok(json!({ "sent": sent, "pending": pending }))
+async fn desktop_flush_feedback_queue() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let (sent, pending) = deliver_pending_feedback();
+        json!({ "sent": sent, "pending": pending })
+    })
+    .await
+    .map_err(|error| format!("反馈队列任务失败：{error}"))
 }
 
 fn capture_feedback_screenshot_blocking() -> Result<Option<String>, String> {
@@ -473,8 +477,7 @@ async fn desktop_capture_feedback_screenshot() -> Result<Option<String>, String>
         .map_err(|error| format!("截图任务失败：{error}"))?
 }
 
-#[tauri::command]
-fn desktop_submit_feedback(app: AppHandle, submission: FeedbackSubmission) -> Result<FeedbackSubmitResult, String> {
+fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> Result<FeedbackSubmitResult, String> {
     let pending = feedback_pending_dir();
     let sent = feedback_sent_dir();
     fs::create_dir_all(&pending).map_err(|error| format!("创建反馈队列失败：{error}"))?;
@@ -540,6 +543,13 @@ fn desktop_submit_feedback(app: AppHandle, submission: FeedbackSubmission) -> Re
     let pending_count = pending_feedback_count();
     desktop_host_log(&app, "feedback_submitted", json!({ "feedback_id": feedback_id, "delivered": delivered }));
     Ok(FeedbackSubmitResult { feedback_id, delivered, pending_count })
+}
+
+#[tauri::command]
+async fn desktop_submit_feedback(app: AppHandle, submission: FeedbackSubmission) -> Result<FeedbackSubmitResult, String> {
+    tauri::async_runtime::spawn_blocking(move || submit_feedback_blocking(app, submission))
+        .await
+        .map_err(|error| format!("反馈打包任务失败：{error}"))?
 }
 
 #[tauri::command]
