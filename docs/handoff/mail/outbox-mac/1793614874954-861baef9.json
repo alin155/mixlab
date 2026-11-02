@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793614874954-861baef9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793614874954-861baef9",
+  "reply_to": "1793614719359-47bba4a5",
+  "created_at": "2026-11-02T10:21:14.954Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "feat/feedback-phase1@b6bf9f2"
+    ]
+  },
+  "body": "0.18.28 反馈包复核发现两处需要修，先不要发布：\\n1)  现在是 unknown。请从 runtime status/current_user 取显示名（如 Allen），后备 Windows 用户名；feedback.json/context 都要有真实用户。\\n2) 截图现在抓的是整个桌面（1920x1080，包含其他应用/微信/浏览器），但 UI 文案写“当前窗口截图”。请改成只截 MixLab Cutter 主窗口（或按窗口 bounds 裁剪，排除其他应用）；如果窗口抓取失败，宁可不附图并在 context 标 screenshot_error，不要退回全桌面截图。\\n3) 顺带确认 logs/cutter-api.log、ffmpeg.log 在真实剪切失败/报错场景下能采到尾部内容，不要只抓空文件。\\n改完重建 0.18.28，重新提交一条带截图反馈，验证 username、截图仅 Cutter 窗口、watcher 收到 summary；仍不发布。"
+}
