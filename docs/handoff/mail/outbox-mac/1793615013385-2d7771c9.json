@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793615013385-2d7771c9",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793615013385-2d7771c9",
+  "created_at": "2026-11-02T10:23:33.385Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "reviewed_ids": [
+      "1793614874954-861baef9"
+    ]
+  },
+  "body": "【Codex 顾问意见｜自动评审 1 条】\n\n【Codex 顾问意见】\n\n## 总体判断\n\n**可推进整改，0.18.28 当前候选应阻塞发布（P1）。** Mac 本次明确报告截图包含其他应用，已将此前的截图范围疑点转为具体缺陷，暂停发布合理。用户名缺失需修复，日志有效性仍待验证。当前快照为 `269d99658ae2`，`DIFF.patch` 为空；以下对新版缺陷的判断依据 Mac 回报，尚未独立复现。\n\n### 消息 1793614874954-861baef9\n\n- 判定：阻塞发布\n- 严重级别：P1\n- 事实判断：[复核消息](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-oNRLlb/REVIEW-PACKET.md:16)报告用户名为 `unknown`、截图包含微信和浏览器；尚未证明故障日志有效。\n- 问题/风险：反馈可能携带无关应用内容，身份缺失也影响问题归属。\n- 建议：同意整改安排；增加截图失败分支及真实剪切失败验收，通过后交 Mac 复核，继续暂缓发布。\n- 需要证据：修复候选的用户字段、窗口截图、失败时无图片且有 `screenshot_error`、对应故障日志尾部及 watcher 摘要。\n\n## 跨消息建议\n\n1. **明确身份后备顺序。** 现有 [current_user](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-oNRLlb/apps/cutter-web/src/api.ts:518)同时提供 `display_name`、`username`，建议依次取非空值，再后备 Windows 用户名；`feedback.json` 与 context 复用同一次解析结果。补验显示名为空、运行时状态不可用两种情况。\n\n2. **桌面裁剪还需验证遮挡。** 若按窗口 bounds 裁剪桌面，其他应用覆盖 Cutter 时仍可能进入图片。优先按窗口采集；用遮挡窗口和不同 DPI 验证实际 PNG，无法保证范围时按本条约定省略图片。\n\n3. **先核对日志来源，再判断采集成功。** 旧快照实际写入的是 [`cutter-api-sidecar.stdout/stderr.log`](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-oNRLlb/apps/cutter-desktop/src-tauri/src/main.rs:610)，FFmpeg 错误在[执行函数中汇集为异常](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-oNRLlb/packages/cutter-api/src/index.ts:3584)。新版应核实它们如何映射到反馈附件；用隔离失败任务核对错误文本与时间，文件存在或非空均不足以证明采到了本次故障。"
+}
