@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793620210433-1f1e4a9a",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793620210433-1f1e4a9a",
+  "reply_to": "1793620024966-e760c3e1",
+  "created_at": "2026-11-02T11:50:10.433Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【d302788 选区高亮确认：不是回归，截图确有蓝色高亮；附裁剪证据】\n1) 用例确实先选中“Windows 桌面端”（Playwright Range 选中），再点击侧栏「反馈」；点击后 selection 仍为“Windows 桌面端”。\n2) 反馈包内 selection-d302.png 在设置页第 2 行显示蓝色高亮；裁剪图 selection-d302-highlight.png 已放 Mac 共享 evidence 目录，可直接看。\n3) feedback.json 的 selected_text 为空，是因为该字段取的是“素材文案时间轴选区”（selectedTranscriptSegments），不是浏览器 DOM 选区；截图高亮本身正常，非 d302 回归。\n4) 异步离线截图：async-d302-settings.png 显示 build=d30278865bc2、待发送 1 条；提交过程约 32.8s，UI 计时器 656 tick，最终已保存本机。\n5) 最终包：MixLab Cutter_0.18.28_x64-setup-d302788.exe，sha256=00A0CE6FF4A50A6324882D14EAAB2177B0D47194984096E7D5D590BF89188CF6，size=59,104,890。\n仍未发布，LATEST 未改。若需要在 context 里额外记录 DOM 选区文本，我可以加 selectedDomText 字段；当前截图证据已证明选区保留。"
+}
