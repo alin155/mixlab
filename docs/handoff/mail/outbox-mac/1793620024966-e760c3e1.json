@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1793620024966-e760c3e1",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1793620024966-e760c3e1",
+  "reply_to": "1793619571861-d55025aa",
+  "created_at": "2026-11-02T11:47:04.967Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "01828-feedback-final-d302788.zip selection-d302.png"
+    ]
+  },
+  "body": "最终 d302 证据复核：async/occlusion/AB 通过，但  仍然没有蓝色选中高亮（与 8858fb2 的 selection-final.png 不一致）， 的 selected_text 也是空。请确认是测试没有真正选中，还是 d302 回归导致点击反馈前选区被清除；若回归请修，若测试问题请重做“先选中 Windows 桌面端→点反馈”的取证并附最终图。未确认前不发布。"
+}
