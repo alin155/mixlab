@@ -173,6 +173,11 @@ function makePrompt(count, info, scope) {
 async function snapshot(repo, messages) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "mixlab-advisor-"));
   const target = process.env.MIXLAB_ADVISOR_TARGET_BRANCH || "origin/main";
+  if (target.startsWith("origin/")) {
+    // Keep the review snapshot on the latest remote tip; otherwise a long-running
+    // watcher can review stale source after a feature branch advances.
+    gitTry(["fetch", "origin", target.slice("origin/".length)]);
+  }
   const targetCommit = gitTry(["rev-parse", target]) || "";
   const mainCommit = gitTry(["rev-parse", "main"]) || "";
   let archiveTarget = target;
