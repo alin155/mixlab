@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793622169485-6e9f0e5d",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793622169485-6e9f0e5d",
+  "created_at": "2026-11-02T12:22:49.485Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793621992719-7d2fcc84"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**需补充证据**\n- 评审类型：high\n- 阻塞项（P0/P1）：无新增已确认代码缺陷；历史 P1 并发验收仍未闭环。\n- 待补证据/有条件通过：最终更新清单、安装包身份核验及本次 Windows 真实升级回执。\n- 已采纳历史建议：直传与补传共用上传锁、保留已有 sent 归档；本条任务已安排真实应用内更新验收。\n\n## 总体判断\n\n同意推进本条验收任务，但“已发布到 NAS”尚不足以认定发布验收通过。本次快照没有提供能够绑定最终反馈功能包的完整发布信息和升级结果；历史 P1 沿用上轮待补结论，不重复展开。本次仅静态只读核查，未运行测试或访问 NAS、Windows 现场。\n\n## 意见明细\n\n### 消息 1793621992719-7d2fcc84\n\n- 判定：**需补充信息**\n- 严重级别：**P1（发布证据）**\n- 事实判断：\n  - [消息正文](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-GbqHzV/REVIEW-PACKET.md:16)中的 `installer`、`sha256` 均为空，仅给出版本与大小 `59107515`。这只能证明交接信息缺失，**不能据此判定实际 update.json 为空**。\n  - [既有发布记录](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-GbqHzV/docs/handoff/RELEASE-0.18.27.md:39)已经记载一次 0.18.27→0.18.28 更新成功，但没有提供该目标包与此次反馈功能包的对应关系。\n  - [下载实现](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-GbqHzV/apps/cutter-desktop/src-tauri/src/main.rs:605)会拒绝空安装包名、校验文件哈希；版本显示本身不能证明安装包来源。\n- 问题/风险：当前无法确认 Windows 将验收的包就是本轮最终包，也不能复用旧记录直接宣布本次更新通过。\n- 建议：验收前补齐实际 NAS 清单和安装包来源；Windows 从确认过的 0.18.27 基线执行本条更新流程，回执绑定同一文件名、SHA256、字节数与构建提交。保留“失败立即停止”的约束。\n- 需要证据：实际 `update.json` 内容及来源路径、最终包构建提交、NAS 与下载文件的 SHA256/字节数，以及检查、下载、安装耗时和重启后版本记录。\n\nP2：重启后仅打开反馈弹窗只能证明入口可用，建议再提交一条测试反馈，以反馈 ID 对照 NAS 收件包，确认最终安装包的反馈链路可用。\n\n## 跨消息建议\n\n1. 将本条状态标记为“已分发、待最终验收”；最终包身份和升级回执核对完成后，再记录发布验收通过。"
+}
