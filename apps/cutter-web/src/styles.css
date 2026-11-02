@@ -2526,3 +2526,112 @@ body,
   margin: 0;
   color: var(--ml-color-failed, #d9534f);
 }
+
+.cutter-sidebar-feedback-entry {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: 6px;
+}
+
+.cutter-feedback-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(9, 12, 18, 0.55);
+}
+
+.cutter-feedback-dialog {
+  width: min(640px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  background: var(--ml-color-surface);
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-lg);
+  box-shadow: var(--ml-shadow-xl, 0 24px 64px rgba(0, 0, 0, 0.35));
+}
+
+.cutter-feedback-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.cutter-feedback-categories {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cutter-feedback-categories legend,
+.cutter-feedback-field > span {
+  margin-bottom: 8px;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-feedback-category-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cutter-feedback-category {
+  padding: 6px 12px;
+  color: var(--ml-color-text-secondary);
+  background: var(--ml-color-surface-subtle);
+  border: 1px solid var(--ml-color-border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cutter-feedback-category.is-selected {
+  color: var(--ml-color-text-primary);
+  border-color: var(--ml-color-accent);
+  background: var(--ml-color-accent-soft, rgba(72, 132, 255, 0.16));
+}
+
+.cutter-feedback-field {
+  display: grid;
+}
+
+.cutter-feedback-field textarea {
+  width: 100%;
+  padding: 9px 10px;
+  color: var(--ml-color-text-primary);
+  background: var(--ml-color-surface-subtle);
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-md);
+  resize: vertical;
+}
+
+.cutter-feedback-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+}
+
+.cutter-feedback-hint {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+}
+
+.cutter-feedback-error {
+  margin: 0;
+  color: var(--ml-color-failed, #d9534f);
+}
+
+.cutter-feedback-success {
+  padding: 16px 20px;
+}
+
+.cutter-feedback-success p {
+  margin: 0;
+  line-height: 1.7;
+}

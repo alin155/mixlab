@@ -11,6 +11,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 
@@ -124,6 +125,291 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     let bytes = fs::read(path).map_err(|error| format!("无法读取安装包：{error}"))?;
     let digest = Sha256::digest(bytes);
     Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FeedbackSubmission {
+    category: String,
+    message: String,
+    #[serde(default)]
+    expected: Option<String>,
+    #[serde(default)]
+    context: Value,
+    #[serde(default)]
+    events: Vec<Value>,
+    #[serde(default)]
+    screenshot_png_base64: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FeedbackSubmitResult {
+    feedback_id: String,
+    delivered: bool,
+    pending_count: usize,
+}
+
+fn feedback_root() -> PathBuf {
+    env::var("LOCALAPPDATA")
+        .map(|root| PathBuf::from(root).join("MixLab Cutter").join("feedback"))
+        .unwrap_or_else(|_| env::temp_dir().join("MixLab Cutter").join("feedback"))
+}
+
+fn feedback_nas_root() -> PathBuf {
+    PathBuf::from(r"\\192.168.1.27\MixLab\CutterFeedback")
+}
+
+fn feedback_pending_dir() -> PathBuf {
+    feedback_root().join("pending")
+}
+
+fn feedback_sent_dir() -> PathBuf {
+    feedback_root().join("sent")
+}
+
+fn feedback_id_for_directory(pending: &Path, sent: &Path) -> String {
+    let now = time::OffsetDateTime::now_utc();
+    let date = format!("{:04}{:02}{:02}", now.year(), u8::from(now.month()), now.day());
+    let start = (now.unix_timestamp().unsigned_abs() as usize % 9000) + 1;
+    for offset in 0..1000 {
+        let sequence = (start + offset) % 10000;
+        let id = format!("FB-{date}-{sequence:04}");
+        if !pending.join(&id).exists() && !sent.join(&id).exists() {
+            return id;
+        }
+    }
+    format!("FB-{date}-{:04}", (now.unix_timestamp().unsigned_abs() as usize) % 10000)
+}
+
+fn copy_feedback_directory(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|error| format!("创建反馈目录失败：{error}"))?;
+    for entry in fs::read_dir(source).map_err(|error| format!("读取反馈目录失败：{error}"))? {
+        let entry = entry.map_err(|error| format!("读取反馈文件失败：{error}"))?;
+        let path = entry.path();
+        let target = destination.join(entry.file_name());
+        if path.is_dir() {
+            copy_feedback_directory(&path, &target)?;
+        } else {
+            fs::copy(&path, &target).map_err(|error| format!("复制反馈文件失败：{error}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn write_feedback_log_tails(directory: &Path) {
+    let logs_dir = directory.join("logs");
+    let _ = fs::create_dir_all(&logs_dir);
+    let candidates = [
+        ("app.log", env::var("APPDATA").ok().map(|root| PathBuf::from(root).join("MixLab Cutter").join("logs"))),
+        ("cutter-api.log", None),
+        ("ffmpeg.log", None),
+    ];
+    for (name, source_dir) in candidates {
+        let mut content = String::new();
+        if let Some(source_dir) = source_dir {
+            if let Ok(entries) = fs::read_dir(source_dir) {
+                for entry in entries.flatten() {
+                    if entry.path().extension().and_then(|value| value.to_str()) == Some("log") {
+                        if let Ok(text) = fs::read_to_string(entry.path()) {
+                            content.push_str(&text);
+                            content.push('\n');
+                        }
+                    }
+                }
+            }
+        }
+        let mut tail: String = content.chars().rev().take(32_000).collect();
+        tail = tail.chars().rev().collect();
+        let _ = fs::write(logs_dir.join(name), tail);
+    }
+}
+
+fn try_upload_feedback(directory: &Path, feedback_id: &str) -> Result<(), String> {
+    let nas_root = feedback_nas_root();
+    let inbox = nas_root.join("inbox");
+    fs::create_dir_all(&inbox).map_err(|error| format!("NAS 收件箱不可用：{error}"))?;
+    let destination = inbox.join(feedback_id);
+    let partial = inbox.join(format!("{feedback_id}.partial"));
+    let _ = fs::remove_dir_all(&partial);
+    copy_feedback_directory(directory, &partial)?;
+    if destination.exists() {
+        let _ = fs::remove_dir_all(&destination);
+    }
+    fs::rename(&partial, &destination).map_err(|error| {
+        let _ = fs::remove_dir_all(&partial);
+        format!("NAS 收件箱写入失败：{error}")
+    })?;
+    Ok(())
+}
+
+fn pending_feedback_count() -> usize {
+    fs::read_dir(feedback_pending_dir())
+        .map(|entries| entries.flatten().filter(|entry| entry.path().is_dir()).count())
+        .unwrap_or(0)
+}
+
+fn move_feedback_to_sent(directory: &Path, feedback_id: &str) {
+    let sent = feedback_sent_dir();
+    let _ = fs::create_dir_all(&sent);
+    let target = sent.join(feedback_id);
+    let _ = fs::remove_dir_all(&target);
+    if fs::rename(directory, &target).is_err() {
+        if copy_feedback_directory(directory, &target).is_ok() {
+            let _ = fs::remove_dir_all(directory);
+        }
+    }
+}
+
+fn deliver_pending_feedback() -> (usize, usize) {
+    let pending = feedback_pending_dir();
+    let mut sent = 0usize;
+    let mut remaining = 0usize;
+    if let Ok(entries) = fs::read_dir(&pending) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let Some(id) = entry.file_name().to_str().map(str::to_string) else {
+                continue;
+            };
+            match try_upload_feedback(&path, &id) {
+                Ok(()) => {
+                    move_feedback_to_sent(&path, &id);
+                    sent += 1;
+                }
+                Err(error) => {
+                    remaining += 1;
+                    let _ = fs::write(
+                        path.join("upload-error.json"),
+                        serde_json::to_vec_pretty(&json!({
+                            "error": error,
+                            "updated_at": chrono_like_timestamp(),
+                        }))
+                        .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+    }
+    (sent, pending_feedback_count().max(remaining))
+}
+
+fn chrono_like_timestamp() -> String {
+    let now = time::OffsetDateTime::now_utc();
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        now.year(),
+        u8::from(now.month()),
+        now.day(),
+        now.hour(),
+        now.minute(),
+        now.second()
+    )
+}
+
+#[tauri::command]
+fn desktop_feedback_pending_count() -> usize {
+    pending_feedback_count()
+}
+
+#[tauri::command]
+fn desktop_flush_feedback_queue() -> Result<serde_json::Value, String> {
+    let (sent, pending) = deliver_pending_feedback();
+    Ok(json!({ "sent": sent, "pending": pending }))
+}
+
+#[tauri::command]
+fn desktop_capture_feedback_screenshot() -> Result<Option<String>, String> {
+    let path = env::temp_dir().join(format!("mixlab-feedback-screen-{}.png", std::process::id()));
+    let escaped = path.to_string_lossy().replace('\'', "''");
+    let script = format!(
+        "Add-Type -AssemblyName System.Windows.Forms\nAdd-Type -AssemblyName System.Drawing\n$b=[System.Windows.Forms.SystemInformation]::VirtualScreen\n$bmp=New-Object System.Drawing.Bitmap $b.Width,$b.Height\n$g=[System.Drawing.Graphics]::FromImage($bmp)\n$g.CopyFromScreen($b.Left,$b.Top,0,0,$bmp.Size)\n$bmp.Save('{}',[System.Drawing.Imaging.ImageFormat]::Png)\n$g.Dispose()\n$bmp.Dispose()\n",
+        escaped
+    );
+    let mut command = Command::new("powershell.exe");
+    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", &script]);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    let status = command.status().map_err(|error| format!("截图命令启动失败：{error}"))?;
+    if !status.success() || !path.is_file() {
+        let _ = fs::remove_file(&path);
+        return Ok(None);
+    }
+    let bytes = fs::read(&path).map_err(|error| format!("读取截图失败：{error}"))?;
+    let _ = fs::remove_file(&path);
+    Ok(Some(BASE64.encode(bytes)))
+}
+
+#[tauri::command]
+fn desktop_submit_feedback(app: AppHandle, submission: FeedbackSubmission) -> Result<FeedbackSubmitResult, String> {
+    let pending = feedback_pending_dir();
+    let sent = feedback_sent_dir();
+    fs::create_dir_all(&pending).map_err(|error| format!("创建反馈队列失败：{error}"))?;
+    fs::create_dir_all(&sent).map_err(|error| format!("创建反馈队列失败：{error}"))?;
+    let feedback_id = feedback_id_for_directory(&pending, &sent);
+    let directory = pending.join(&feedback_id);
+    fs::create_dir_all(&directory).map_err(|error| format!("创建反馈包失败：{error}"))?;
+    let created_at = chrono_like_timestamp();
+    let app_version = env!("CARGO_PKG_VERSION").to_string();
+    let build_commit = submission
+        .context
+        .get("build_commit")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let release_version = submission
+        .context
+        .get("release_version")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_string();
+    let feedback = json!({
+        "schema_version": "1.0",
+        "feedback_id": feedback_id,
+        "created_at": created_at,
+        "category": submission.category,
+        "message": submission.message,
+        "expected": submission.expected.clone().unwrap_or_default(),
+        "app_version": app_version,
+        "build_commit": build_commit,
+        "release_version": release_version,
+        "page": submission.context.get("page").and_then(Value::as_str).unwrap_or("unknown"),
+        "context": submission.context,
+        "timings": submission.context.get("timings").cloned().unwrap_or_else(|| json!({})),
+        "errors": submission.context.get("errors").cloned().unwrap_or_else(|| json!([])),
+        "attachments": if submission.screenshot_png_base64.is_some() { json!(["screenshot.png", "events.jsonl"]) } else { json!(["events.jsonl"]) },
+    });
+    fs::write(directory.join("feedback.json"), serde_json::to_vec_pretty(&feedback).map_err(|error| error.to_string())?)
+        .map_err(|error| format!("写入反馈包失败：{error}"))?;
+    let context_bytes = serde_json::to_vec_pretty(&submission.context).map_err(|error| error.to_string())?;
+    fs::write(directory.join("context.json"), context_bytes).map_err(|error| format!("写入反馈上下文失败：{error}"))?;
+    let events = submission.events.iter().map(|event| event.to_string()).collect::<Vec<_>>().join("\n");
+    fs::write(directory.join("events.jsonl"), format!("{events}\n")).map_err(|error| format!("写入操作轨迹失败：{error}"))?;
+    if let Some(encoded) = submission.screenshot_png_base64.as_deref() {
+        let bytes = BASE64.decode(encoded).map_err(|error| format!("截图数据无效：{error}"))?;
+        fs::write(directory.join("screenshot.png"), bytes).map_err(|error| format!("写入截图失败：{error}"))?;
+    }
+    write_feedback_log_tails(&directory);
+    let delivered = match try_upload_feedback(&directory, &feedback_id) {
+        Ok(()) => {
+            move_feedback_to_sent(&directory, &feedback_id);
+            true
+        }
+        Err(error) => {
+            let _ = fs::write(
+                directory.join("upload-error.json"),
+                serde_json::to_vec_pretty(&json!({ "error": error, "updated_at": chrono_like_timestamp() })).unwrap_or_default(),
+            );
+            false
+        }
+    };
+    let pending_count = pending_feedback_count();
+    desktop_host_log(&app, "feedback_submitted", json!({ "feedback_id": feedback_id, "delivered": delivered }));
+    Ok(FeedbackSubmitResult { feedback_id, delivered, pending_count })
 }
 
 #[tauri::command]
@@ -1488,7 +1774,11 @@ fn main() {
             desktop_open_directory,
             desktop_check_update,
             desktop_download_update,
-            desktop_install_update
+            desktop_install_update,
+            desktop_capture_feedback_screenshot,
+            desktop_submit_feedback,
+            desktop_feedback_pending_count,
+            desktop_flush_feedback_queue
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {

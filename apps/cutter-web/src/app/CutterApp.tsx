@@ -55,6 +55,9 @@ import { CutListPage } from "../features/cut-list/CutListPage.tsx";
 import { CutTasksTabNav } from "../features/cut-tasks/CutTasksTabNav.tsx";
 import type { CutTasksTab } from "../features/cut-tasks/cut-tasks-tab.ts";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
+import { FeedbackDialog } from "../features/feedback/FeedbackDialog.tsx";
+import { recentFeedbackEvents, recordFeedbackEvent } from "../features/feedback/feedback.ts";
+import { desktopFeedbackPendingCount, flushDesktopFeedbackQueue } from "../desktop-bridge.ts";
 import {
   DesktopFirstRunPage,
   type DesktopSetupDiagnostics,
@@ -560,6 +563,7 @@ export function CutterSidebarFooter({
   residueCount = 0,
   showResidueNotice = false,
   onDismissResidue,
+  onOpenFeedback,
   onLogout,
   onSwitchAccount
 }: {
@@ -574,6 +578,7 @@ export function CutterSidebarFooter({
   residueCount?: number;
   showResidueNotice?: boolean;
   onDismissResidue?: () => void;
+  onOpenFeedback?: () => void;
   onLogout?: () => void;
   onSwitchAccount?: () => void;
 }) {
@@ -670,6 +675,15 @@ export function CutterSidebarFooter({
           </div>
         </div>
       ) : null}
+      <Button
+        className="cutter-sidebar-feedback-entry ml-sidebar-menu-action"
+        size="sm"
+        type="button"
+        variant="ghost"
+        onClick={onOpenFeedback}
+      >
+        反馈
+      </Button>
       <div className="cutter-sidebar-user-entry ml-sidebar-user-entry" aria-label="当前用户">
         <span className="cutter-sidebar-user-icon ml-sidebar-user-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" role="img">
@@ -1473,6 +1487,7 @@ function renderPage(
   cutList: readonly CutListItem[],
   queue: readonly CutQueueJob[],
   viewState: {
+    onOpenFeedback?: () => void;
     searchQuery: string;
     materialSearchMode: MaterialSearchMode;
     highlightedSegmentIds: readonly string[];
@@ -1801,6 +1816,7 @@ function renderPage(
         onSetDefaultOrientationFilter={handlers.setOrientationFilter}
         onConfigureLocalWorkspace={handlers.configureLocalWorkspace}
         onChangePassword={handlers.changePassword}
+        onOpenFeedback={viewState.onOpenFeedback}
       />
     );
   }
@@ -1910,6 +1926,32 @@ export function CutterApp() {
     readWorkspaceResidueNoticeDismissal()
   );
   const [recoverableError, setRecoverableError] = useState<CutterErrorPresentation | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackContext, setFeedbackContext] = useState<Record<string, unknown>>({});
+  useEffect(() => {
+    if (!isDesktopMode) {
+      return undefined;
+    }
+    let disposed = false;
+    const refresh = () => {
+      void flushDesktopFeedbackQueue()
+        .then(() => {})
+        .catch(() => {
+          void desktopFeedbackPendingCount()
+            .then(() => {})
+            .catch(() => {});
+        });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5 * 60 * 1000);
+    const onOnline = () => refresh();
+    window.addEventListener("online", onOnline);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [isDesktopMode]);
   const [errorPresentation, setErrorPresentation] = useState<CutterErrorPresentation | null>(null);
   const [capabilities, setCapabilities] = useState<CutterCapabilityTable | null>(null);
   const [workspaceConfigNotice, setWorkspaceConfigNotice] = useState("");
@@ -2210,6 +2252,7 @@ export function CutterApp() {
    */
   function showCutterError(error: unknown, fallbackMessage: string) {
     const presentation = contractErrorPresentation(error, fallbackMessage);
+    recordFeedbackEvent("error", presentation.message);
     setRecoverableNotice("");
 
     if (dataRef.current) {
@@ -3987,6 +4030,39 @@ export function CutterApp() {
     }
   }
 
+  function openFeedback() {
+    recordFeedbackEvent("open-feedback", route);
+    setFeedbackContext({
+      page: route,
+      project_id: currentProject?.project_id ?? currentProjectId ?? "",
+      project_title: currentProject ? projectDisplayTitle(currentProject) : "",
+      filters: {
+        source: "current",
+        orientation: "current"
+      },
+      search: {
+        query: searchQuery,
+        result_count: null,
+        selected_text: selectedTranscriptSegments.map((segment) => segment.text).join("\n").slice(0, 2000),
+        selected_video_id: selectedSourceVideoId ?? ""
+      },
+      cut_tasks: allVisibleQueue.slice(0, 8).map((job) => ({
+        job_id: job.queue_job_id,
+        status: job.status,
+        mode: job.cut_mode,
+        output_path: job.output_file ?? "",
+        verification: job.verification?.passed === undefined ? "" : job.verification.passed ? "passed" : "failed"
+      })),
+      timings: { last_search_ms: lastMaterialSearchDurationMs ?? null },
+      errors: [recoverableError?.code, error].filter((value): value is string => Boolean(value)),
+      release_version: data?.runtimeStatus?.release_cache?.active_release_version ?? "",
+      nas_available: Boolean(data),
+      api_available: Boolean(data),
+      searchd_available: Boolean(data?.runtimeStatus?.search_backend?.healthy)
+    });
+    setFeedbackOpen(true);
+  }
+
   const handlers = {
     async addSelectedSpan() {
       if (!data || detailLoadingSourceVideoId) {
@@ -4806,6 +4882,14 @@ export function CutterApp() {
         workbenchClassName={`cutter-workspace ${route === "material-locator" ? "is-content-locked" : ""}`}
       >
         <div className="cutter-frame">
+          <FeedbackDialog
+            appVersion={desktopAppVersionText}
+            buildCommit={buildCommit}
+            context={feedbackContext}
+            events={recentFeedbackEvents()}
+            open={feedbackOpen}
+            onClose={() => setFeedbackOpen(false)}
+          />
           <CutterTopbar
             engineReady={engineReady}
             onOpenProject={handlers.openProject}
@@ -4894,6 +4978,7 @@ export function CutterApp() {
               ) : (
                 <p>{error}</p>
               )}
+              <Button size="sm" type="button" variant="secondary" onClick={openFeedback}>反馈这里</Button>
             </InspectorPanel>
           ) : data ? (
             renderPage(
@@ -4903,6 +4988,7 @@ export function CutterApp() {
               pageQueue,
               {
                 searchQuery,
+                onOpenFeedback: openFeedback,
                 materialSearchMode,
                 highlightedSegmentIds,
                 highlightedHitSegments,

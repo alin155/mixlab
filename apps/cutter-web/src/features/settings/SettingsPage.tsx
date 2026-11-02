@@ -1,5 +1,6 @@
 import { Badge, Button, Card, InspectorPanel, type BadgeTone } from "@mixlab/ui-foundation";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { desktopFeedbackPendingCount, resolveDesktopBridgeEnvironment } from "../../desktop-bridge.ts";
 import type { CutterRuntimeStatus } from "../../api.ts";
 import type { CutterWorkbenchSettings } from "../../fixture-client.ts";
 import {
@@ -10,6 +11,30 @@ import type { CutMode } from "../../state/cut-list.ts";
 import type { MaterialSearchSourceFilter } from "../../state/material-locator.ts";
 import type { VideoOrientationFilter } from "../../state/video-orientation.ts";
 import { SoftwareUpdateCard } from "./SoftwareUpdateCard.tsx";
+
+function FeedbackQueueStatus() {
+  const [pending, setPending] = useState<number | null>(null);
+  useEffect(() => {
+    if (!resolveDesktopBridgeEnvironment().desktop_available) {
+      return undefined;
+    }
+    let disposed = false;
+    const refresh = () => {
+      void desktopFeedbackPendingCount()
+        .then((count) => {
+          if (!disposed) setPending(count);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 30_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+  return pending === null ? null : <span className="cutter-feedback-pending">待发送反馈 {pending} 条</span>;
+}
 
 const defaultCutModeOptions: Array<{ value: CutMode; label: string }> = [
   { value: "copy", label: "极速剪切" },
@@ -161,7 +186,8 @@ export function SettingsPage({
   localWorkspacePath,
   workspaceConfigNotice,
   onConfigureLocalWorkspace,
-  onChangePassword
+  onChangePassword,
+  onOpenFeedback
 }: {
   settings: CutterWorkbenchSettings;
   runtimeStatus?: CutterRuntimeStatus;
@@ -180,6 +206,7 @@ export function SettingsPage({
   workspaceConfigNotice?: string;
   onConfigureLocalWorkspace?: () => void;
   onChangePassword?: (input: { current_password: string; new_password: string }) => Promise<void> | void;
+  onOpenFeedback?: () => void;
 }) {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -418,6 +445,17 @@ export function SettingsPage({
         />
 
         <SoftwareUpdateCard appVersion={appVersion} />
+
+        {onOpenFeedback ? (
+          <Card
+            actions={<Button type="button" variant="secondary" onClick={onOpenFeedback}>反馈问题</Button>}
+            className="cutter-settings-feedback ml-card-section-offset"
+            title="反馈"
+          >
+            <p className="ml-metric-description">遇到找不到、剪错、太慢或卡住时，提交反馈会自动附带上下文、日志和截图。</p>
+            <FeedbackQueueStatus />
+          </Card>
+        ) : null}
 
         <CutterInfoGroups
           groups={[

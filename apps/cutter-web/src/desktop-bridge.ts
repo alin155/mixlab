@@ -187,6 +187,56 @@ export async function installDesktopUpdate(
   return invoke<void>("desktop_install_update", { installerPath, expectedSha256 });
 }
 
+export interface DesktopFeedbackEvent {
+  at: string;
+  type: string;
+  detail?: string;
+}
+
+export interface DesktopFeedbackSubmission {
+  category: string;
+  message: string;
+  expected?: string;
+  context: Record<string, unknown>;
+  events: DesktopFeedbackEvent[];
+  screenshot_png_base64?: string;
+}
+
+export interface DesktopFeedbackSubmitResult {
+  feedbackId: string;
+  delivered: boolean;
+  pendingCount: number;
+}
+
+export async function captureDesktopFeedbackScreenshot(
+  options: DesktopNativeCommandOptions = {}
+): Promise<string | null> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<string | null>("desktop_capture_feedback_screenshot");
+}
+
+export async function submitDesktopFeedback(
+  submission: DesktopFeedbackSubmission,
+  options: DesktopNativeCommandOptions = {}
+): Promise<DesktopFeedbackSubmitResult> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<DesktopFeedbackSubmitResult>("desktop_submit_feedback", { submission });
+}
+
+export async function desktopFeedbackPendingCount(
+  options: DesktopNativeCommandOptions = {}
+): Promise<number> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<number>("desktop_feedback_pending_count");
+}
+
+export async function flushDesktopFeedbackQueue(
+  options: DesktopNativeCommandOptions = {}
+): Promise<{ sent: number; pending: number }> {
+  const invoke = resolveDesktopInvoke(options);
+  return invoke<{ sent: number; pending: number }>("desktop_flush_feedback_queue");
+}
+
 export async function desktopAppVersion(options: DesktopNativeCommandOptions = {}): Promise<string> {
   const invoke = resolveDesktopInvoke(options);
   return invoke<string>("desktop_app_version");

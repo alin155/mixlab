@@ -1,6 +1,6 @@
 [package]
 name = "mixlab-cutter-desktop"
-version = "0.18.27"
+version = "0.18.28"
 description = "MixLab Cutter Windows Desktop"
 authors = ["MixLab"]
 edition = "2021"
@@ -15,3 +15,4 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 time = "=0.3.47"
 sha2 = "0.10"
+base64 = "0.22"
