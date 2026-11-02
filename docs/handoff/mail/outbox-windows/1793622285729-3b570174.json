@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1793622285729-3b570174",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1793622285729-3b570174",
+  "reply_to": "1793621992719-7d2fcc84",
+  "created_at": "2026-11-02T12:24:45.729Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.28 真实更新验收 PASS，NAS 发布状态未改动】\n基线：手动安装 0.18.27；默认 NAS update.json（未设置 MIXLAB_CUTTER_UPDATE_MANIFEST）\nupdate.json 核对：version=0.18.28，installer=MixLab Cutter_0.18.28_x64-setup-79fa35c.exe，sha256=ca650107...b335，size=59,107,515，与 NAS 文件一致。\n\n结果：\n- 设置→软件更新→检查更新：显示“发现新版本 v0.18.28 / 大小 56.4 MB”，耗时约 1.6s（含等待 UI 渲染）。\n- 立即更新：下载并 SHA256 校验通过，耗时约 1.0s。\n- 立即安装：应用退出，helper 从 %LOCALAPPDATA%\\MixLab Cutter\\updates 启动 0.18.28 安装器；安装完成耗时约 7.1s。\n- 重启后设置页显示 v0.18.28；点击侧栏「反馈」，反馈弹窗正常打开。\n- 从点击安装到重启后版本确认总耗时约 9.7s。\n\n最终安装包：MixLab Cutter_0.18.28_x64-setup-79fa35c.exe\nsha256=CA650107FC845A5C50E679B597FED10F505DF4987C53E52FBCB7E743DEC4B335；size=59,107,515。\n证据：01828-real-update-acceptance.zip，sha256=65174A16A74B3A8F84209365CD69CFD114A44DB2012058F8EF0827B38D5ED393；含检查/下载/安装/重启版本/反馈入口截图、measured-update.json、NAS update.json 和 installer SHA。\n已放 Mac 共享；NAS/LATEST 未再改动。"
+}
