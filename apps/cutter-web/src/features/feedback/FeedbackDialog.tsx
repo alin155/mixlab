@@ -85,9 +85,10 @@ export function FeedbackDialog({ open, onClose, context, events, appVersion, bui
           ...(buildCommit ? { build_commit: buildCommit } : {})
         }),
         events,
-        ...(screenshot ? { screenshot_png_base64: screenshot } : {})
+        ...(screenshot ? { screenshotPngBase64: screenshot } : {})
       });
       setResult({ feedbackId: submitted.feedbackId, delivered: submitted.delivered });
+      window.dispatchEvent(new Event("mixlab-feedback-updated"));
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "反馈提交失败，请稍后重试");
     } finally {

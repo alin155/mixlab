@@ -4866,6 +4866,7 @@ export function CutterApp() {
               residueCount={workspaceResidueCount}
               showResidueNotice={showWorkspaceResidueNotice}
               onDismissResidue={dismissWorkspaceResidueNotice}
+              onOpenFeedback={openFeedback}
               {...(canLogout
                 ? {
                     onLogout: () => {

@@ -27,10 +27,13 @@ function FeedbackQueueStatus() {
         .catch(() => {});
     };
     refresh();
-    const timer = window.setInterval(refresh, 30_000);
+    const timer = window.setInterval(refresh, 5_000);
+    const onFeedbackUpdated = () => refresh();
+    window.addEventListener("mixlab-feedback-updated", onFeedbackUpdated);
     return () => {
       disposed = true;
       window.clearInterval(timer);
+      window.removeEventListener("mixlab-feedback-updated", onFeedbackUpdated);
     };
   }, []);
   return pending === null ? null : <span className="cutter-feedback-pending">待发送反馈 {pending} 条</span>;

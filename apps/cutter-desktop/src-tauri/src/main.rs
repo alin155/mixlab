@@ -158,6 +158,11 @@ fn feedback_root() -> PathBuf {
 }
 
 fn feedback_nas_root() -> PathBuf {
+    if let Ok(override_root) = env::var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT") {
+        if !override_root.trim().is_empty() {
+            return PathBuf::from(override_root);
+        }
+    }
     PathBuf::from(r"\\192.168.1.27\MixLab\CutterFeedback")
 }
 

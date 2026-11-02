@@ -199,7 +199,7 @@ export interface DesktopFeedbackSubmission {
   expected?: string;
   context: Record<string, unknown>;
   events: DesktopFeedbackEvent[];
-  screenshot_png_base64?: string;
+  screenshotPngBase64?: string;
 }
 
 export interface DesktopFeedbackSubmitResult {
