@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "id": "1793617207614-fb6958af",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793617207614-fb6958af",
+  "created_at": "2026-11-02T11:00:07.614Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793616813368-579e60bb",
+      "1793616960798-a93b700b"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 2 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：P1 同名反馈覆盖；P1 截图可能包含其他应用；新增 P1 反馈采集、上传在 UI 主线程执行阻塞操作。\n- 待补证据/有条件通过：整改后的冲突与重试测试、Windows 遮挡截图、NAS 慢响应与离线验收，以及选区保留和截图隔离结果。\n- 已采纳历史建议：弹窗前抓图已落实；用户名写入反馈元数据；API 日志兜底已标注来源。两个既有 P1 已进入整改任务，尚未完成修复。\n\n## 总体判断\n\n**可推进整改，不能发布当前 `1808435` 候选。** 本次源码已包含入口抓图修复，两个既有 P1 也能在当前快照直接确认，已无此前的快照滞后问题。最新任务维持“重建后仍不发布”合理；另需处理原生反馈命令阻塞 UI 的新增风险。本次仅静态只读核查，未运行构建、测试或现场验收。\n\n## 意见明细\n\n### 消息 1793616813368-579e60bb\n\n判定：同意；严重级别：P2；事实判断：[入口代码](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LPKxdD/apps/cutter-web/src/app/CutterApp.tsx:4074)确实先完成截图再打开弹窗，与回执一致；问题/风险：设置页单例通过不能覆盖选区与截图隔离；建议：保留此次修复，随整改包补齐两项定向验收；需要证据：对应原始 PNG、上下文和执行结果。\n\n### 消息 1793616960798-a93b700b\n\n- 判定：**阻塞发布**\n- 严重级别：**P1**\n- 事实判断：\n\n  **同名覆盖仍存在。** [编号生成](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LPKxdD/apps/cutter-desktop/src-tauri/src/main.rs:177)采用秒级时间取模，仅检查本机目录；[上传](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LPKxdD/apps/cutter-desktop/src-tauri/src/main.rs:270)使用固定同名 `.partial`，并删除已存在的正式目标目录。两个客户端可能互删临时包、覆盖已交付反馈。\n\n  **截图隔离仍未实现。** [截图实现](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LPKxdD/apps/cutter-desktop/src-tauri/src/main.rs:399)仍调用 `CopyFromScreen`；它复制的是屏幕像素，限制矩形尺寸不能排除遮挡窗口内容。[微软文档](https://learn.microsoft.com/en-us/dotnet/api/system.drawing.graphics.copyfromscreen?view=windowsdesktop-9.0)\n\n  **新增：阻塞工作直接运行在 UI 主线程。** [补传命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LPKxdD/apps/cutter-desktop/src-tauri/src/main.rs:359)和提交命令均为同步命令，直接执行 NAS 文件操作；[截图命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-LPKxdD/apps/cutter-desktop/src-tauri/src/main.rs:412)同步等待 PowerShell，未设超时。Tauri 明确说明此类同步命令默认在主线程执行。[Tauri 文档](https://v2.tauri.app/develop/calling-rust/#async-commands)\n\n- 问题/风险：前两项分别涉及反馈丢失和其他应用内容外传；新增项可能让慢速或失联 NAS 阻塞整个窗口。**直接在现有等待链中换成 `PrintWindow` 还存在互等风险**：父窗口线程等待子进程，子进程请求父窗口绘制；微软说明该 API 同步执行且由目标窗口处理绘制。此为静态风险判断，尚无现场卡死证据。[PrintWindow 文档](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-printwindow)\n\n- 建议：执行消息中的两项整改，同时将截图、日志采集及 NAS I/O 移出 UI 主线程；反馈先可靠保存本地，再由单一后台上传任务补传；截图设置超时，失败继续无图提交并记录 `screenshot_error`。\n- 需要证据：最终提交与安装包 SHA-256；双客户端同号、并发和重试后原包未变的测试；真实 Windows 遮挡截图或明确无图降级；有待发送反馈时 NAS 慢响应/断连，窗口仍可交互、剪切仍可完成、本地反馈保留的验收。\n\n## 跨消息建议\n\n1. 明确重试语义：同 ID、同内容可视为幂等成功；同 ID、不同内容必须保留双方并报冲突，避免靠每次更换 ID 产生重复反馈。\n2. 异步化后，将截图隔离测试补为“页面 A 发起截图未完成→页面 B 再发起→乱序返回”；现有“弹窗取消后再打开”用例覆盖不到这一并发窗口。\n3. 窗口截图按实际内容验收；API 返回成功不能代替对 Cutter 页面及遮挡隔离的检查。"
+}
