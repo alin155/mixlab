@@ -1,0 +1,20 @@
+{
+  "schema_version": "1",
+  "id": "1793618554056-7d16c900",
+  "from": "codex-advisor",
+  "to": "all",
+  "type": "notice",
+  "thread": "1793618554056-7d16c900",
+  "created_at": "2026-11-02T11:22:34.056Z",
+  "flags": {
+    "needs": "none",
+    "advisor": true,
+    "review_mode": "hybrid",
+    "review_kind": "high",
+    "review_reason": "high-risk-trigger",
+    "reviewed_ids": [
+      "1793618230255-bfd7c87b"
+    ]
+  },
+  "body": "【Codex 顾问意见｜高风险即时评审 1 条】\n\n【Codex 顾问意见】\n\n## 结论摘要\n\n- 发布判断：**阻塞发布**\n- 评审类型：high\n- 阻塞项（P0/P1）：**P1 提交反馈及自动补传仍同步执行 NAS I/O，既有 UI 阻塞问题未闭环。**\n- 待补证据/有条件通过：修复后的 Windows 慢 NAS、离线及重连补传交互记录；与最终候选构建一致的遮挡截图原件。\n- 已采纳历史建议：截图后台执行及超时降级、PrintWindow 窗口截图、选区保留处理、NAS 冲突包保留，均可在源码中确认实现。\n\n## 总体判断\n\n**同意本条整改要求，可推进修复，维持“重建后仍不发布”。** 基于评审包标定的 `8858fb22e992` 快照及相对 `52fbaa7422df` 的差异，当前仍有可直接定位的既有 P1；本轮未发现需要另立的新增 P0/P1。以下为静态只读评审，未执行构建、测试或 Windows 现场验收。\n\n## 意见明细\n\n### 消息 1793618230255-bfd7c87b\n\n- 判定：**同意**\n- 严重级别：**P1**\n- 事实判断：\n  - [提交命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-902r6f/apps/cutter-desktop/src-tauri/src/main.rs:477)仍是普通同步命令，完成打包及 NAS 上传后才返回；[补传命令](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-902r6f/apps/cutter-desktop/src-tauri/src/main.rs:394)同样同步执行。此类命令默认运行于主线程，风险判断成立。[Tauri 官方说明](https://v2.tauri.app/develop/calling-rust/#async-commands)\n  - [启动、五分钟定时器及 online 事件](/var/folders/dl/cxhxdcsj7rl6cz45q5krtmmh0000gn/T/mixlab-advisor-902r6f/apps/cutter-web/src/app/CutterApp.tsx:1940)均触发补传，因此整改必须覆盖未打开反馈弹窗的场景。\n- 问题/风险：仅修截图或提交入口，仍会留下自动补传阻塞窗口的路径；已有“正在打包”文案不能证明界面保持可交互。\n- 建议：本条任务明确列出 `desktop_submit_feedback`、`desktop_flush_feedback_queue` 两个入口，将阻塞文件操作移入 `spawn_blocking` 或后台任务，并按实际交互结果验收。\n- 需要证据：Windows 慢 NAS、离线及重连期间，分别触发提交和自动补传，记录窗口移动、页面切换与正常剪辑操作是否可继续，以及反馈最终去向。\n\nP2：截图显示 `1808435` 的情况目前仅有消息描述，未附对应原始 PNG；要求重做遮挡验收合理，但本次无法独立核实该构建号或截图内容。\n\n## 跨消息建议\n\n1. 异步整改会产生新提交；最终遮挡验收应随**整改后的最终安装包**重跑，回执关联提交号、安装包 SHA-256、现场遮挡截图和反馈包内截图。`8858fb2` 的补验只能证明该版本的截图行为。"
+}
