@@ -352,6 +352,15 @@ namespace MixLabRepairTool
             NetworkChange.NetworkAvailabilityChanged += delegate { StartQueueFlush(); };
 
             ActiveControl = null;
+            string scaleValue = Environment.GetEnvironmentVariable("MIXLAB_REPAIR_UI_SCALE");
+            double scale;
+            if (!string.IsNullOrEmpty(scaleValue) && double.TryParse(scaleValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out scale) && scale > 1.0)
+            {
+                AutoScaleMode = AutoScaleMode.None;
+                Scale(new SizeF((float)scale, (float)scale));
+                ClientSize = new Size((int)(760 * scale), (int)(560 * scale));
+                MaximumSize = new Size((int)(760 * scale), (int)(900 * scale));
+            }
             Log("工具已打开。当前版本 " + ToolVersion + "，诊断包会自动提交给管理员。");
         }
 
