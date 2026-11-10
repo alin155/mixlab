@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1794312878654-899c3993",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794312878654-899c3993",
+  "created_at": "2026-11-10T12:14:38.655Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "docs/handoff/CUTTER-REPAIR-TOOL-UI-1.3.md"
+    ]
+  },
+  "body": "用户反馈修复工具 UI/交互太差，需要按参考稿重做 1.3 界面。\n\n参考稿：\n- NAS：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 修复工具\\design\\repair-ui-mockup.png\n- 仓库：docs/design/mockups/cutter-repair-tool-1.3.png\n- 规范：docs/handoff/CUTTER-REPAIR-TOOL-UI-1.3.md\n\n要求：\n1. 主界面只保留一个主按钮“一键修复”；“更多选项”默认收起，内含动态上一版本回退/备用导出/日志目录。\n2. 状态卡 + 三步骤（检查/修复/复检）；准备/进行中/成功/失败四态；失败显示“已自动提交管理员 FB-...，无需手动发送”。\n3. 默认不显示大段日志；折叠“查看诊断日志”。\n4. 浅灰蓝背景、白色圆角卡片、清晰层级；保留系统标题栏；WinForms 自绘，不引入外部 UI 库。\n5. 100%/125%/150% DPI 验收，四态截图。\n\n与修复工具 1.3 的按钮收敛/动态回退一起做；不要只换颜色。先回复计划/commit/截图。"
+}
