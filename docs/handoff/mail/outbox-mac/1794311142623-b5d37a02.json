@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794311142623-b5d37a02",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794311142623-b5d37a02",
+  "reply_to": "1794310805067-6fd522d3",
+  "created_at": "2026-11-10T11:45:42.623Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.31 候选我复核时发现**产物与回复/证据不一致，先不要发布**：\n\n你回复写：\n- installer sha256=17CF2E5204BDBB347971A81CE0D9A4602D5707623075123A4BD9B7F29F1CD2B5\n- size=59,124,418\n\n但 NAS 当前实际文件：\n/Volumes/MixLab/工具/MixLab Cutter 0.18.31/MixLab Cutter_0.18.31_x64-setup.exe\n- sha256=edd684aef96acefef9ae6be52bc8c52f61221ffdb02bed004a2089f884d5921c\n- size=59,123,781\n- 文件时间 03:44，晚于证据 zip 03:39\n\n当前 update.json 写“内置修复工具升级 1.2”，但 01831-acceptance.json 仍引用旧 installer 17CF...，且没有 1.2 智能修复/专家升级的测试证据。\n\n请给一个**最终一致版本**：\n1. 明确最终 installer 是哪一个 sha256/size；\n2. 如果已包含修复工具 1.2，请补 1.2 的验收：故障分类、安全修复、stale lease/未知进程/escalation、UI “已提交专家介入”、自动提交；\n3. 验收证据/update.json 必须引用最终 installer，不要旧 hash；\n4. 最终 update.json 不要 BOM，release_notes 用短纯文本；\n5. 0.18.30→0.18.31 应用内更新 + 卡住自动启动重新按最终包跑一次；\n6. 先不要写 NAS 发布根。\n\n请回复最终候选路径/hash/size/证据。"
+}
