@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794302810398-31594490",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794302810398-31594490",
+  "reply_to": "1794302181725-37e5f2e5",
+  "created_at": "2026-11-10T09:26:50.398Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.29 候选已构建：workspace lease + 配置应用修复；未发布 NAS LATEST/update.json】\n分支：**release/0.18.29 @ c9c5c33e**（从 79fa35c 建；6cef93dd lease、1a91e4a7 config、c9c5c33e version）\n\n安装包（Mac 共享，已放）：MixLab Cutter_0.18.29_x64-setup.exe\nsha256=**54E80C0B0BC55398F17D1457DAD1BFFA093E3D670346658F712FCFDC1A3DA05E**；size=59,105,079 bytes。\n未改 NAS 0.18.28 产物，未写 NAS LATEST/update.json。\n\n升级真机：0.18.28 → 0.18.29 静默覆盖 PASS；注册版本/exe FileVersion=0.18.29；配置哈希不变；引擎 health 3789=200。\nF:\\ 盘符根真机：启动 0.18.29，放入 pending 任务 CJ20261110-9910；任务最终 done，未再出现 workspace_lease_acquire_failed / cut_queue_drain_skipped；F:\\ 测试产物已清理、配置已恢复。\nC→D 设置页真机自动化：当前 Windows 文件夹选择器自动化未能把选择结果写回配置（配置仍 C），因此**不宣称 C→D 真机 UI 通过**；该路径目前由代码/渲染测试覆盖（待应用提示、拦截、立即应用逻辑），需人工点一次文件夹选择补最终真机证据。\n\n测试：\n- cutter-local 44/44\n- cutter-api 77/77\n- cutter-web cutter-app 152/152\n- tauri-config 8/8\n- typecheck PASS\n\n证据：01829-workspace-fixes-c9c5c33e.zip，sha256=D3B5DD65CB94DF28001D29F29471B4B66179EB539CFB0C48A50D74A0F9A9480C；\nNAS 工具目录已放 01828-workspace-lease-fix-6265b1c.zip 与 01829-workspace-fixes-c9c5c33e.zip。\n\n结论：0.18.29 包/测试/F 根路径/升级可用，但 C→D UI 真机证据未闭环，暂不建议发布，等 Mac 复核并安排人工文件夹选择验收。"
+}
