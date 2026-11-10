@@ -5072,7 +5072,6 @@ export function CutterApp() {
       if (remaining <= 0) {
         window.clearInterval(timer);
         setRepairAutoCountdown(null);
-        repairAutoLaunchedRef.current = true;
         void handleLaunchRepairTool("auto");
       } else {
         setRepairAutoCountdown(remaining);
