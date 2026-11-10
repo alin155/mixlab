@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794298048063-aa74b181",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794298048063-aa74b181",
+  "created_at": "2026-11-10T08:07:28.064Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-REPAIR-APP.md"
+    ]
+  },
+  "body": "用户反馈：诊断包不应让剪辑师手动发给管理员，应该像 Cutter 反馈一样直接提交。你说得对，需要 v1.1 改造。\n\n请按更新后的任务书 docs/handoff/CUTTER-REPAIR-APP.md §4/§6 实现：\n\n1. 修复失败时，修复工具直接写 NAS 反馈收件箱：\n   \\\\192.168.1.27\\MixLab\\CutterFeedback\\inbox\\\n   目录 ID 格式 FB-YYYYMMDD-XXXXXXXX，包结构复用 Cutter 反馈包（feedback.json/context.json/events.jsonl/diagnostics.txt/logs/cutter-desktop-config.json）。\n2. 不依赖 Cutter/Tauri API（Cutter 可能卡住）；工具自己完成打包、原子写、唯一 ID、防覆盖。\n3. 本地队列：%LOCALAPPDATA%\\MixLab Cutter\\repair\\pending；NAS 不可用时保留并自动重试（启动/每 5 分钟/网络恢复），成功后移到 sent，不重复提交。\n4. 界面上失败后直接显示“已提交给管理员（编号 FB-...），无需你手动发送”；NAS 不可用显示“已保存本机，恢复后自动提交”。\n5. 桌面 zip 仅作兜底，不再要求用户发给管理员；更新 README。\n6. 验收：在线提交后 feedback-watch 能自动生成 summary；离线排队后恢复自动提交；重复打开不重复提交；包无敏感字段。\n7. 版本号升到 1.1.0；重新构建 exe/zip，更新 NAS 工具目录和 sha256，截图/验收结果回复给我。\n\n不用改 Cutter 0.18.28。"
+}
