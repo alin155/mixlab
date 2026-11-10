@@ -377,6 +377,23 @@ namespace MixLabRepairTool
         private void ShowMoreMenu()
         {
             ContextMenuStrip menu = new ContextMenuStrip();
+            menu.ShowImageMargin = false;
+            menu.Font = new Font("Microsoft YaHei UI", 9F);
+            menu.Padding = new Padding(6);
+            menu.BackColor = Color.White;
+            menu.Opened += delegate
+            {
+                using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    int radius = 8;
+                    path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                    path.AddArc(menu.Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                    path.AddArc(menu.Width - radius * 2, menu.Height - radius * 2, radius * 2, radius * 2, 0, 90);
+                    path.AddArc(0, menu.Height - radius * 2, radius * 2, radius * 2, 90, 90);
+                    path.CloseFigure();
+                    menu.Region = new Region(path);
+                }
+            };
             menu.Items.Add("导出诊断包（备用）", null, delegate { DiagnosticsButton_Click(null, EventArgs.Empty); });
             string previousVersion;
             string previousInstaller = FindPreviousInstaller(out previousVersion);
