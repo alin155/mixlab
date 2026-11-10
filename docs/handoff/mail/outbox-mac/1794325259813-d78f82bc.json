@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1794325259813-d78f82bc",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1794325259813-d78f82bc",
+  "created_at": "2026-11-10T15:40:59.813Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.33 已由 Mac 正式发布。\n\n发布根：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\\n- MixLab Cutter_0.18.33_x64-setup.exe\n- sha256=becd2ead7413b5d30eab9480556e41e313ec83fa6aebe4bd0ddb9f39bd355f2e\n- size=59,127,024\n- update.json / LATEST / LATEST-CUTTER 已更新\n- commit=332709b2\n\n0.18.32 用户可更新到 0.18.33；0.18.32/0.18.31 包保留回滚。\n本次接受 088B 的更新验收 + BECD 仅菜单绘制差异；请保持 0.18.33 产物，不再覆盖。"
+}
