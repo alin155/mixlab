@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794301216596-d9af74ce",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794301216596-d9af74ce",
+  "reply_to": "1794300278745-b69ee1a2",
+  "created_at": "2026-11-10T09:00:16.596Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【Cutter 0.18.28 P1：盘符根 workspace 租约已修，测试+Windows 真机根目录验收完成】\n修复 commit：dev/cutter @ **6265b1c**\n\n代码修复：\n1) acquireWorkspaceLease 先 stat workspace：已存在目录直接跳过 mkdir；不存在才创建；存在但不是目录明确报错。\n2) 根目录锁写入失败（含 EPERM/EACCES/EROFS 及租约路径被占用）自动 fallback 到：\n   %LOCALAPPDATA%\\MixLab Cutter\\workspace-leases\\<workspace hash>.json\n   同一 workspace hash 固定；仍用 wx 原子创建；读取/心跳/释放/stale 回收均支持 fallback。\n3) 先读旧 workspace 根锁再接 fallback；升级瞬间旧根锁有效时禁止双执行；readWorkspaceLease 兼容新旧两份锁。\n4) fallback 最终仍不可用时抛 workspace_lease_unavailable，错误文案明确提示“本地工作区无法建立独占锁，剪切队列已暂停；请改为可写子目录或升级版本”。\n5) API `/cutter/cut-jobs` 增加 workspace_execution_allowed / lease_unavailable_message；剪切任务页显示提示，不再静默 pending。\n\n测试：\n- cutter-local **44/44 PASS**（新增：已存在根目录/被目录占用的根锁 fallback、fallback 两实例互斥、fallback stale 回收、旧根锁兼容、非目录报错）\n- cutter-api **76/76 PASS**\n- typecheck PASS；相关前端 32/32 PASS\n- Windows F:\\ 真机根目录：租约获取成功；放入 pending 任务后 run-next 成功 drain，任务转为 failed（源视频不可读，非 pending），无 pending 残留；未再出现 workspace_lease_acquire_failed。\n  证据：01828-workspace-lease-fix-6265b1c.zip（含 root-test JSON/测试日志/typecheck），sha256=0079696C7BD16FA284004A338FF1C32C6405484D5E0CE77A01F349A80D7AE3EE。\n\n0.18.29 判断：代码修复和测试已具备进入 0.18.29 的条件；但当前 dev/cutter 版本线是 0.18.10，我未直接用它覆盖已发布的 0.18.28。建议从 79fa35c release 线 cherry-pick **6265b1c**、改用 0.18.29 版本号重建安装包，再在真机做一次 0.18.28→0.18.29 升级+根工作区验收；我可以按此继续。\n未发布 NAS/LATEST，未用重启/修复工具顶替代码修复。"
+}
