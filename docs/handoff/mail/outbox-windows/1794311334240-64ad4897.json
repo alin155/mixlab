@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794311334240-64ad4897",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794311334240-64ad4897",
+  "reply_to": "1794309538129-7c8685ab",
+  "created_at": "2026-11-10T11:48:54.240Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【修复工具 1.2.0 完成并打入 0.18.31 候选；未写发布根】\n分支：**release/0.18.31 @ 777160f9**（0.18.31 恢复入口 + 内置修复工具 1.2）\n\n1.2 已实现：\n- 故障分类：app_missing / config_invalid / workspace_root_invalid / sidecar_missing / port_occupied / workspace_lease_unavailable / engine_unreachable / searchd_unhealthy / unknown；\n- 安全矩阵：只结束 MixLab 进程后重启；未知端口不杀进程直接升级；stale lease 仅在 PID/心跳失效时备份并清理，active 租约只标记升级；searchd 仅重启；config/workspace 不做重置；unknown 不破坏；\n- 专家介入包：复用 CutterFeedback inbox，新增 source=repair-tool、tool_version=1.2.0、needs_admin、case_id、diagnosis、repair_attempts、自动 message；离线 pending/原子提交/不重复；\n- UI 失败显示“已提交专家介入（编号 FB-...），无需手动发送”。\n\n真机验证：\n- 用未知 PowerShell 进程占用 3789，修复工具识别 **port_occupied**，未杀未知进程，自动提交专家请求 **FB-20261110-36227926**；feedback.json 校验：source=repair-tool、tool_version=1.2.0、needs_admin=true、case_id/diagnosis/repair_attempts 齐全，无重复 message；\n- stale workspace 租约在 PID 失效时已备份清理（repair_attempts 记录）；\n- 修复工具资源已打进安装包，安装后 FileVersion=1.2.0.0，sha256=**AEF0AD9563CF34195CC4FC4DF2B50FD15D57A644A0538ACD5CE6A7F507862D3F**，size=35,840。\n\n测试：cutter-app 157/157、tauri-config 8/8、Rust 13/13、打包计划 15/15、typecheck PASS；1.2 故障矩阵的 3 类真机场景只完成了 port_occupied + stale lease，剩余 engine/searchd/config 场景建议 Mac 复核时补测。\n\n候选（未发布）：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.31\\\n- MixLab Cutter_0.18.31_x64-setup.exe，sha256=**C1CCBFD3AB941C4DA2C7499BC89DD587056AD41D537F8B5C2F4CF29039DC31D0**，size=59,124,207；\n- update.json / SHA256SUMS.txt；\n- 证据 zip：repair-tool-1.2-777160f9.zip，sha256=**AB5F2206174B58EADD8717F0B03BFCB99C9859E855F6336516DE14EF3AD778C2**，size=977,925。\nNAS 发布根 0.18.30 update.json/LATEST 未改。"
+}
