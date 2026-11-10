@@ -15,9 +15,9 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Security.Cryptography;
 
-[assembly: AssemblyVersion("1.2.0.0")]
-[assembly: AssemblyFileVersion("1.2.0.0")]
-[assembly: AssemblyInformationalVersion("1.2.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyFileVersion("1.3.0.0")]
+[assembly: AssemblyInformationalVersion("1.3.0")]
 
 namespace MixLabRepairTool
 {
@@ -60,6 +60,56 @@ namespace MixLabRepairTool
         public RepairNeedsAdminException(string message) : base(message) { }
     }
 
+
+    internal sealed class RoundedPanel : Panel
+    {
+        public int Radius = 18;
+        public RoundedPanel()
+        {
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+            BackColor = Color.White;
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                int radius = Math.Min(Radius, Math.Min(Width, Height) / 2);
+                path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                path.AddArc(Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                path.AddArc(Width - radius * 2, Height - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(0, Height - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                using (SolidBrush brush = new SolidBrush(BackColor)) e.Graphics.FillPath(brush, path);
+            }
+        }
+    }
+
+    internal sealed class RoundButton : Button
+    {
+        public RoundButton()
+        {
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
+            DoubleBuffered = true;
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                int radius = 12;
+                path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                path.AddArc(Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                path.AddArc(Width - radius * 2, Height - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(0, Height - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                using (SolidBrush brush = new SolidBrush(Enabled ? BackColor : Color.FromArgb(190, 202, 219))) e.Graphics.FillPath(brush, path);
+            }
+            TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
+    }
+
     public class RepairForm : Form
     {
         private static readonly string[] MixLabProcessNames = new string[]
@@ -70,13 +120,19 @@ namespace MixLabRepairTool
             "mixlab-searchd-x86_64-pc-windows-msvc"
         };
 
-        private readonly Label statusLabel;
         private readonly RichTextBox logBox;
         private readonly Button repairButton;
         private readonly Button diagnosticsButton;
         private readonly Button rollbackButton;
+        private readonly RoundedPanel card;
+        private readonly Label stateIconLabel;
+        private readonly Label stateTitleLabel;
+        private readonly Label stateDetailLabel;
+        private readonly Label[] stepLabels;
+        private readonly LinkLabel moreLink;
+        private readonly LinkLabel logToggle;
         private readonly object logLock = new object();
-        private const string ToolVersion = "1.2.0";
+        private const string ToolVersion = "1.3.0";
         private static readonly string FeedbackInbox = @"\\192.168.1.27\MixLab\CutterFeedback\inbox";
         private static readonly object QueueLock = new object();
         private static bool queueRunning;
@@ -91,75 +147,167 @@ namespace MixLabRepairTool
 
         public RepairForm()
         {
-            Text = "MixLab Cutter 修复工具 v1.2.0";
-            ClientSize = new Size(680, 470);
-            MinimumSize = new Size(680, 470);
-            MaximumSize = new Size(680, 470);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            Text = "MixLab Cutter 修复工具";
+            ClientSize = new Size(760, 560);
+            MinimumSize = new Size(760, 560);
+            MaximumSize = new Size(760, 900);
             MaximizeBox = false;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             StartPosition = FormStartPosition.CenterScreen;
-            BackColor = Color.FromArgb(246, 248, 252);
+            BackColor = Color.FromArgb(244, 247, 252);
             Font = new Font("Microsoft YaHei UI", 10F);
 
+            Label brand = new Label();
+            brand.Text = "ML";
+            brand.TextAlign = ContentAlignment.MiddleCenter;
+            brand.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold);
+            brand.ForeColor = Color.White;
+            brand.BackColor = Color.FromArgb(42, 106, 224);
+            brand.Location = new Point(32, 24);
+            brand.Size = new Size(34, 34);
+            Controls.Add(brand);
+
             Label title = new Label();
-            title.Text = "MixLab Cutter 修复工具";
-            title.Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold);
-            title.ForeColor = Color.FromArgb(28, 42, 66);
+            title.Text = "修复工具";
+            title.Font = new Font("Microsoft YaHei UI", 19F, FontStyle.Bold);
+            title.ForeColor = Color.FromArgb(26, 40, 64);
             title.AutoSize = true;
-            title.Location = new Point(24, 20);
+            title.Location = new Point(78, 20);
             Controls.Add(title);
 
-            Label hint = new Label();
-            hint.Text = "升级后工作台一直加载时，点一次“一键修复”即可。";
-            hint.ForeColor = Color.FromArgb(90, 103, 122);
-            hint.AutoSize = true;
-            hint.Location = new Point(27, 62);
-            Controls.Add(hint);
+            Label subtitle = new Label();
+            subtitle.Text = "工作台加载异常时，帮助你安全恢复本机引擎。";
+            subtitle.ForeColor = Color.FromArgb(96, 109, 128);
+            subtitle.AutoSize = true;
+            subtitle.Location = new Point(34, 68);
+            Controls.Add(subtitle);
 
-            statusLabel = new Label();
-            statusLabel.Text = "准备就绪";
-            statusLabel.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold);
-            statusLabel.ForeColor = Color.FromArgb(38, 102, 196);
-            statusLabel.AutoEllipsis = true;
-            statusLabel.Location = new Point(27, 98);
-            statusLabel.Size = new Size(620, 30);
-            Controls.Add(statusLabel);
+            Label version = new Label();
+            version.Text = "v1.3.0";
+            version.TextAlign = ContentAlignment.MiddleCenter;
+            version.ForeColor = Color.FromArgb(42, 106, 224);
+            version.BackColor = Color.FromArgb(232, 240, 255);
+            version.Font = new Font("Microsoft YaHei UI", 9F);
+            version.Location = new Point(670, 28);
+            version.Size = new Size(58, 24);
+            Controls.Add(version);
 
-            repairButton = new Button();
+            card = new RoundedPanel();
+            card.Bounds = new Rectangle(32, 100, 696, 300);
+            card.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            card.Padding = new Padding(0);
+            Controls.Add(card);
+
+            stateIconLabel = new Label();
+            stateIconLabel.Text = "✓";
+            stateIconLabel.TextAlign = ContentAlignment.MiddleCenter;
+            stateIconLabel.Font = new Font("Microsoft YaHei UI", 16F, FontStyle.Bold);
+            stateIconLabel.ForeColor = Color.FromArgb(31, 148, 92);
+            stateIconLabel.BackColor = Color.FromArgb(232, 246, 238);
+            stateIconLabel.Bounds = new Rectangle(28, 26, 44, 44);
+            card.Controls.Add(stateIconLabel);
+
+            stateTitleLabel = new Label();
+            stateTitleLabel.Text = "准备就绪";
+            stateTitleLabel.Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold);
+            stateTitleLabel.ForeColor = Color.FromArgb(26, 40, 64);
+            stateTitleLabel.AutoSize = true;
+            stateTitleLabel.Location = new Point(88, 24);
+            card.Controls.Add(stateTitleLabel);
+
+            stateDetailLabel = new Label();
+            stateDetailLabel.Text = "将自动检查本机引擎、工作区与系统状态，并尝试安全修复。";
+            stateDetailLabel.Font = new Font("Microsoft YaHei UI", 9F);
+            stateDetailLabel.ForeColor = Color.FromArgb(110, 122, 140);
+            stateDetailLabel.AutoSize = false;
+            stateDetailLabel.Bounds = new Rectangle(88, 54, 570, 40);
+            card.Controls.Add(stateDetailLabel);
+
+            stepLabels = new Label[3];
+            string[] stepTexts = new string[] { "① 检查环境", "② 安全修复", "③ 复检结果" };
+            for (int index = 0; index < stepTexts.Length; index++)
+            {
+                Label step = new Label();
+                step.Text = stepTexts[index];
+                step.TextAlign = ContentAlignment.MiddleCenter;
+                step.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold);
+                step.ForeColor = Color.FromArgb(117, 132, 153);
+                step.BackColor = Color.FromArgb(243, 246, 251);
+                step.Bounds = new Rectangle(28 + index * 222, 100, 206, 34);
+                card.Controls.Add(step);
+                stepLabels[index] = step;
+            }
+
+            repairButton = new RoundButton();
             repairButton.Text = "一键修复";
-            repairButton.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold);
-            repairButton.BackColor = Color.FromArgb(49, 112, 224);
+            repairButton.Font = new Font("Microsoft YaHei UI", 11F, FontStyle.Bold);
+            repairButton.BackColor = Color.FromArgb(42, 106, 224);
             repairButton.ForeColor = Color.White;
-            repairButton.FlatStyle = FlatStyle.Flat;
-            repairButton.FlatAppearance.BorderSize = 0;
-            repairButton.Location = new Point(27, 142);
-            repairButton.Size = new Size(180, 48);
+            repairButton.Bounds = new Rectangle(28, 152, 170, 48);
             repairButton.Click += RepairButton_Click;
-            Controls.Add(repairButton);
+            card.Controls.Add(repairButton);
 
-            diagnosticsButton = new Button();
-            diagnosticsButton.Text = "只导出诊断包";
-            diagnosticsButton.Location = new Point(222, 142);
-            diagnosticsButton.Size = new Size(150, 48);
-            diagnosticsButton.Click += DiagnosticsButton_Click;
-            Controls.Add(diagnosticsButton);
+            moreLink = new LinkLabel();
+            moreLink.Text = "更多选项  ⌄";
+            moreLink.Font = new Font("Microsoft YaHei UI", 9F);
+            moreLink.LinkColor = Color.FromArgb(70, 88, 112);
+            moreLink.AutoSize = true;
+            moreLink.Location = new Point(218, 168);
+            moreLink.LinkClicked += delegate { ShowMoreMenu(); };
+            card.Controls.Add(moreLink);
 
-            rollbackButton = new Button();
-            rollbackButton.Text = "回退到 0.18.27";
-            rollbackButton.Location = new Point(387, 142);
-            rollbackButton.Size = new Size(160, 48);
-            rollbackButton.Click += RollbackButton_Click;
-            Controls.Add(rollbackButton);
+            Label info = new Label();
+            info.Text = "失败会自动提交诊断给管理员。不会删除素材、项目或缓存，不需要手动导出文件。";
+            info.Font = new Font("Microsoft YaHei UI", 8.5F);
+            info.ForeColor = Color.FromArgb(123, 135, 153);
+            info.AutoSize = false;
+            info.Bounds = new Rectangle(28, 216, 640, 24);
+            card.Controls.Add(info);
+
+            logToggle = new LinkLabel();
+            logToggle.Text = "查看诊断日志";
+            logToggle.Font = new Font("Microsoft YaHei UI", 8.5F);
+            logToggle.LinkColor = Color.FromArgb(42, 106, 224);
+            logToggle.AutoSize = true;
+            logToggle.Location = new Point(28, 252);
+            logToggle.LinkClicked += delegate { ToggleLog(); };
+            card.Controls.Add(logToggle);
 
             logBox = new RichTextBox();
-            logBox.Location = new Point(27, 210);
-            logBox.Size = new Size(626, 230);
+            logBox.Location = new Point(28, 292);
+            logBox.Size = new Size(632, 220);
             logBox.ReadOnly = true;
-            logBox.BackColor = Color.White;
-            logBox.BorderStyle = BorderStyle.FixedSingle;
-            logBox.Font = new Font("Consolas", 9F);
+            logBox.BackColor = Color.FromArgb(249, 251, 254);
+            logBox.BorderStyle = BorderStyle.None;
+            logBox.Font = new Font("Consolas", 8.5F);
             logBox.DetectUrls = false;
-            Controls.Add(logBox);
+            logBox.Visible = false;
+            card.Controls.Add(logBox);
+
+            Label footerLeft = new Label();
+            footerLeft.Text = "诊断与修复日志会保存在本机";
+            footerLeft.Font = new Font("Microsoft YaHei UI", 8F);
+            footerLeft.ForeColor = Color.FromArgb(137, 148, 164);
+            footerLeft.AutoSize = true;
+            footerLeft.Location = new Point(34, 446);
+            Controls.Add(footerLeft);
+
+            Label footerRight = new Label();
+            footerRight.Text = "MixLab · Windows 桌面端";
+            footerRight.Font = new Font("Microsoft YaHei UI", 8F);
+            footerRight.ForeColor = Color.FromArgb(137, 148, 164);
+            footerRight.AutoSize = true;
+            footerRight.Location = new Point(574, 446);
+            Controls.Add(footerRight);
+
+            diagnosticsButton = new Button();
+            diagnosticsButton.Visible = false;
+            diagnosticsButton.Click += DiagnosticsButton_Click;
+            rollbackButton = new Button();
+            rollbackButton.Visible = false;
+            rollbackButton.Click += RollbackButton_Click;
+            logBox.Visible = false;
 
             retryTimer = new System.Windows.Forms.Timer();
             retryTimer.Interval = 300000;
@@ -169,6 +317,60 @@ namespace MixLabRepairTool
             NetworkChange.NetworkAvailabilityChanged += delegate { StartQueueFlush(); };
 
             Log("工具已打开。当前版本 " + ToolVersion + "，诊断包会自动提交给管理员。");
+        }
+
+        private void ToggleLog()
+        {
+            if (logBox == null) return;
+            bool show = !logBox.Visible;
+            logBox.Visible = show;
+            logToggle.Text = show ? "收起诊断日志" : "查看诊断日志";
+            if (show)
+            {
+                card.Height = 540;
+                ClientSize = new Size(760, 760);
+                logBox.Bounds = new Rectangle(28, 292, 632, 220);
+            }
+            else
+            {
+                card.Height = 300;
+                ClientSize = new Size(760, 560);
+            }
+        }
+
+        private void ShowMoreMenu()
+        {
+            ContextMenuStrip menu = new ContextMenuStrip();
+            menu.Items.Add("导出诊断包（备用）", null, delegate { DiagnosticsButton_Click(null, EventArgs.Empty); });
+            string previousVersion;
+            string previousInstaller = FindPreviousInstaller(out previousVersion);
+            if (!string.IsNullOrEmpty(previousInstaller))
+            {
+                menu.Items.Add("回退到 " + previousVersion, null, delegate { OpenInstaller(previousInstaller, previousVersion); });
+            }
+            menu.Items.Add("打开日志目录", null, delegate { OpenLogDirectory(); });
+            menu.Show(moreLink, new Point(0, moreLink.Height));
+        }
+
+        private void OpenLogDirectory()
+        {
+            try
+            {
+                string logs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MixLab Cutter", "logs");
+                Directory.CreateDirectory(logs);
+                Process.Start("explorer.exe", logs);
+            }
+            catch (Exception error) { ShowInfo("无法打开日志目录：" + error.Message); }
+        }
+
+        private void OpenInstaller(string path, string version)
+        {
+            try
+            {
+                Process.Start(path);
+                SetStatus("已打开回退安装包 " + version + "，请按向导完成安装");
+            }
+            catch (Exception error) { ShowInfo("无法打开回退安装包：" + error.Message); }
         }
 
         private void RepairButton_Click(object sender, EventArgs e)
@@ -313,8 +515,15 @@ namespace MixLabRepairTool
         private void RollbackButton_Click(object sender, EventArgs e)
         {
             if (busy) return;
+            string version;
+            string installer = FindPreviousInstaller(out version);
+            if (string.IsNullOrEmpty(installer))
+            {
+                ShowInfo("未找到经过 SHA256 校验的上一版本安装包。\r\n本次不会自动降级，诊断会提交管理员处理。");
+                return;
+            }
             DialogResult confirm = MessageBox.Show(
-                "回退会先关闭 MixLab Cutter，并打开 0.18.27 安装包。\r\n不会删除素材或项目，也不会自动静默降级。\r\n\r\n确定继续吗？",
+                "将关闭 MixLab Cutter，并打开已验证的上一版本 " + version + " 安装包。\r\n不会删除素材或项目，也不会静默降级。\r\n\r\n确定继续吗？",
                 "确认回退",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
@@ -328,19 +537,13 @@ namespace MixLabRepairTool
                 {
                     KillMixLabProcesses();
                     Thread.Sleep(2000);
-                    string folder = @"\\192.168.1.27\MixLab\安装包\MixLab Cutter\0.18.27";
-                    string installer = FindInstaller(folder);
-                    if (string.IsNullOrEmpty(installer))
-                    {
-                        throw new InvalidOperationException("未找到 0.18.27 安装包，请检查 NAS 连接");
-                    }
                     ProcessStartInfo start = new ProcessStartInfo();
                     start.FileName = installer;
                     start.UseShellExecute = true;
                     Process.Start(start);
-                    SetStatus("已打开 0.18.27 安装包，请按向导完成安装");
+                    SetStatus("已打开回退安装包 " + version + "，请按向导完成安装");
                     Log("已打开安装包：" + installer);
-                    ShowInfo("已打开 0.18.27 安装包，请按向导完成安装。");
+                    ShowInfo("已打开 " + version + " 安装包，请按向导完成安装。");
                 }
                 catch (Exception ex)
                 {
@@ -355,6 +558,97 @@ namespace MixLabRepairTool
             });
             worker.IsBackground = true;
             worker.Start();
+        }
+
+        private Version CurrentCutterVersion()
+        {
+            try
+            {
+                string cutter = FindCutterExecutable();
+                if (string.IsNullOrEmpty(cutter)) return null;
+                Version parsed;
+                return Version.TryParse(FileVersionInfo.GetVersionInfo(cutter).FileVersion.Split(' ')[0], out parsed) ? parsed : null;
+            }
+            catch { return null; }
+        }
+
+        private string FindPreviousInstaller(out string previousVersion)
+        {
+            previousVersion = "";
+            Version current = CurrentCutterVersion();
+            if (current == null) return null;
+            List<string> directories = new List<string>();
+            string updates = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MixLab Cutter", "updates");
+            if (Directory.Exists(updates)) directories.Add(updates);
+            string root = @"\\192.168.1.27\MixLab\安装包\MixLab Cutter";
+            if (Directory.Exists(root))
+            {
+                directories.Add(root);
+                foreach (string child in Directory.GetDirectories(root)) directories.Add(child);
+            }
+            List<KeyValuePair<Version, string>> candidates = new List<KeyValuePair<Version, string>>();
+            foreach (string directory in directories.Distinct())
+            {
+                try
+                {
+                    foreach (string file in Directory.GetFiles(directory, "MixLab Cutter_*_x64-setup.exe"))
+                    {
+                        Match match = Regex.Match(Path.GetFileName(file), "^MixLab Cutter_([0-9]+\\.[0-9]+\\.[0-9]+)_x64-setup\\.exe$");
+                        Version parsed;
+                        if (!match.Success || !Version.TryParse(match.Groups[1].Value, out parsed)) continue;
+                        if (parsed >= current) continue;
+                        candidates.Add(new KeyValuePair<Version, string>(parsed, file));
+                    }
+                }
+                catch { }
+            }
+            foreach (KeyValuePair<Version, string> candidate in candidates.OrderByDescending(item => item.Key))
+            {
+                if (!InstallerChecksumMatches(candidate.Value)) continue;
+                previousVersion = candidate.Key.ToString(3);
+                return candidate.Value;
+            }
+            return null;
+        }
+
+        private static bool InstallerChecksumMatches(string installer)
+        {
+            try
+            {
+                string directory = Path.GetDirectoryName(installer);
+                string fileName = Path.GetFileName(installer);
+                string expected = "";
+                string sums = Path.Combine(directory, "SHA256SUMS.txt");
+                if (File.Exists(sums))
+                {
+                    foreach (string line in File.ReadAllLines(sums))
+                    {
+                        string[] parts = line.Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && parts[1] == fileName) { expected = parts[0]; break; }
+                    }
+                }
+                if (string.IsNullOrEmpty(expected))
+                {
+                    string manifest = Path.Combine(directory, "update.json");
+                    if (File.Exists(manifest))
+                    {
+                        string json = File.ReadAllText(manifest);
+                        if (ExtractJsonString(json, "installer") == fileName) expected = ExtractJsonString(json, "sha256");
+                    }
+                }
+                if (string.IsNullOrEmpty(expected)) return false;
+                string actual;
+                using (FileStream stream = File.OpenRead(installer))
+                using (System.Security.Cryptography.SHA256 sha = System.Security.Cryptography.SHA256.Create())
+                {
+                    byte[] digest = sha.ComputeHash(stream);
+                    StringBuilder builder = new StringBuilder();
+                    foreach (byte value in digest) builder.Append(value.ToString("x2"));
+                    actual = builder.ToString();
+                }
+                return string.Equals(expected.Trim(), actual, StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
         }
 
         private static string FindInstaller(string folder)
@@ -1174,14 +1468,62 @@ namespace MixLabRepairTool
                 repairButton.Enabled = !value;
                 diagnosticsButton.Enabled = !value;
                 rollbackButton.Enabled = !value;
+                moreLink.Enabled = !value;
                 UseWaitCursor = value;
             });
         }
 
         private void SetStatus(string value)
         {
-            SafeUi(delegate() { statusLabel.Text = value; });
+            SafeUi(delegate() { ApplyStatusCard(value); });
             AddLog(value);
+        }
+
+        private void ApplyStatusCard(string value)
+        {
+            if (stateTitleLabel == null || stateIconLabel == null || stateDetailLabel == null) return;
+            string text = value ?? "";
+            bool failed = text.Contains("未完成") || text.Contains("失败") || text.Contains("已提交") || text.Contains("已保存") || text.Contains("无法") || text.Contains("需要管理员");
+            bool success = !failed && (text.Contains("修复完成") || text.Contains("健康"));
+            bool running = !failed && !success && (text.StartsWith("正在") || text.Contains("等待") || text.Contains("诊断"));
+            stateDetailLabel.Text = text;
+            if (failed)
+            {
+                stateTitleLabel.Text = "需要管理员";
+                stateIconLabel.Text = "!";
+                stateIconLabel.ForeColor = Color.FromArgb(198, 117, 37);
+                stateIconLabel.BackColor = Color.FromArgb(255, 244, 228);
+            }
+            else if (success)
+            {
+                stateTitleLabel.Text = "修复完成";
+                stateIconLabel.Text = "✓";
+                stateIconLabel.ForeColor = Color.FromArgb(31, 148, 92);
+                stateIconLabel.BackColor = Color.FromArgb(232, 246, 238);
+            }
+            else if (running)
+            {
+                stateTitleLabel.Text = "正在修复";
+                stateIconLabel.Text = "●";
+                stateIconLabel.ForeColor = Color.FromArgb(42, 106, 224);
+                stateIconLabel.BackColor = Color.FromArgb(232, 240, 255);
+            }
+            else
+            {
+                stateTitleLabel.Text = "准备就绪";
+                stateIconLabel.Text = "✓";
+                stateIconLabel.ForeColor = Color.FromArgb(31, 148, 92);
+                stateIconLabel.BackColor = Color.FromArgb(232, 246, 238);
+            }
+            if (stepLabels == null) return;
+            for (int index = 0; index < stepLabels.Length; index++)
+            {
+                bool active = running && index == 1;
+                bool done = success;
+                bool attention = failed && index == 2;
+                stepLabels[index].BackColor = attention ? Color.FromArgb(255, 244, 228) : done ? Color.FromArgb(232, 246, 238) : active ? Color.FromArgb(232, 240, 255) : Color.FromArgb(243, 246, 251);
+                stepLabels[index].ForeColor = attention ? Color.FromArgb(198, 117, 37) : done ? Color.FromArgb(31, 148, 92) : active ? Color.FromArgb(42, 106, 224) : Color.FromArgb(117, 132, 153);
+            }
         }
 
         private void Log(string value)
