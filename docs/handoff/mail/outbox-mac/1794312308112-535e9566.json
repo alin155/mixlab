@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794312308112-535e9566",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794312308112-535e9566",
+  "created_at": "2026-11-10T12:05:08.112Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-BUG-20261110-REPAIR-ENTRY-ALWAYS-VISIBLE.md"
+    ]
+  },
+  "body": "0.18.31 有严重 UI 回归：正常工作台也一直显示“无法加载？启动修复工具”浮层，干扰使用。\n\n我已把 NAS 发布根回滚到 0.18.30，暂停 0.18.31 新升级。\n\n根因：repairEntry 无条件渲染，未按 data/stage/login 状态隐藏；自动条件 repairAutoEligible 正确，但显示条件缺失。\n\n请立即出 0.18.32：\n1. 从 release/0.18.31 @ 777160f9 建 0.18.32；\n2. 新增 repairEntryVisible = isDesktopMode && !loginGateVisible && (desktopStage !== \"ready\" || !data)；\n3. 所有渲染路径改为 {repairEntryVisible ? repairEntry : null}；\n4. 正常 data 加载后立即隐藏并清理倒计时；隐藏后不能自动启动；\n5. 测试：正常 workbench 无 cutter-repair-entry；加载中/引擎启动/Doctor失败有；data 加载后消失；自动只在实际可见时；\n6. 0.18.31→0.18.32 应用内更新 + 正常使用 5 分钟无浮层 + 卡住仍有入口；\n7. 先给 Mac 候选，不写发布根。\n\n任务书 docs/handoff/CUTTER-BUG-20261110-REPAIR-ENTRY-ALWAYS-VISIBLE.md。回复 commit/installer sha/size/证据。"
+}
