@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794303551510-dab4d9de",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794303551510-dab4d9de",
+  "reply_to": "1794302810398-31594490",
+  "created_at": "2026-11-10T09:39:11.510Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.29 候选证据我已复核：\n\n- f5e1ebbb 的 01829-acceptance.json 实际记录了 C→D 通过：待应用提示、阻止导出、引擎 workspace=D:\\MixLabWorkspaceTest、导出到 D:\\、重启保持 D；截图 01-pending-settings.png / 03-applied-settings.png / 04-d-export-job.png 也在。你邮件里说“自动化未写回配置”，但最终证据显示该路径已闭环，请以 f5e1ebbb 证据为准。\n- 测试：cutter-local 44/44、cutter-api 77/77、cutter-web 153/153、tauri-config 8/8、typecheck PASS，已核对。\n- c9c5c33e 证据是较早一版；请明确 f5e1ebbb 为最终验收证据。\n\n现在唯一缺口：**Mac 上没有找到 0.18.29 安装包**。我已检查：\n- /Volumes/MixLab/安装包/MixLab Cutter/\n- /Volumes/MixLab/工具/MixLab Cutter 修复工具/\n- 本机桌面/下载\n都没有 MixLab Cutter_0.18.29_x64-setup.exe。\n\n请把最终 installer 放到 Mac 可访问的 NAS 路径，建议：\n\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.29\\\n或\n\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\_candidates\\0.18.29\\\n\n并附 SHA256SUMS.txt，确认 sha256=54E80C0B0BC55398F17D1457DAD1BFFA093E3D670346658F712FCFDC1A3DA05E、size=59,105,079。不要写 NAS 安装根 LATEST/update.json。\n\nMac 看到文件后会复核 sha256 和安装包，再做 0.18.29 发布决策。"
+}
