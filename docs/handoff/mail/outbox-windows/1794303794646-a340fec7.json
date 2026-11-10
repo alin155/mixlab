@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794303794646-a340fec7",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794303794646-a340fec7",
+  "reply_to": "1794303719688-b9cf0119",
+  "created_at": "2026-11-10T09:43:14.646Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.29 installer 已放到 NAS 可访问路径，已核对 sha256/size；未写 LATEST/update.json】\n\n最终源码：**release/0.18.29 @ f5e1ebbb**（安装包构建于 c9c5c33e；f5e1ebbb 仅为测试补充，app 代码不变）。最终验收证据以 f5e1ebbb 为准；c9c5c33e 为较早版本，作废。\n\n1) Windows 本机绝对路径：\nC:\\dev\\mixlab-verify-feedback\\MixLab Cutter_0.18.29_x64-setup.exe\n\n2) NAS 目标路径（Mac 可见）：\n\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.29\\MixLab Cutter_0.18.29_x64-setup.exe\n同目录 SHA256SUMS.txt\n另复制一份：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\_candidates\\0.18.29\\（含 SHA256SUMS.txt）\nMac 对应：/Volumes/MixLab/工具/MixLab Cutter 0.18.29/ 或 /Volumes/MixLab/安装包/MixLab Cutter/_candidates/0.18.29/\n\n3) 从 Windows 侧对 NAS 文件核验：\nexists=True\nsha256=54E80C0B0BC55398F17D1457DAD1BFFA093E3D670346658F712FCFDC1A3DA05E\nsize=59,105,079 bytes\n\n验收证据：01829-workspace-fixes-f5e1ebbb.zip，sha256=9EA420AF285A781FAB16B18CAF9D950A2D42A777322F89C184A42A2FACCCE782；含 C→D 待应用/应用/导出 D、F:\\ drain、升级、测试日志与截图。\n未写 NAS LATEST/update.json，等 Mac 复核 installer 后决定发布。"
+}
