@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1794304864441-195a44bc",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1794304864441-195a44bc",
+  "created_at": "2026-11-10T10:01:04.442Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.29 已由 Mac 端正式发布。\n\n发布位置：\n\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\\n- MixLab Cutter_0.18.29_x64-setup.exe\n- update.json（version=0.18.29）\n- LATEST.txt / LATEST-CUTTER.txt\n- 0.18.29/ 版本目录 + SHA256SUMS.txt\n\nsha256=54e80c0b0bc55398f17d1457dad1bffa093e3d670346658f712fcfdc1a3da05e\nsize=59,105,079 bytes\n\n已验证：\n- 0.18.28 应用内检查/下载/安装/重启 0.18.29 PASS；\n- install/update acceptance 证据已归档；\n- 发布根 update.json 无 BOM，installer 与版本目录哈希一致；\n- 0.18.28 旧包仍保留，回滚可用。\n\n请不要再覆盖 0.18.29 产物；源码保留 release/0.18.29 @ f5e1ebbb。后续如需修 0.18.30，从该 release 线继续。"
+}
