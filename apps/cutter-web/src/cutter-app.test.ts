@@ -82,6 +82,7 @@ import {
   desktopWorkspaceConfigError,
   workspacePathsEquivalent,
   RepairToolEntry,
+  shouldShowRepairToolEntry,
   shouldAutoLaunchRepairTool,
   formatCutterCacheSize,
   hasCompleteDesktopConfig,
@@ -5248,6 +5249,17 @@ test("repair entry auto-launch eligibility covers loading, stuck, and first-conf
   assert.equal(shouldAutoLaunchRepairTool({ ...base, stage: "engine-starting" }), true);
   assert.equal(shouldAutoLaunchRepairTool({ ...base, stage: "doctor-failed" }), true);
   assert.equal(shouldAutoLaunchRepairTool({ ...base, desktopAvailable: false }), false);
+});
+
+test("repair entry only renders while workbench data is not ready", () => {
+  const base = { desktopAvailable: true, loginGateVisible: false, stage: "ready" as const, dataLoaded: true };
+  assert.equal(shouldShowRepairToolEntry(base), false);
+  assert.equal(shouldShowRepairToolEntry({ ...base, dataLoaded: false }), true);
+  assert.equal(shouldShowRepairToolEntry({ ...base, stage: "loading" }), true);
+  assert.equal(shouldShowRepairToolEntry({ ...base, stage: "engine-starting" }), true);
+  assert.equal(shouldShowRepairToolEntry({ ...base, stage: "doctor-failed" }), true);
+  assert.equal(shouldShowRepairToolEntry({ ...base, loginGateVisible: true }), false);
+  assert.equal(shouldShowRepairToolEntry({ ...base, desktopAvailable: false }), false);
 });
 
 test("repair entry renders a fixed manual entry with countdown and notice", () => {

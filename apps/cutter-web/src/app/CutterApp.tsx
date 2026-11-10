@@ -1901,6 +1901,17 @@ export function shouldAutoLaunchRepairTool(input: AutoLaunchRepairToolInput): bo
   );
 }
 
+export interface RepairEntryVisibilityInput {
+  desktopAvailable: boolean;
+  loginGateVisible: boolean;
+  stage: DesktopSetupStage;
+  dataLoaded: boolean;
+}
+
+export function shouldShowRepairToolEntry(input: RepairEntryVisibilityInput): boolean {
+  return input.desktopAvailable && !input.loginGateVisible && (input.stage !== "ready" || !input.dataLoaded);
+}
+
 export function RepairToolEntry({
   countdown,
   notice,
@@ -5052,8 +5063,15 @@ export function CutterApp() {
     dataLoaded: Boolean(data)
   });
 
+  const repairEntryVisible = shouldShowRepairToolEntry({
+    desktopAvailable: isDesktopMode,
+    loginGateVisible,
+    stage: desktopStage,
+    dataLoaded: Boolean(data)
+  });
+
   useEffect(() => {
-    if (!repairAutoEligible) {
+    if (!repairEntryVisible || !repairAutoEligible) {
       setRepairAutoCountdown(null);
       return;
     }
@@ -5078,7 +5096,7 @@ export function CutterApp() {
       }
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [repairAutoEligible]);
+  }, [repairEntryVisible, repairAutoEligible]);
 
   const repairEntry = isDesktopMode ? (
     <RepairToolEntry
@@ -5114,7 +5132,7 @@ export function CutterApp() {
             </section>
           </AppShell>
         </main>
-        {repairEntry}
+        {repairEntryVisible ? repairEntry : null}
         </>
       );
     }
@@ -5134,7 +5152,7 @@ export function CutterApp() {
         onCopyDiagnostics={handleCopyDesktopDiagnostics}
         onOpenLogDirectory={handleOpenDesktopLogDirectory}
       />
-      {repairEntry}
+      {repairEntryVisible ? repairEntry : null}
       </>
     );
   }
@@ -5395,7 +5413,7 @@ export function CutterApp() {
       >
         {workbench}
       </CutterLoginGate>
-      {repairEntry}
+      {repairEntryVisible ? repairEntry : null}
     </>
   );
 }
