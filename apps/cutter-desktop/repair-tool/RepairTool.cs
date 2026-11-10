@@ -11,6 +11,13 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using System.Net.NetworkInformation;
+using System.Reflection;
+using System.Security.Cryptography;
+
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyInformationalVersion("1.1.0")]
 
 namespace MixLabRepairTool
 {
@@ -23,6 +30,15 @@ namespace MixLabRepairTool
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new RepairForm());
         }
+    }
+
+    public class DiagnosticsSubmission
+    {
+        public string Id;
+        public string ZipPath;
+        public string PendingPath;
+        public bool Submitted;
+        public bool Queued;
     }
 
     public class RepairForm : Form
@@ -41,13 +57,19 @@ namespace MixLabRepairTool
         private readonly Button diagnosticsButton;
         private readonly Button rollbackButton;
         private readonly object logLock = new object();
+        private const string ToolVersion = "1.1.0";
+        private static readonly string FeedbackInbox = @"\\192.168.1.27\MixLab\CutterFeedback\inbox";
+        private static readonly object QueueLock = new object();
+        private static bool queueRunning;
         private readonly List<string> operationLog = new List<string>();
+        private readonly object operationLogLock = new object();
+        private readonly System.Windows.Forms.Timer retryTimer;
         private bool busy;
         private string lastStagingDirectory;
 
         public RepairForm()
         {
-            Text = "MixLab Cutter 修复工具";
+            Text = "MixLab Cutter 修复工具 v1.1.0";
             ClientSize = new Size(680, 470);
             MinimumSize = new Size(680, 470);
             MaximumSize = new Size(680, 470);
@@ -117,7 +139,14 @@ namespace MixLabRepairTool
             logBox.DetectUrls = false;
             Controls.Add(logBox);
 
-            Log("工具已打开。建议先保存好当前工作，再点“一键修复”。");
+            retryTimer = new System.Windows.Forms.Timer();
+            retryTimer.Interval = 300000;
+            retryTimer.Tick += delegate { StartQueueFlush(); };
+            retryTimer.Start();
+            Shown += delegate { StartQueueFlush(); };
+            NetworkChange.NetworkAvailabilityChanged += delegate { StartQueueFlush(); };
+
+            Log("工具已打开。当前版本 " + ToolVersion + "，诊断包会自动提交给管理员。");
         }
 
         private void RepairButton_Click(object sender, EventArgs e)
@@ -174,18 +203,31 @@ namespace MixLabRepairTool
                 catch (Exception ex)
                 {
                     Log("修复未完成：" + ex.Message);
-                    SetStatus("自动修复未完成，正在导出诊断包…");
-                    string path = "";
+                    SetStatus("自动修复未完成，正在提交诊断给管理员…");
+                    DiagnosticsSubmission submission = null;
                     try
                     {
-                        path = CreateDiagnostics(ex.Message, staging);
+                        submission = CreateAndSubmitDiagnostics(ex.Message, staging, true);
                     }
                     catch (Exception diagnosticError)
                     {
                         Log("诊断包生成失败：" + diagnosticError.Message);
                     }
-                    SetStatus("自动修复未完成，请把诊断包发给管理员");
-                    ShowInfo("自动修复未完成。\r\n\r\n诊断包位置：\r\n" + (string.IsNullOrEmpty(path) ? "生成失败，请联系管理员" : path));
+                    if (submission != null && submission.Submitted)
+                    {
+                        SetStatus("已提交给管理员（编号 " + submission.Id + "），无需你手动发送");
+                        ShowInfo("自动修复未完成。\r\n\r\n诊断已自动提交给管理员，编号：" + submission.Id + "\r\n无需你手动发送。\r\n\r\n桌面备份：" + submission.ZipPath);
+                    }
+                    else if (submission != null && submission.Queued)
+                    {
+                        SetStatus("已保存本机，恢复后自动提交（编号 " + submission.Id + "）");
+                        ShowInfo("自动修复未完成。\r\n\r\n诊断已保存在本机，网络/共享恢复后会自动提交，编号：" + submission.Id + "\r\n无需你手动发送。\r\n\r\n桌面备份：" + submission.ZipPath);
+                    }
+                    else
+                    {
+                        SetStatus("自动修复未完成，请把桌面诊断包发给管理员");
+                        ShowInfo("自动修复未完成。\r\n\r\n自动提交未成功，请把桌面诊断包发给管理员。");
+                    }
                 }
                 finally
                 {
@@ -206,10 +248,10 @@ namespace MixLabRepairTool
                 try
                 {
                     string staging = PreserveLogs();
-                    string path = CreateDiagnostics("用户手动导出诊断包", staging);
+                    DiagnosticsSubmission submission = CreateAndSubmitDiagnostics("用户手动导出诊断包", staging, false);
                     SetStatus("诊断包已保存");
-                    Log("诊断包：" + path);
-                    ShowInfo("诊断包已生成：\r\n" + path);
+                    Log("诊断包：" + submission.ZipPath);
+                    ShowInfo("诊断包已生成：\r\n" + submission.ZipPath);
                 }
                 catch (Exception ex)
                 {
@@ -573,105 +615,362 @@ namespace MixLabRepairTool
             return IsCutterRunning(cutterPath) && HealthOk(3789) && HealthOk(3790);
         }
 
-        private string CreateDiagnostics(string reason, string staging)
+        private static string LocalRepairRoot
         {
-            string computer = Environment.MachineName;
-            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            string temp = Path.Combine(Path.GetTempPath(), "MixLab-Cutter-Diagnostics-" + Guid.NewGuid().ToString("N"));
-            string logs = Path.Combine(temp, "logs");
-            Directory.CreateDirectory(logs);
+            get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MixLab Cutter", "repair"); }
+        }
+
+        private static string PendingDirectory
+        {
+            get { return Path.Combine(LocalRepairRoot, "pending"); }
+        }
+
+        private static string SentDirectory
+        {
+            get { return Path.Combine(LocalRepairRoot, "sent"); }
+        }
+
+        private static void EnsureQueueDirectories()
+        {
+            Directory.CreateDirectory(PendingDirectory);
+            Directory.CreateDirectory(SentDirectory);
+        }
+
+        private static string NewFeedbackId()
+        {
+            for (int attempt = 0; attempt < 100; attempt++)
+            {
+                byte[] bytes = new byte[4];
+                using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
+                {
+                    rng.GetBytes(bytes);
+                }
+                uint number = BitConverter.ToUInt32(bytes, 0) % 100000000u;
+                string id = "FB-" + DateTime.Now.ToString("yyyyMMdd") + "-" + number.ToString("D8");
+                if (!Directory.Exists(Path.Combine(PendingDirectory, id)) && !Directory.Exists(Path.Combine(SentDirectory, id)))
+                {
+                    return id;
+                }
+            }
+            throw new InvalidOperationException("无法生成唯一反馈编号");
+        }
+
+        private DiagnosticsSubmission CreateAndSubmitDiagnostics(string reason, string staging, bool submit)
+        {
+            string id = NewFeedbackId();
+            string packageTemp = Path.Combine(Path.GetTempPath(), "MixLab-Cutter-Package-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(packageTemp);
+            string zipPath = "";
+            bool queued = false;
+            bool submitted = false;
+            string pendingPath = "";
             try
             {
-                if (!string.IsNullOrEmpty(staging) && Directory.Exists(Path.Combine(staging, "logs")))
+                BuildFeedbackPackage(packageTemp, id, reason, staging);
+                string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                string zipName = "MixLab-Cutter-Diagnostics-" + Environment.MachineName + "-" + stamp + ".zip";
+                zipPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), zipName);
+                if (File.Exists(zipPath)) File.Delete(zipPath);
+                ZipFile.CreateFromDirectory(packageTemp, zipPath, CompressionLevel.Optimal, false);
+                if (submit)
                 {
-                    CopyDirectory(Path.Combine(staging, "logs"), logs);
+                    EnsureQueueDirectories();
+                    pendingPath = Path.Combine(PendingDirectory, id);
+                    if (Directory.Exists(pendingPath)) throw new InvalidOperationException("反馈编号冲突");
+                    Directory.Move(packageTemp, pendingPath);
+                    queued = true;
+                    submitted = TryUploadFeedback(id);
                 }
                 else
                 {
-                    string currentLogs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MixLab Cutter", "logs");
-                    if (Directory.Exists(currentLogs)) CopyDirectory(currentLogs, logs);
+                    Directory.Delete(packageTemp, true);
                 }
-                string[] configSources = new string[]
+                return new DiagnosticsSubmission
                 {
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MixLab Cutter", "cutter-desktop-config.json"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "com.mixlab.cutter", "cutter-desktop-config.json")
+                    Id = id,
+                    ZipPath = zipPath,
+                    PendingPath = submitted ? Path.Combine(SentDirectory, id) : pendingPath,
+                    Queued = queued,
+                    Submitted = submitted
                 };
-                foreach (string source in configSources)
-                {
-                    if (File.Exists(source))
-                    {
-                        CopySanitizedFile(source, Path.Combine(temp, "cutter-desktop-config.json"));
-                        break;
-                    }
-                }
-
-                StringBuilder text = new StringBuilder();
-                text.AppendLine("MixLab Cutter 诊断包");
-                text.AppendLine("生成时间：" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-                text.AppendLine("电脑名：" + computer);
-                text.AppendLine("用户：" + Environment.UserName);
-                text.AppendLine("系统：" + Environment.OSVersion.VersionString);
-                text.AppendLine("原因：" + reason);
-                string cutter = FindCutterExecutable();
-                text.AppendLine("Cutter 路径：" + (string.IsNullOrEmpty(cutter) ? "未找到" : cutter));
-                if (!string.IsNullOrEmpty(cutter) && File.Exists(cutter))
-                {
-                    try { text.AppendLine("Cutter 版本：" + FileVersionInfo.GetVersionInfo(cutter).FileVersion); }
-                    catch { }
-                }
-                text.AppendLine("3789 health：" + (HealthOk(3789) ? "200" : "失败"));
-                text.AppendLine("3790 health：" + (HealthOk(3790) ? "200" : "失败"));
-                text.AppendLine("磁盘：" + string.Join(", ", DriveInfo.GetDrives().Select(delegate(DriveInfo drive) { return drive.Name + " " + drive.DriveType; }).ToArray()));
-                text.AppendLine("NAS：" + @"\\192.168.1.27\MixLab");
-                text.AppendLine();
-                text.AppendLine("进程快照：");
-                foreach (string processName in MixLabProcessNames)
-                {
-                    try
-                    {
-                        foreach (Process process in Process.GetProcessesByName(processName))
-                        {
-                            text.AppendLine("  " + process.ProcessName + " PID=" + process.Id);
-                        }
-                    }
-                    catch { }
-                }
-                text.AppendLine();
-                text.AppendLine("端口占用：");
-                text.AppendLine("  3789=" + DescribePortOwners(FindPortListeners(3789)));
-                text.AppendLine("  3790=" + DescribePortOwners(FindPortListeners(3790)));
-                text.AppendLine();
-                text.AppendLine("操作日志：");
-                lock (logLock)
-                {
-                    foreach (string line in operationLog) text.AppendLine(line);
-                }
-                File.WriteAllText(Path.Combine(temp, "diagnostics.txt"), "\uFEFF" + text.ToString(), Encoding.UTF8);
-
-                string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                string zipName = "MixLab-Cutter-Diagnostics-" + computer + "-" + stamp + ".zip";
-                string zipPath = Path.Combine(desktop, zipName);
-                if (File.Exists(zipPath)) File.Delete(zipPath);
-                ZipFile.CreateFromDirectory(temp, zipPath, CompressionLevel.Optimal, false);
-                string nasPath = @"\\192.168.1.27\MixLab\CutterDiagnostics\" + computer;
-                string nasStatus;
-                try
-                {
-                    Directory.CreateDirectory(nasPath);
-                    File.Copy(zipPath, Path.Combine(nasPath, zipName), true);
-                    nasStatus = "已上传到 NAS：" + nasPath;
-                }
-                catch (Exception ex)
-                {
-                    nasStatus = "NAS 不可写（诊断包仍在桌面）：" + ex.Message;
-                }
-                Log("诊断包：" + zipPath + "；" + nasStatus);
-                return zipPath + "\r\n" + nasStatus;
             }
             finally
             {
-                try { Directory.Delete(temp, true); } catch { }
+                try { if (Directory.Exists(packageTemp)) Directory.Delete(packageTemp, true); } catch { }
             }
+        }
+
+        private void StartQueueFlush()
+        {
+            Thread worker = new Thread(delegate() { FlushQueue(); });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void FlushQueue()
+        {
+            lock (QueueLock)
+            {
+                if (queueRunning) return;
+                queueRunning = true;
+            }
+            try
+            {
+                EnsureQueueDirectories();
+                int delivered = 0;
+                int failed = 0;
+                foreach (string directory in Directory.GetDirectories(PendingDirectory))
+                {
+                    string name = Path.GetFileName(directory);
+                    if (name.StartsWith(".")) continue;
+                    if (TryUploadFeedback(name)) delivered++;
+                    else failed++;
+                }
+                if (delivered > 0) Log("已自动补交 " + delivered + " 条诊断反馈。");
+                if (failed > 0) Log("有 " + failed + " 条诊断反馈等待共享恢复后重试。");
+            }
+            catch (Exception ex)
+            {
+                Log("自动补交检查失败：" + ex.Message);
+            }
+            finally
+            {
+                lock (QueueLock) { queueRunning = false; }
+            }
+        }
+
+        private static bool TryUploadFeedback(string id)
+        {
+            string pending = Path.Combine(PendingDirectory, id);
+            string sent = Path.Combine(SentDirectory, id);
+            string target = Path.Combine(FeedbackInbox, id);
+            if (!Directory.Exists(pending)) return Directory.Exists(sent) || Directory.Exists(target);
+            if (Directory.Exists(sent))
+            {
+                try { Directory.Delete(pending, true); } catch { }
+                return true;
+            }
+            if (Directory.Exists(target))
+            {
+                MoveToSent(id);
+                return true;
+            }
+            string partial = Path.Combine(FeedbackInbox, id + ".partial");
+            try
+            {
+                Directory.CreateDirectory(FeedbackInbox);
+                if (Directory.Exists(partial)) Directory.Delete(partial, true);
+                CopyDirectoryRaw(pending, partial);
+                if (Directory.Exists(target))
+                {
+                    try { Directory.Delete(partial, true); } catch { }
+                    MoveToSent(id);
+                    return true;
+                }
+                Directory.Move(partial, target);
+                MoveToSent(id);
+                return true;
+            }
+            catch
+            {
+                try { if (Directory.Exists(partial)) Directory.Delete(partial, true); } catch { }
+                return false;
+            }
+        }
+
+        private static void MoveToSent(string id)
+        {
+            string pending = Path.Combine(PendingDirectory, id);
+            string sent = Path.Combine(SentDirectory, id);
+            if (Directory.Exists(sent))
+            {
+                try { if (Directory.Exists(pending)) Directory.Delete(pending, true); } catch { }
+                return;
+            }
+            try
+            {
+                if (Directory.Exists(pending)) Directory.Move(pending, sent);
+            }
+            catch
+            {
+                try
+                {
+                    if (Directory.Exists(pending))
+                    {
+                        CopyDirectoryRaw(pending, sent);
+                        Directory.Delete(pending, true);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private void BuildFeedbackPackage(string packageDirectory, string id, string reason, string staging)
+        {
+            string logsDirectory = Path.Combine(packageDirectory, "logs");
+            Directory.CreateDirectory(logsDirectory);
+            string sourceLogs = "";
+            if (!string.IsNullOrEmpty(staging) && Directory.Exists(Path.Combine(staging, "logs"))) sourceLogs = Path.Combine(staging, "logs");
+            else sourceLogs = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MixLab Cutter", "logs");
+            if (Directory.Exists(sourceLogs)) CopyLogTails(sourceLogs, logsDirectory);
+
+            string configPath = "";
+            string stagedConfig = string.IsNullOrEmpty(staging) ? "" : Path.Combine(staging, "cutter-desktop-config.json");
+            if (!string.IsNullOrEmpty(stagedConfig) && File.Exists(stagedConfig)) configPath = stagedConfig;
+            else
+            {
+                string config1 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MixLab Cutter", "cutter-desktop-config.json");
+                string config2 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "com.mixlab.cutter", "cutter-desktop-config.json");
+                if (File.Exists(config1)) configPath = config1;
+                else if (File.Exists(config2)) configPath = config2;
+            }
+            if (!string.IsNullOrEmpty(configPath)) CopySanitizedFile(configPath, Path.Combine(packageDirectory, "cutter-desktop-config.json"));
+
+            string cutter = FindCutterExecutable();
+            string appVersion = "unknown";
+            if (!string.IsNullOrEmpty(cutter) && File.Exists(cutter))
+            {
+                try { appVersion = FileVersionInfo.GetVersionInfo(cutter).FileVersion; } catch { }
+            }
+            string os = Environment.OSVersion.VersionString;
+            string username = Environment.MachineName + "\\" + Environment.UserName;
+            string health3789 = HealthOk(3789) ? "200" : "失败";
+            string health3790 = HealthOk(3790) ? "200" : "失败";
+            string diagnostics = BuildDiagnosticsText(reason, cutter, appVersion, health3789, health3790);
+            File.WriteAllText(Path.Combine(packageDirectory, "diagnostics.txt"), "\uFEFF" + diagnostics, Encoding.UTF8);
+
+            StringBuilder context = new StringBuilder();
+            context.Append("{\n");
+            AppendJsonPair(context, "repair_reason", reason, true);
+            AppendJsonPair(context, "cutter_path", cutter, true);
+            AppendJsonPair(context, "health_3789", health3789, true);
+            AppendJsonPair(context, "health_3790", health3790, true);
+            AppendJsonPair(context, "os", os, true);
+            AppendJsonPair(context, "nas", Directory.Exists(FeedbackInbox) ? "可写" : "不可写", true);
+            context.Append("  \"disk\": \"").Append(JsonEscape(string.Join(", ", DriveInfo.GetDrives().Select(delegate(DriveInfo drive) { return drive.Name + " " + drive.DriveType; }).ToArray()))).Append("\"\n");
+            context.Append("}");
+            File.WriteAllText(Path.Combine(packageDirectory, "context.json"), context.ToString(), new UTF8Encoding(false));
+
+            StringBuilder feedback = new StringBuilder();
+            feedback.Append("{\n");
+            AppendJsonPair(feedback, "schema_version", "1.0", true);
+            AppendJsonPair(feedback, "feedback_id", id, true);
+            AppendJsonPair(feedback, "created_at", DateTime.UtcNow.ToString("o"), true);
+            AppendJsonPair(feedback, "category", "卡住/报错", true);
+            AppendJsonPair(feedback, "message", reason, true);
+            AppendJsonPair(feedback, "expected", "恢复剪辑师工作台", true);
+            AppendJsonPair(feedback, "app_version", appVersion, true);
+            AppendJsonPair(feedback, "username", username, true);
+            AppendJsonPair(feedback, "build_commit", "unknown", true);
+            AppendJsonPair(feedback, "release_version", "unknown", true);
+            AppendJsonPair(feedback, "page", "startup/loading", true);
+            AppendJsonPair(feedback, "source", "repair-tool", true);
+            AppendJsonPair(feedback, "tool_version", ToolVersion, true);
+            feedback.Append("  \"context\": ").Append(context.ToString()).Append(",\n");
+            feedback.Append("  \"timings\": {},\n");
+            feedback.Append("  \"errors\": [\"").Append(JsonEscape(reason)).Append("\"],\n");
+            feedback.Append("  \"attachments\": [\"diagnostics.txt\", \"logs/\", \"cutter-desktop-config.json\"]\n");
+            feedback.Append("}");
+            File.WriteAllText(Path.Combine(packageDirectory, "feedback.json"), feedback.ToString(), new UTF8Encoding(false));
+
+            StringBuilder events = new StringBuilder();
+            lock (operationLogLock)
+            {
+                foreach (string line in operationLog)
+                {
+                    events.Append("{\"event\": \"").Append(JsonEscape(line)).Append("\"}\n");
+                }
+            }
+            File.WriteAllText(Path.Combine(packageDirectory, "events.jsonl"), events.ToString(), new UTF8Encoding(false));
+        }
+
+        private static void AppendJsonPair(StringBuilder builder, string name, string value, bool comma)
+        {
+            builder.Append("  \"").Append(JsonEscape(name)).Append("\": \"").Append(JsonEscape(value)).Append("\"");
+            if (comma) builder.Append(",");
+            builder.Append("\n");
+        }
+
+        private static string JsonEscape(string value)
+        {
+            if (value == null) return "";
+            return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
+        }
+
+        private static void CopyLogTails(string source, string destination)
+        {
+            Directory.CreateDirectory(destination);
+            foreach (string file in Directory.GetFiles(source))
+            {
+                try
+                {
+                    byte[] data = File.ReadAllBytes(file);
+                    int start = data.Length > 32768 ? data.Length - 32768 : 0;
+                    string text = Encoding.UTF8.GetString(data, start, data.Length - start);
+                    text = Sanitize(text);
+                    File.WriteAllText(Path.Combine(destination, Path.GetFileName(file)), text, Encoding.UTF8);
+                }
+                catch { }
+            }
+            foreach (string folder in Directory.GetDirectories(source))
+            {
+                CopyLogTails(folder, Path.Combine(destination, Path.GetFileName(folder)));
+            }
+        }
+
+        private static void CopyDirectoryRaw(string source, string destination)
+        {
+            Directory.CreateDirectory(destination);
+            foreach (string file in Directory.GetFiles(source))
+            {
+                File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), true);
+            }
+            foreach (string folder in Directory.GetDirectories(source))
+            {
+                CopyDirectoryRaw(folder, Path.Combine(destination, Path.GetFileName(folder)));
+            }
+        }
+
+        private string BuildDiagnosticsText(string reason, string cutter, string appVersion, string health3789, string health3790)
+        {
+            StringBuilder text = new StringBuilder();
+            text.AppendLine("MixLab Cutter 诊断包");
+            text.AppendLine("生成时间：" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            text.AppendLine("工具版本：" + ToolVersion);
+            text.AppendLine("电脑名：" + Environment.MachineName);
+            text.AppendLine("用户：" + Environment.UserName);
+            text.AppendLine("系统：" + Environment.OSVersion.VersionString);
+            text.AppendLine("原因：" + reason);
+            text.AppendLine("Cutter 路径：" + (string.IsNullOrEmpty(cutter) ? "未找到" : cutter));
+            text.AppendLine("Cutter 版本：" + appVersion);
+            text.AppendLine("3789 health：" + health3789);
+            text.AppendLine("3790 health：" + health3790);
+            text.AppendLine("磁盘：" + string.Join(", ", DriveInfo.GetDrives().Select(delegate(DriveInfo drive) { return drive.Name + " " + drive.DriveType; }).ToArray()));
+            text.AppendLine("NAS：" + @"\\192.168.1.27\MixLab");
+            text.AppendLine();
+            text.AppendLine("进程快照：");
+            foreach (string processName in MixLabProcessNames)
+            {
+                try
+                {
+                    foreach (Process process in Process.GetProcessesByName(processName))
+                    {
+                        text.AppendLine("  " + process.ProcessName + " PID=" + process.Id);
+                    }
+                }
+                catch { }
+            }
+            text.AppendLine();
+            text.AppendLine("端口占用：");
+            text.AppendLine("  3789=" + DescribePortOwners(FindPortListeners(3789)));
+            text.AppendLine("  3790=" + DescribePortOwners(FindPortListeners(3790)));
+            text.AppendLine();
+            text.AppendLine("操作日志：");
+            lock (operationLogLock)
+            {
+                foreach (string line in operationLog) text.AppendLine(line);
+            }
+            return text.ToString();
         }
 
         private void SetBusy(bool value)
@@ -705,7 +1004,7 @@ namespace MixLabRepairTool
 
         private void AddLog(string value)
         {
-            lock (logLock)
+            lock (operationLogLock)
             {
                 operationLog.Add(DateTime.Now.ToString("HH:mm:ss") + " " + value);
             }
