@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794303304309-bc6a0dda",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794303304309-bc6a0dda",
+  "reply_to": "1794302372394-b6187bfe",
+  "created_at": "2026-11-10T09:35:04.309Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.29 候选 + C→D 真机验收完成；未发布 NAS LATEST/update.json】\n最终源码：**release/0.18.29 @ f5e1ebbb**（安装包构建于 c9c5c33e；f5e1ebbb 仅测试补充）\n分支历史：6cef93dd lease、1a91e4a7 config、c9c5c33e version、f5e1ebbb path test。\n\n安装包（Mac 共享已放）：MixLab Cutter_0.18.29_x64-setup.exe\nsha256=**54E80C0B0BC55398F17D1457DAD1BFFA093E3D670346658F712FCFDC1A3DA05E**；size=59,105,079 bytes。\n已放 Mac 共享；NAS 0.18.28 产物未改，NAS LATEST/update.json 未写 0.18.29。\n\n真机 0.18.28→0.18.29：静默升级 PASS；注册/exe FileVersion=0.18.29；config 哈希不变；API health 200。\nF:\\ 盘符根：pending 任务 CJ20261110-9910 最终 **done**；无 workspace_lease_acquire_failed / cut_queue_drain_skipped。\n设置页 C:\\→D:\\ 真机：\n- 选择 D:\\MixLabWorkspaceTest 后立即显示待应用：本地素材库地址 D:，引擎当前工作区 C:\\Users\\ASUS\\Videos\\MixLabLocal，明确警告继续剪切会导出旧目录，新剪切/导出被拦截；\n- 点“立即应用（重启本机引擎）”后引擎 workspace_root_path=D:\\MixLabWorkspaceTest；页面刷新后设置页“引擎当前工作区”=D:；\n- 重启应用后仍保持 D:；D 工作区 pending 任务 CJ20261110-9911 最终 **done**，输出路径：\n  D:\\MixLabWorkspaceTest\\export-clips\\E000001\\001-未归属项目-D-workspace-test.mp4\n截图：01-pending-settings.png（待应用/警告）、03-applied-settings.png（引擎 D、v0.18.29、build c9c5c33e195e）、04-d-export-job.png（已完成任务）。\n\n测试：cutter-local 44/44；cutter-api 77/77；cutter-web cutter-app **153/153**；tauri-config 8/8；typecheck PASS。\n\n证据：01829-workspace-fixes-f5e1ebbb.zip，size=270,821，sha256=**9EA420AF285A781FAB16B18CAF9D950A2D42A777322F89C184A42A2FACCCE782**；\n已放 Mac 共享 evidence 和 NAS 工具目录；lease zip 也在 NAS 工具目录。\n\n结论：真机验收已闭环，可进入 Mac 发布复核；Windows 未写 NAS LATEST/update.json，等复核通过后再发布。"
+}
