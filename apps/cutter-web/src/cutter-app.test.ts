@@ -5227,6 +5227,31 @@ test("cache management separators come from foundation border tokens", async () 
   assert.match(foundationCss, /\.ml-detail-section\s*{[^}]*border-bottom:\s*1px solid var\(--ml-border-subtle\)/s);
 });
 
+test("settings surfaces pending workspace address and engine path before export", () => {
+  const data = fixture();
+  const html = renderToStaticMarkup(
+    h(SettingsPage, {
+      settings: data.settings,
+      runtimeStatus: data.runtimeStatus,
+      appearanceMode: "dark",
+      appVersion: "0.18.28",
+      runtimeEnvironment: "Windows 桌面端",
+      localWorkspacePath: String.raw`D:\MixLabLocal`,
+      engineWorkspacePath: String.raw`C:\Users\ASUS\Videos\MixLabLocal`,
+      workspaceConfigPending: true,
+      workspaceConfigApplying: false,
+      workspaceConfigNotice: "新地址尚未应用到本机引擎。",
+      onConfigureLocalWorkspace: () => undefined,
+      onApplyLocalWorkspace: () => undefined,
+      onSetAppearanceMode: () => undefined
+    })
+  );
+  assert.match(html, /引擎当前工作区/);
+  assert.match(html, /新地址尚未应用到本机引擎/);
+  assert.match(html, /继续剪切会导出到旧目录/);
+  assert.match(html, /立即应用（重启本机引擎）/);
+});
+
 test("settings render mount, workspace, ffmpeg, default mode, concurrency, and system check", () => {
   const data = fixture();
   const html = renderToStaticMarkup(

@@ -188,7 +188,11 @@ export function SettingsPage({
   onSetDefaultOrientationFilter,
   localWorkspacePath,
   workspaceConfigNotice,
+  workspaceConfigPending = false,
+  workspaceConfigApplying = false,
+  engineWorkspacePath,
   onConfigureLocalWorkspace,
+  onApplyLocalWorkspace,
   onChangePassword,
   onOpenFeedback
 }: {
@@ -207,7 +211,11 @@ export function SettingsPage({
   onSetDefaultOrientationFilter?: (filter: VideoOrientationFilter) => void;
   localWorkspacePath?: string;
   workspaceConfigNotice?: string;
+  workspaceConfigPending?: boolean;
+  workspaceConfigApplying?: boolean;
+  engineWorkspacePath?: string;
   onConfigureLocalWorkspace?: () => void;
+  onApplyLocalWorkspace?: () => void;
   onChangePassword?: (input: { current_password: string; new_password: string }) => Promise<void> | void;
   onOpenFeedback?: () => void;
 }) {
@@ -335,6 +343,34 @@ export function SettingsPage({
                     </Button>
                   ) : undefined
                 },
+                {
+                  label: "引擎当前工作区",
+                  value: engineWorkspacePath?.trim() || "未连接（引擎未启动）"
+                },
+                ...(workspaceConfigPending
+                  ? [{
+                      label: "地址应用状态",
+                      value: (
+                        <div className="cutter-workspace-pending-warning" role="alert">
+                          <p>
+                            新地址尚未应用到本机引擎。继续剪切会导出到旧目录
+                            {engineWorkspacePath?.trim() ? `（${engineWorkspacePath.trim()}）` : ""}，已阻止新的剪切与导出。
+                          </p>
+                          {onApplyLocalWorkspace ? (
+                            <Button
+                              disabled={workspaceConfigApplying}
+                              size="sm"
+                              type="button"
+                              variant="primary"
+                              onClick={onApplyLocalWorkspace}
+                            >
+                              {workspaceConfigApplying ? "正在应用…" : "立即应用（重启本机引擎）"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      )
+                    }]
+                  : []),
                 ...(workspaceConfigNotice?.trim()
                   ? [{ label: "配置状态", value: workspaceConfigNotice }]
                   : []),

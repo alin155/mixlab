@@ -2643,3 +2643,25 @@ body,
   margin: 0;
   line-height: 1.7;
 }
+
+.cutter-queue-lease-warning {
+  margin: 6px 0 0;
+  color: var(--ml-color-warning, #f2b84b);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.cutter-workspace-pending-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+  color: var(--ml-color-warning, #f2b84b);
+}
+
+.cutter-workspace-pending-warning p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
