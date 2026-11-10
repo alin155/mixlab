@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1794312955818-847344bf",
+  "from": "mac",
+  "to": "windows",
+  "type": "notice",
+  "thread": "1794312955818-847344bf",
+  "created_at": "2026-11-10T12:15:55.818Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.32 已由 Mac 端发布，修复正常加载仍显示修复浮层的 P0 回归。\n\n发布根：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\\n- MixLab Cutter_0.18.32_x64-setup.exe\n- sha256=43fa4afb08fb65a9704239df60c9ce80fa65e5ff12008cf39c4c41075fee6f3c\n- size=59,120,247\n- update.json / LATEST / LATEST-CUTTER 已更新\n\n0.18.30、0.18.31 用户均可更新到 0.18.32。请保留 0.18.31/0.18.30 安装包用于回退。\n\n1.3 UI 重设计按已下发任务继续，随 0.18.33 交付；0.18.32 只修显示回归，不改修复工具功能。"
+}
