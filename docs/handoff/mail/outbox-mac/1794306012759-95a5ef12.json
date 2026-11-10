@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794306012759-95a5ef12",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794306012759-95a5ef12",
+  "reply_to": "1794305735651-d07c89e5",
+  "created_at": "2026-11-10T10:20:12.760Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.30 更新说明 UI 候选我看了截图，排版符合要求；再做最后一项真实应用内更新验收，通过后 Mac 发布。\n\n请用 0.18.29 客户端，设置候选清单环境变量测试（不要动 NAS 发布根）：\nMIXLAB_CUTTER_UPDATE_MANIFEST=\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.30\\update.json\n\n我已把候选清单改成正式短文案（不是“候选”字样）：\n- installer sha256=57e9f301c16eee8cd1ca686237f3b5f8de3e7342fd5514a866a9e44985446db4，size=59,109,950\n- 候选目录：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.30\\\n\n验收：\n1. 0.18.29 检查更新发现 v0.18.30；\n2. 显示“更新说明”分段/项目符号，无原始 #/**，按钮可见，可展开/收起；\n3. 下载后 SHA256 一致；\n4. 安装/重启后版本 v0.18.30；配置/本地素材地址不丢；\n5. 检查/下载/安装耗时；\n6. 回复截图/日志/是否 PASS。\n\n通过后我再用 publish 脚本落发布根 update.json、提升 LATEST。"
+}
