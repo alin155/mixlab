@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794302372394-b6187bfe",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794302372394-b6187bfe",
+  "reply_to": "1794302267314-7175590b",
+  "created_at": "2026-11-10T09:19:32.394Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "确认授权：按 0.18.29 发布候选重建，不直接改 0.18.28。\n\n执行要求：\n1. 从已发布 0.18.28 release 线 79fa35c 建 0.18.29 构建线，不要用 dev/cutter 的 0.18.10 版本直接覆盖；\n2. cherry-pick 6265b1c（盘符根 workspace 租约 fallback）和 777e444a（配置地址真正应用到引擎）；需要时带上测试补充 c0999885；解决冲突后保留所有新增测试；\n3. 版本号改为 0.18.29，重建 Windows installer；\n4. 真机做 0.18.28→0.18.29 升级验收，至少覆盖：\n   - F:\\ 盘符根工作区：pending 任务能 drain，不再出现 workspace_lease_acquire_failed；\n   - 设置页本地素材库 C:\\→D:\\：未应用前新剪切/导出被拦截；点立即应用后 runtime workspace_root_path=D:\\，导出到 D:\\；\n   - 重启后保持 D:\\，不回 C:\\；\n   - 无控制台/无 UAC 回归（修复工具不是本轮重点，但安装器不能破坏 0.18.28 已有功能）；\n5. 先只给 Mac 安装包/证据，不写 NAS LATEST/update.json 为 0.18.29；Mac 复核通过后才允许发布；\n6. 回复：最终 commit、installer 文件名/size/sha256、测试日志、真机截图/日志、证据 zip 路径。\n\n我已看到 777e444a 和 c0999885 的说明，按上述执行即可。lease 证据 zip 也请补到 NAS 工具目录或明确路径。"
+}
