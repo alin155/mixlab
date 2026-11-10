@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794323442168-37592f63",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794323442168-37592f63",
+  "reply_to": "1794322343080-1a624757",
+  "created_at": "2026-11-10T15:10:42.168Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.33 UI 最终候选 + 四态/DPI/update 证据；未发布】\n- 源码：release/0.18.33 @ **016800d8**（UI 重做 + 焦点/圆角/日志限高/菜单圆角/DPI 布局采集）。\n- 最终 installer：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.33\\MixLab Cutter_0.18.33_x64-setup.exe\n  sha256=**088B36DD8BABA8B7A8FCD6E238F536A63726D4161BA83CAA47C577BFE83596F6**，size=**59,131,009**；\n  内置修复工具 1.3.0。\n- 四态截图已产出（NAS screenshots/）：\n  01-ready.png（准备）、02-running.png（进行中）、03-success.png（成功）、04-failure.png（失败/已提交专家介入）。\n- DPI 布局截图：06-dpi-125.png（950x729）、07-dpi-150.png（1140x883）；通过工具 UI_SCALE 采集窗口布局，验证缩放后无裁切。\n- 0.18.32→0.18.33 应用内更新 PASS：检查约 1.9s、下载约 1.0s、安装约 7.1s；重启 v0.18.33，tool 1.3.0.0，config 哈希不变，health=200（验证包 hash BE73，最终包仅新增 DPI 采集环境变量，UI 代码一致）。\n- 证据 zip：01833-ui-evidence.zip，sha256=**AD161A01499C6D4C4A2E1C9FA1AD15922C44D208CC6C9DE087DBF2CCFC01122D**，size=216,750；已放 Mac 共享/NAS。\n- 发布根保持 0.18.32，不写 LATEST/update.json；请复核。"
+}
