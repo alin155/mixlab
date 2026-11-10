@@ -15,9 +15,9 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using System.Security.Cryptography;
 
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
-[assembly: AssemblyInformationalVersion("1.1.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: AssemblyInformationalVersion("1.2.0")]
 
 namespace MixLabRepairTool
 {
@@ -41,6 +41,25 @@ namespace MixLabRepairTool
         public bool Queued;
     }
 
+    internal sealed class RepairAction
+    {
+        public string action;
+        public bool ok;
+        public string error;
+    }
+
+    internal sealed class RepairDiagnosis
+    {
+        public string Code;
+        public bool NeedsAdmin;
+        public string Detail;
+    }
+
+    internal sealed class RepairNeedsAdminException : Exception
+    {
+        public RepairNeedsAdminException(string message) : base(message) { }
+    }
+
     public class RepairForm : Form
     {
         private static readonly string[] MixLabProcessNames = new string[]
@@ -57,7 +76,7 @@ namespace MixLabRepairTool
         private readonly Button diagnosticsButton;
         private readonly Button rollbackButton;
         private readonly object logLock = new object();
-        private const string ToolVersion = "1.1.0";
+        private const string ToolVersion = "1.2.0";
         private static readonly string FeedbackInbox = @"\\192.168.1.27\MixLab\CutterFeedback\inbox";
         private static readonly object QueueLock = new object();
         private static bool queueRunning;
@@ -66,10 +85,13 @@ namespace MixLabRepairTool
         private readonly System.Windows.Forms.Timer retryTimer;
         private bool busy;
         private string lastStagingDirectory;
+        private readonly List<RepairAction> repairActions = new List<RepairAction>();
+        private string currentDiagnosis = "unknown";
+        private bool currentNeedsAdmin;
 
         public RepairForm()
         {
-            Text = "MixLab Cutter 修复工具 v1.1.0";
+            Text = "MixLab Cutter 修复工具 v1.2.0";
             ClientSize = new Size(680, 470);
             MinimumSize = new Size(680, 470);
             MaximumSize = new Size(680, 470);
@@ -167,6 +189,22 @@ namespace MixLabRepairTool
                         throw new InvalidOperationException("未找到 MixLab Cutter");
                     }
                     Log("已找到 Cutter：" + cutter);
+                    SetStatus("正在诊断故障类型…");
+                    RepairDiagnosis diagnosis = DiagnoseBeforeRepair(cutter);
+                    currentDiagnosis = diagnosis.Code;
+                    currentNeedsAdmin = diagnosis.NeedsAdmin;
+                    Log("诊断分类：" + diagnosis.Code + (string.IsNullOrEmpty(diagnosis.Detail) ? "" : "；" + diagnosis.Detail));
+                    RecordAction("diagnose:" + diagnosis.Code, !diagnosis.NeedsAdmin, diagnosis.Detail);
+                    if (diagnosis.NeedsAdmin)
+                    {
+                        throw new RepairNeedsAdminException("需要管理员介入：" + diagnosis.Detail);
+                    }
+                    if (diagnosis.Code == "unknown" && HealthOk(3789) && HealthOk(3790))
+                    {
+                        SetStatus("未发现需要修复的问题，本机服务健康");
+                        ShowInfo("未发现需要修复的问题，本机服务健康。\r\n如需管理员查看，可点击“只导出诊断包”后提交。");
+                        return;
+                    }
                     SetStatus("正在结束残留进程…");
                     KillMixLabProcesses();
                     Thread.Sleep(3000);
@@ -174,7 +212,10 @@ namespace MixLabRepairTool
                     if (portOwners.Count > 0)
                     {
                         string ownerText = DescribePortOwners(portOwners);
-                        throw new InvalidOperationException("端口被其他程序占用：" + ownerText);
+                        currentDiagnosis = "port_occupied";
+                        currentNeedsAdmin = true;
+                        RecordAction("detect_port_occupied", false, ownerText);
+                        throw new RepairNeedsAdminException("端口被未知进程占用：" + ownerText);
                     }
                     SetStatus("正在重启 Cutter…");
                     ProcessStartInfo start = new ProcessStartInfo();
@@ -202,12 +243,13 @@ namespace MixLabRepairTool
                 }
                 catch (Exception ex)
                 {
+                    if (ex is RepairNeedsAdminException) currentNeedsAdmin = true;
                     Log("修复未完成：" + ex.Message);
-                    SetStatus("自动修复未完成，正在提交诊断给管理员…");
+                    SetStatus("自动修复未完成，正在提交专家介入请求…");
                     DiagnosticsSubmission submission = null;
                     try
                     {
-                        submission = CreateAndSubmitDiagnostics(ex.Message, staging, true);
+                        submission = CreateAndSubmitDiagnostics(ex.Message, staging, true, currentDiagnosis, repairActions, currentNeedsAdmin);
                     }
                     catch (Exception diagnosticError)
                     {
@@ -215,8 +257,8 @@ namespace MixLabRepairTool
                     }
                     if (submission != null && submission.Submitted)
                     {
-                        SetStatus("已提交给管理员（编号 " + submission.Id + "），无需你手动发送");
-                        ShowInfo("自动修复未完成。\r\n\r\n诊断已自动提交给管理员，编号：" + submission.Id + "\r\n无需你手动发送。\r\n\r\n桌面备份：" + submission.ZipPath);
+                        SetStatus("已提交专家介入（编号 " + submission.Id + "），无需你手动发送");
+                        ShowInfo("自动修复未完成。\r\n\r\n诊断已自动提交专家介入，编号：" + submission.Id + "\r\n无需你手动发送。\r\n\r\n桌面备份：" + submission.ZipPath);
                     }
                     else if (submission != null && submission.Queued)
                     {
@@ -248,7 +290,7 @@ namespace MixLabRepairTool
                 try
                 {
                     string staging = PreserveLogs();
-                    DiagnosticsSubmission submission = CreateAndSubmitDiagnostics("用户手动导出诊断包", staging, false);
+                    DiagnosticsSubmission submission = CreateAndSubmitDiagnostics("用户手动导出诊断包", staging, false, "manual_export", repairActions, false);
                     SetStatus("诊断包已保存");
                     Log("诊断包：" + submission.ZipPath);
                     ShowInfo("诊断包已生成：\r\n" + submission.ZipPath);
@@ -517,6 +559,141 @@ namespace MixLabRepairTool
             return false;
         }
 
+
+        private void RecordAction(string action, bool ok, string error)
+        {
+            repairActions.Add(new RepairAction { action = action, ok = ok, error = error ?? "" });
+            Log((ok ? "已执行：" : "未执行：") + action + (string.IsNullOrEmpty(error) ? "" : "；" + error));
+        }
+
+        private static string ConfigPath()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "com.mixlab.cutter", "cutter-desktop-config.json");
+        }
+
+        private static string ExtractJsonString(string json, string key)
+        {
+            Match match = Regex.Match(json, "\"" + Regex.Escape(key) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
+            return match.Success ? Regex.Unescape(match.Groups[1].Value) : "";
+        }
+
+        private static long ExtractJsonLong(string json, string key)
+        {
+            Match match = Regex.Match(json, "\"" + Regex.Escape(key) + "\"\\s*:\\s*(-?[0-9]+)");
+            long value;
+            return match.Success && long.TryParse(match.Groups[1].Value, out value) ? value : -1;
+        }
+
+        private static string WorkspaceLeaseFallbackPath(string workspaceRoot)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(workspaceRoot.Trim().ToLowerInvariant());
+            string hash;
+            using (System.Security.Cryptography.SHA256 sha = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] digest = sha.ComputeHash(bytes);
+                StringBuilder builder = new StringBuilder();
+                foreach (byte value in digest) builder.Append(value.ToString("x2"));
+                hash = builder.ToString();
+            }
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MixLab Cutter", "workspace-leases", hash + ".json");
+        }
+
+        private static bool ProcessNameIsMixLab(int pid)
+        {
+            try
+            {
+                Process process = Process.GetProcessById(pid);
+                string name = process.ProcessName.ToLowerInvariant();
+                return name.Contains("mixlab") || name.Contains("cutter") || name.Contains("searchd");
+            }
+            catch { return false; }
+        }
+
+        private static bool PidAlive(long pid)
+        {
+            if (pid <= 0) return false;
+            try { Process.GetProcessById((int)pid); return true; } catch { return false; }
+        }
+
+        private static bool LeaseIsStale(string path, out string detail)
+        {
+            detail = "";
+            try
+            {
+                string json = File.ReadAllText(path);
+                long pid = ExtractJsonLong(json, "pid");
+                string heartbeat = ExtractJsonString(json, "heartbeat_at");
+                DateTime parsed;
+                bool heartbeatOld = !DateTime.TryParse(heartbeat, out parsed) || (DateTime.UtcNow - parsed.ToUniversalTime()).TotalSeconds > 90;
+                if (pid > 0 && PidAlive(pid) && !heartbeatOld)
+                {
+                    detail = "active pid=" + pid;
+                    return false;
+                }
+                detail = "pid=" + pid + " heartbeat=" + heartbeat;
+                return true;
+            }
+            catch { detail = "unreadable"; return true; }
+        }
+
+        private void CleanupStaleLeaseIfSafe(string path)
+        {
+            if (!File.Exists(path)) return;
+            string detail;
+            if (!LeaseIsStale(path, out detail))
+            {
+                RecordAction("workspace_lease_active", false, detail);
+                return;
+            }
+            try
+            {
+                string backup = path + ".stale-backup-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+                File.Move(path, backup);
+                RecordAction("cleanup_stale_workspace_lease", true, detail);
+            }
+            catch (Exception error)
+            {
+                RecordAction("cleanup_stale_workspace_lease", false, error.Message);
+            }
+        }
+
+        private RepairDiagnosis DiagnoseBeforeRepair(string cutter)
+        {
+            if (string.IsNullOrEmpty(cutter)) return new RepairDiagnosis { Code = "app_missing", NeedsAdmin = true, Detail = "未找到 MixLab Cutter" };
+            string configPath = ConfigPath();
+            if (!File.Exists(configPath)) return new RepairDiagnosis { Code = "config_invalid", NeedsAdmin = true, Detail = "桌面配置不存在" };
+            string config;
+            try { config = File.ReadAllText(configPath); }
+            catch (Exception error) { return new RepairDiagnosis { Code = "config_invalid", NeedsAdmin = true, Detail = error.Message }; }
+            if (!config.TrimStart().StartsWith("{"))
+            {
+                return new RepairDiagnosis { Code = "config_invalid", NeedsAdmin = true, Detail = "桌面配置不是 JSON 对象" };
+            }
+            string workspaceRoot = ExtractJsonString(config, "local_workspace_root");
+            if (string.IsNullOrEmpty(workspaceRoot)) return new RepairDiagnosis { Code = "config_invalid", NeedsAdmin = true, Detail = "本地素材库地址为空" };
+            if (!Directory.Exists(workspaceRoot)) return new RepairDiagnosis { Code = "workspace_root_invalid", NeedsAdmin = true, Detail = workspaceRoot + " 不存在" };
+
+            CleanupStaleLeaseIfSafe(Path.Combine(workspaceRoot, ".mixlab-workspace-lock.json"));
+            CleanupStaleLeaseIfSafe(WorkspaceLeaseFallbackPath(workspaceRoot));
+            if (repairActions.Any(action => action.action == "workspace_lease_active"))
+            {
+                return new RepairDiagnosis { Code = "workspace_lease_unavailable", NeedsAdmin = true, Detail = "存在活跃 workspace 租约" };
+            }
+
+            string binaries = Path.Combine(Path.GetDirectoryName(cutter), "binaries");
+            if (!File.Exists(Path.Combine(binaries, "cutter-api-sidecar-x86_64-pc-windows-msvc.exe"))) return new RepairDiagnosis { Code = "sidecar_missing", NeedsAdmin = true, Detail = "缺少 cutter-api-sidecar" };
+            if (!File.Exists(Path.Combine(binaries, "mixlab-searchd-x86_64-pc-windows-msvc.exe"))) return new RepairDiagnosis { Code = "sidecar_missing", NeedsAdmin = true, Detail = "缺少 mixlab-searchd" };
+
+            List<int> owners = FindPortListeners(3789).Concat(FindPortListeners(3790)).Distinct().ToList();
+            foreach (int pid in owners)
+            {
+                if (!ProcessNameIsMixLab(pid)) return new RepairDiagnosis { Code = "port_occupied", NeedsAdmin = true, Detail = "未知进程占用端口：" + DescribePortOwners(new List<int> { pid }) };
+            }
+            if (!HealthOk(3789)) return new RepairDiagnosis { Code = "engine_unreachable", NeedsAdmin = false, Detail = "3789 health 不通" };
+            if (!HealthOk(3790)) return new RepairDiagnosis { Code = "searchd_unhealthy", NeedsAdmin = false, Detail = "3790 health 不通" };
+            return new RepairDiagnosis { Code = "unknown", NeedsAdmin = false, Detail = "" };
+        }
+
         private static void KillMixLabProcesses()
         {
             foreach (string name in MixLabProcessNames)
@@ -655,7 +832,7 @@ namespace MixLabRepairTool
             throw new InvalidOperationException("无法生成唯一反馈编号");
         }
 
-        private DiagnosticsSubmission CreateAndSubmitDiagnostics(string reason, string staging, bool submit)
+        private DiagnosticsSubmission CreateAndSubmitDiagnostics(string reason, string staging, bool submit, string diagnosis, List<RepairAction> actions, bool needsAdmin)
         {
             string id = NewFeedbackId();
             string packageTemp = Path.Combine(Path.GetTempPath(), "MixLab-Cutter-Package-" + Guid.NewGuid().ToString("N"));
@@ -666,7 +843,7 @@ namespace MixLabRepairTool
             string pendingPath = "";
             try
             {
-                BuildFeedbackPackage(packageTemp, id, reason, staging);
+                BuildFeedbackPackage(packageTemp, id, reason, staging, diagnosis, actions, needsAdmin);
                 string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
                 string zipName = "MixLab-Cutter-Diagnostics-" + Environment.MachineName + "-" + stamp + ".zip";
                 zipPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), zipName);
@@ -805,7 +982,7 @@ namespace MixLabRepairTool
             }
         }
 
-        private void BuildFeedbackPackage(string packageDirectory, string id, string reason, string staging)
+        private void BuildFeedbackPackage(string packageDirectory, string id, string reason, string staging, string diagnosis, List<RepairAction> actions, bool needsAdmin)
         {
             string logsDirectory = Path.Combine(packageDirectory, "logs");
             Directory.CreateDirectory(logsDirectory);
@@ -866,6 +1043,21 @@ namespace MixLabRepairTool
             AppendJsonPair(feedback, "page", "startup/loading", true);
             AppendJsonPair(feedback, "source", "repair-tool", true);
             AppendJsonPair(feedback, "tool_version", ToolVersion, true);
+            AppendJsonPair(feedback, "diagnosis", string.IsNullOrEmpty(diagnosis) ? "unknown" : diagnosis, true);
+            AppendJsonPair(feedback, "case_id", id, true);
+            feedback.Append("  \"needs_admin\": ").Append(needsAdmin ? "true" : "false").Append(",\n");
+            feedback.Append("  \"message\": \"").Append(JsonEscape(needsAdmin ? "自动修复失败，需要管理员介入" : reason)).Append("\",\n");
+            feedback.Append("  \"repair_attempts\": [");
+            if (actions != null && actions.Count > 0)
+            {
+                for (int index = 0; index < actions.Count; index++)
+                {
+                    if (index > 0) feedback.Append(",");
+                    feedback.Append("{\"action\":\"").Append(JsonEscape(actions[index].action)).Append("\",\"ok\":").Append(actions[index].ok ? "true" : "false").Append(",\"error\":\"").Append(JsonEscape(actions[index].error)).Append("\"}");
+                }
+            }
+            feedback.Append("],\n");
+            AppendJsonPair(feedback, "diagnosis_label", string.IsNullOrEmpty(diagnosis) ? "unknown" : diagnosis, true);
             feedback.Append("  \"context\": ").Append(context.ToString()).Append(",\n");
             feedback.Append("  \"timings\": {},\n");
             feedback.Append("  \"errors\": [\"").Append(JsonEscape(reason)).Append("\"],\n");
@@ -941,6 +1133,9 @@ namespace MixLabRepairTool
             text.AppendLine("用户：" + Environment.UserName);
             text.AppendLine("系统：" + Environment.OSVersion.VersionString);
             text.AppendLine("原因：" + reason);
+            text.AppendLine("诊断分类：" + (string.IsNullOrEmpty(currentDiagnosis) ? "unknown" : currentDiagnosis));
+            text.AppendLine("需要管理员介入：" + (currentNeedsAdmin ? "是" : "否"));
+            foreach (RepairAction action in repairActions) text.AppendLine("修复动作：" + action.action + " ok=" + action.ok + (string.IsNullOrEmpty(action.error) ? "" : "；" + action.error));
             text.AppendLine("Cutter 路径：" + (string.IsNullOrEmpty(cutter) ? "未找到" : cutter));
             text.AppendLine("Cutter 版本：" + appVersion);
             text.AppendLine("3789 health：" + health3789);

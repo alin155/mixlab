@@ -1,4 +1,4 @@
-MixLab Cutter 修复工具 v1.1.0
+MixLab Cutter 修复工具 v1.2.0
 
 用途
 - 升级 0.18.28 后如果一直停在“正在读取剪辑师工作台数据”，双击本工具，点一次“一键修复”。
@@ -24,3 +24,5 @@ MixLab Cutter 修复工具 v1.1.0
 - 不删除素材、项目或缓存。
 - 不收集素材/项目/转写内容，不收集密码/token/Cookie；配置和日志中的敏感字段会脱敏。
 - 不上传公网。
+
+1.2.0 新增：故障分类、安全修复矩阵、stale workspace 租约清理、专家介入请求（needs_admin/diagnosis/repair_attempts）。
