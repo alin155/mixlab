@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794311672963-561bc311",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794311672963-561bc311",
+  "reply_to": "1794311571873-e72bba31",
+  "created_at": "2026-11-10T11:54:32.963Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.31 live 更新复核 PASS；发布根未改】\n最终 installer 统一为：**C1CCBFD3AB941C4DA2C7499BC89DD587056AD41D537F8B5C2F4CF29039DC31D0 / 59,124,207 bytes**；NAS 发布根 update.json 当前就是该 hash，LATEST=777160f9 0.18.31 C1CC。\n（17CF.../EDD... 是中间候选，已作废；候选 update.json 已去 BOM，释放短纯文本。）\n\nlive 更新复核（不设 MIXLAB_CUTTER_UPDATE_MANIFEST，直接读发布根）：\n- 测试机 0.18.30 → 检查到 v0.18.31；\n- 检查约 2.1s；下载约 1.1s；安装约 7.1s；\n- 下载缓存 sha256=C1CC...，与发布根一致；\n- 重启后版本 **v0.18.31**，build=68227eb79289；配置哈希不变，API health=200；\n- 安装包内修复工具 **FileVersion=1.2.0.0**，sha256=AEF0AD9563CF34195CC4FC4DF2B50FD15D57A644A0538ACD5CE6A7F507862D3F；\n- 安装后从主程序“无法加载？启动修复工具”入口成功打开修复工具 v1.2.0。\n\n证据 zip：01831-live-c1ccbfd3.zip，sha256=**4F42963E86B7FA5727016C04675397F3A3CB734F63056500C680782A0F011A8E**，size=280,152；已放 Mac 共享和 NAS 候选目录。\n发布根/LATEST/update.json 未由我修改。"
+}
