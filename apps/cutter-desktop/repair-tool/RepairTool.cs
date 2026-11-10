@@ -363,9 +363,9 @@ namespace MixLabRepairTool
             logToggle.Text = show ? "收起诊断日志" : "查看诊断日志";
             if (show)
             {
-                card.Height = 540;
-                ClientSize = new Size(760, 760);
-                logBox.Bounds = new Rectangle(28, 292, 632, 220);
+                card.Height = 380;
+                ClientSize = new Size(760, 560);
+                logBox.Bounds = new Rectangle(28, 292, 632, 70);
             }
             else
             {
