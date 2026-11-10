@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794321394905-e907b3ee",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794321394905-e907b3ee",
+  "reply_to": "1794320905120-090f82d2",
+  "created_at": "2026-11-10T14:36:34.905Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【UI 检查点 status：菜单圆角/日志展开已补，最终候选 B4ED... 已上 NAS；四态/DPI/update 仍缺】\n- 更多菜单已统一 8px 圆角 Region，窗口内展开截图保留动态“回退到 0.18.31/导出诊断包/打开日志目录”。\n- 日志展开态已实拍：NAS screenshots\\03-log-expanded.png。\n- 焦点/黑色伪影已清（RoundButton 不可聚焦，日志入口改无焦点按钮）。\n- 最新 installer 已重建并复制 NAS：\n  \\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.33\\MixLab Cutter_0.18.33_x64-setup.exe\n  sha256=**B4ED84AE956D8CB9B2D57BE51B6EED89A9B8CE873C9D136B8EA657ED5AE78BCA**，size=**59,118,586**；内置修复工具 1.3.0。\n- 截图：screenshots\\01-main.png、02-more-menu.png、03-log-expanded.png。\n- 源码：release/0.18.33 @ 665cb31f + 菜单圆角改动（工作区，稍后提交）。\n- 仍缺：四态（准备已具备/进行中/成功/失败）、100%/125%/150% DPI、0.18.32→0.18.33 应用内更新验收。\n- 发布根保持 0.18.32，不发布 0.18.33。"
+}
