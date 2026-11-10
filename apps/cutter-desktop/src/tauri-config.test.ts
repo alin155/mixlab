@@ -56,6 +56,7 @@ test("tauri config embeds cutter web dist and Windows exe installer target", asy
     "binaries/mixlab-searchd-x86_64-pc-windows-msvc.exe",
     "binaries/ffmpeg.exe",
     "binaries/ffprobe.exe",
+    "binaries/MixLab Cutter 修复工具.exe",
     "resources/default-desktop-config.json"
   ]);
 
