@@ -66,13 +66,18 @@ namespace MixLabRepairTool
         public int Radius = 18;
         public RoundedPanel()
         {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
             DoubleBuffered = true;
-            ResizeRedraw = true;
-            BackColor = Color.White;
         }
-        protected override void OnPaint(PaintEventArgs e)
+        protected override void OnResize(EventArgs e)
         {
-            base.OnPaint(e);
+            base.OnResize(e);
+            UpdateRegion();
+        }
+        private void UpdateRegion()
+        {
+            if (Width <= 0 || Height <= 0) return;
             using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
             {
                 int radius = Math.Min(Radius, Math.Min(Width, Height) / 2);
@@ -81,7 +86,21 @@ namespace MixLabRepairTool
                 path.AddArc(Width - radius * 2, Height - radius * 2, radius * 2, radius * 2, 0, 90);
                 path.AddArc(0, Height - radius * 2, radius * 2, radius * 2, 90, 90);
                 path.CloseFigure();
-                using (SolidBrush brush = new SolidBrush(BackColor)) e.Graphics.FillPath(brush, path);
+                Region = new Region(path);
+            }
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                int radius = Math.Min(Radius, Math.Min(Width, Height) / 2);
+                path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                path.AddArc(Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                path.AddArc(Width - radius * 2, Height - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(0, Height - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                using (SolidBrush brush = new SolidBrush(Color.White)) e.Graphics.FillPath(brush, path);
+                using (Pen pen = new Pen(Color.FromArgb(232, 237, 245), 1f)) e.Graphics.DrawPath(pen, path);
             }
         }
     }
@@ -90,12 +109,17 @@ namespace MixLabRepairTool
     {
         public RoundButton()
         {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
-            DoubleBuffered = true;
+            BackColor = Color.FromArgb(42, 106, 224);
+            ForeColor = Color.White;
+            UseVisualStyleBackColor = false;
+            TabStop = false;
         }
         protected override void OnPaint(PaintEventArgs e)
         {
+            using (SolidBrush clear = new SolidBrush(Parent == null ? Color.Transparent : Parent.BackColor)) e.Graphics.FillRectangle(clear, ClientRectangle);
             using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
             {
                 int radius = 12;
@@ -129,7 +153,7 @@ namespace MixLabRepairTool
         private readonly Label stateTitleLabel;
         private readonly Label stateDetailLabel;
         private readonly Label[] stepLabels;
-        private readonly LinkLabel moreLink;
+        private readonly Button moreLink;
         private readonly LinkLabel logToggle;
         private readonly object logLock = new object();
         private const string ToolVersion = "1.3.0";
@@ -248,13 +272,13 @@ namespace MixLabRepairTool
             repairButton.Click += RepairButton_Click;
             card.Controls.Add(repairButton);
 
-            moreLink = new LinkLabel();
+            moreLink = new RoundButton();
             moreLink.Text = "更多选项  ⌄";
             moreLink.Font = new Font("Microsoft YaHei UI", 9F);
-            moreLink.LinkColor = Color.FromArgb(70, 88, 112);
-            moreLink.AutoSize = true;
-            moreLink.Location = new Point(218, 168);
-            moreLink.LinkClicked += delegate { ShowMoreMenu(); };
+            moreLink.BackColor = Color.FromArgb(235, 241, 250);
+            moreLink.ForeColor = Color.FromArgb(59, 82, 115);
+            moreLink.Bounds = new Rectangle(218, 158, 118, 36);
+            moreLink.Click += delegate { ShowMoreMenu(); };
             card.Controls.Add(moreLink);
 
             Label info = new Label();
@@ -290,7 +314,7 @@ namespace MixLabRepairTool
             footerLeft.Font = new Font("Microsoft YaHei UI", 8F);
             footerLeft.ForeColor = Color.FromArgb(137, 148, 164);
             footerLeft.AutoSize = true;
-            footerLeft.Location = new Point(34, 446);
+            footerLeft.Location = new Point(34, 500);
             Controls.Add(footerLeft);
 
             Label footerRight = new Label();
@@ -298,7 +322,7 @@ namespace MixLabRepairTool
             footerRight.Font = new Font("Microsoft YaHei UI", 8F);
             footerRight.ForeColor = Color.FromArgb(137, 148, 164);
             footerRight.AutoSize = true;
-            footerRight.Location = new Point(574, 446);
+            footerRight.Location = new Point(574, 500);
             Controls.Add(footerRight);
 
             diagnosticsButton = new Button();
