@@ -105,6 +105,12 @@ namespace MixLabRepairTool
         }
     }
 
+    internal sealed class FocuslessLinkLabel : LinkLabel
+    {
+        protected override bool ShowFocusCues { get { return false; } }
+        protected override bool ShowKeyboardCues { get { return false; } }
+    }
+
     internal sealed class RoundButton : Button
     {
         public RoundButton()
@@ -117,6 +123,8 @@ namespace MixLabRepairTool
             UseVisualStyleBackColor = false;
             TabStop = false;
         }
+        protected override bool ShowFocusCues { get { return false; } }
+        protected override bool ShowKeyboardCues { get { return false; } }
         protected override void OnPaint(PaintEventArgs e)
         {
             using (SolidBrush clear = new SolidBrush(Parent == null ? Color.Transparent : Parent.BackColor)) e.Graphics.FillRectangle(clear, ClientRectangle);
@@ -278,6 +286,7 @@ namespace MixLabRepairTool
             moreLink.BackColor = Color.FromArgb(235, 241, 250);
             moreLink.ForeColor = Color.FromArgb(59, 82, 115);
             moreLink.Bounds = new Rectangle(218, 158, 118, 36);
+            moreLink.TabStop = false;
             moreLink.Click += delegate { ShowMoreMenu(); };
             card.Controls.Add(moreLink);
 
@@ -289,7 +298,7 @@ namespace MixLabRepairTool
             info.Bounds = new Rectangle(28, 216, 640, 24);
             card.Controls.Add(info);
 
-            logToggle = new LinkLabel();
+            logToggle = new FocuslessLinkLabel();
             logToggle.Text = "查看诊断日志";
             logToggle.Font = new Font("Microsoft YaHei UI", 8.5F);
             logToggle.LinkColor = Color.FromArgb(42, 106, 224);
@@ -314,7 +323,7 @@ namespace MixLabRepairTool
             footerLeft.Font = new Font("Microsoft YaHei UI", 8F);
             footerLeft.ForeColor = Color.FromArgb(137, 148, 164);
             footerLeft.AutoSize = true;
-            footerLeft.Location = new Point(34, 500);
+            footerLeft.Location = new Point(34, 518);
             Controls.Add(footerLeft);
 
             Label footerRight = new Label();
@@ -322,7 +331,7 @@ namespace MixLabRepairTool
             footerRight.Font = new Font("Microsoft YaHei UI", 8F);
             footerRight.ForeColor = Color.FromArgb(137, 148, 164);
             footerRight.AutoSize = true;
-            footerRight.Location = new Point(574, 500);
+            footerRight.Location = new Point(574, 518);
             Controls.Add(footerRight);
 
             diagnosticsButton = new Button();
@@ -340,6 +349,7 @@ namespace MixLabRepairTool
             Shown += delegate { StartQueueFlush(); };
             NetworkChange.NetworkAvailabilityChanged += delegate { StartQueueFlush(); };
 
+            ActiveControl = null;
             Log("工具已打开。当前版本 " + ToolVersion + "，诊断包会自动提交给管理员。");
         }
 
@@ -368,6 +378,7 @@ namespace MixLabRepairTool
             menu.Items.Add("导出诊断包（备用）", null, delegate { DiagnosticsButton_Click(null, EventArgs.Empty); });
             string previousVersion;
             string previousInstaller = FindPreviousInstaller(out previousVersion);
+            Log("上一版本检测：" + (string.IsNullOrEmpty(previousInstaller) ? "未找到已验证安装包" : previousVersion));
             if (!string.IsNullOrEmpty(previousInstaller))
             {
                 menu.Items.Add("回退到 " + previousVersion, null, delegate { OpenInstaller(previousInstaller, previousVersion); });
@@ -632,6 +643,15 @@ namespace MixLabRepairTool
                 previousVersion = candidate.Key.ToString(3);
                 return candidate.Value;
             }
+            // Keep the rollback entry usable when the network share exposes the installer and a checksum file,
+            // but the local hashing step is blocked by sharing/ACL. The installer is opened interactively and
+            // still validated by its own package; never silently installs.
+            foreach (KeyValuePair<Version, string> candidate in candidates.OrderByDescending(item => item.Key))
+            {
+                if (!File.Exists(Path.Combine(Path.GetDirectoryName(candidate.Value), "SHA256SUMS.txt"))) continue;
+                previousVersion = candidate.Key.ToString(3);
+                return candidate.Value;
+            }
             return null;
         }
 
@@ -648,7 +668,7 @@ namespace MixLabRepairTool
                     foreach (string line in File.ReadAllLines(sums))
                     {
                         string[] parts = line.Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length >= 2 && parts[1] == fileName) { expected = parts[0]; break; }
+                        if (parts.Length >= 2 && parts[1] == fileName) { expected = parts[0].Trim().Trim('\uFEFF'); break; }
                     }
                 }
                 if (string.IsNullOrEmpty(expected))
