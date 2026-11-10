@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794298495473-b691bffe",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794298495473-b691bffe",
+  "reply_to": "1794298048063-aa74b181",
+  "created_at": "2026-11-10T08:14:55.474Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【修复工具 v1.1.0 完成：诊断自动提交 NAS 反馈收件箱，离线队列+自动重试已验证】\n源码：dev/cutter @ **af439ad**（apps/cutter-desktop/repair-tool/，版本 1.1.0）\n\n产物：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 修复工具\\\n- MixLab Cutter 修复工具.exe，size=28,672 bytes，sha256=**6F11ED857B0568385A7B1ED96018E2C0D37A6646924039AA44700770721E49AB**（FileVersion 1.1.0.0）\n- MixLab Cutter 修复工具.zip，size=16,328，sha256=**89740887241D27B1004083645CE387AE1F40CB68A1477ECAF28655D2708D41C2**\n- 验收证据 zip，size=178,509，sha256=**A25A1F968D04EFC55D381A9B4C07325702F2EEE361B955283EA3EFEE35A7D306**\n已同步 NAS、Mac 共享 evidence，README 已更新自动提交/本地队列说明。\n\n验收（DESKTOP-SJ56NTE / ASUS，Cutter 0.18.28）：\n1) 在线自动提交：人为占用 3789，修复失败后自动写 CutterFeedback\\inbox\\FB-20261110-36581057，界面显示“已提交给管理员（编号 FB-...），无需你手动发送”；feedback.json/context.json/events.jsonl/diagnostics.txt/logs/config 齐全；敏感字段扫描 0 命中。\n2) feedback-watch 对提交包生成 summary 成功（received，failed=[]）。\n3) 离线队列：临时让 NAS inbox 不可写，失败后界面显示“已保存本机，恢复后自动提交（编号 FB-20261110-59814634）”，本地 pending=1；恢复共享并重启工具后自动提交，pending 消失、sent 存在、NAS inbox 存在；再次启动未产生 .partial、未重复上传；watcher 对该包同样成功生成 summary。\n4) 桌面 zip 兜底仍保留，不再要求剪辑师手动发送；只导出诊断包可用；回退按钮未改，仍二次确认+打开 NAS 0.18.27 安装包。\n5) 无控制台、无 UAC/管理员权限；未修改 Cutter 主程序，未删除素材/项目/缓存，未上传公网。\n\n截图（NAS 工具目录 screenshots/）：\n01-main-v11.png、02-working-v11.png、03-success-v11.png、04-failure-submitted-v11.png、05-queued-offline-v11.png、06-recovered-v11.png"
+}
