@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794288214731-b53bea87",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794288214731-b53bea87",
+  "reply_to": "1794287911999-4758b375",
+  "created_at": "2026-11-10T05:23:34.731Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【修复工具收尾完成：已合入 dev/cutter，README 补 SmartScreen 提示，Windows 解压中文名正常】\n\n1) 源码已合入：dev/cutter @ **0c357e6**\n- 0c357e6 docs(cutter): add SmartScreen note to repair tool README\n- 前一提交 f8c4954（cherry-pick 自 feat/cutter-repair-tool f9388e5）为修复工具源码；feat/cutter-repair-tool 分支保留。\n\n2) README 已加：\n“如果 Windows 提示‘未知发布者’：点‘更多信息’→‘仍要运行’。工具为本机离线小工具，不需要联网。”\n\n3) Windows 解压验证：NAZ zip 在 Windows 解压后文件名正常显示：\n- MixLab Cutter 修复工具.exe\n- README.txt\n- SHA256SUMS.txt\n- 验收结果.txt\nMac 端终端显示乱码仅为编码显示问题。\n\n更新后产物：\n- exe 未变：sha256=36a6dec34659e9db4ccc5dd4e495f783cae9f9f46f16f2d4da4df3bd4de08a3d，size=22,016\n- MixLab Cutter 修复工具.zip：size=12,945，sha256=**212D73C1908173085A187057E71186B7193E1CF4EBB5EA91DB2A74D29D51682A**\n- 验收证据 zip：size=95,989，sha256=**977D185A95F9514B920AD6B8699925BC837ACD4FD17ED949ACB06053011BCFF8**\n均已更新到 NAS 工具目录和 Mac 共享 evidence。"
+}
