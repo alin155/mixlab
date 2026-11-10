@@ -104,16 +104,28 @@ async function main() {
     }
     const localDir = path.join(localRoot, "inbox", id);
     await copyDir(source, localDir);
+    const repairAttempts = Array.isArray(feedback.repair_attempts)
+      ? feedback.repair_attempts.map((item) => {
+          const action = text(item?.action) || "unknown";
+          const state = item?.ok === true ? "成功" : "失败";
+          const error = text(item?.error);
+          return "- " + action + ": " + state + (error ? "（" + error + "）" : "");
+        })
+      : [];
     const summary = [
       "# Feedback " + id,
       "",
       "- 时间: " + (text(feedback.created_at) || "unknown"),
+      "- 来源: " + (text(feedback.source) || "cutter"),
+      "- 需要管理员: " + (feedback.needs_admin === true ? "是" : "否"),
       "- 类别: " + (text(feedback.category) || "unknown"),
       "- 页面: " + (text(feedback.page) || "unknown"),
       "- 应用: " + (text(feedback.app_version) || "unknown"),
       "- 构建: " + (text(feedback.build_commit) || "unknown"),
       "- Release: " + (text(feedback.release_version) || "unknown"),
       "- 用户: " + (text(feedback.username) || "unknown"),
+      ...(text(feedback.diagnosis) ? ["- 诊断分类: " + text(feedback.diagnosis)] : []),
+      ...(text(feedback.case_id) ? ["- 诊断编号: " + text(feedback.case_id)] : []),
       "",
       "## 用户描述",
       "",
@@ -122,6 +134,9 @@ async function main() {
       "## 期望结果",
       "",
       text(feedback.expected) || "(empty)",
+      ...(repairAttempts.length > 0
+        ? ["", "## 已尝试修复", "", ...repairAttempts]
+        : []),
       "",
       "## 上下文",
       "",
