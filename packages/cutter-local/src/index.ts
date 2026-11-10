@@ -51,6 +51,8 @@ export {
   acquireWorkspaceLease,
   readWorkspaceLease,
   recoverInterruptedCutJobsIfLeased,
+  workspaceLeaseFallbackPath,
+  workspaceLeaseFallbackRoot,
   workspaceLeasePath,
   COPY_OUTPUT_TOLERANCE_BASE_MS,
   COPY_OUTPUT_TOLERANCE_PADDING_MS,

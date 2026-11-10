@@ -1442,6 +1442,7 @@ function renderPage(
     localClipsLoadingMore: boolean;
     cutJobsLoadingMore: boolean;
     cutJobsTotalCount: number;
+    cutQueueLeaseWarning: string;
     cutTasksTab: CutTasksTab;
     cutNotice: string;
     autoRefreshCutJobs: boolean;
@@ -1679,6 +1680,7 @@ function renderPage(
             onBatchPause={handlers.batchPauseCutJobs}
             onBatchDelete={handlers.batchDeleteCutJobs}
             hiddenJobCount={viewState.hiddenCutJobCount}
+            leaseWarning={viewState.cutQueueLeaseWarning}
             onRestoreHiddenJobs={handlers.restoreHiddenCutJobs}
             onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
             onLoadMore={handlers.loadMoreCutJobs}
@@ -1860,6 +1862,7 @@ export function CutterApp() {
   const [sourceLibraryLoadingMore, setSourceLibraryLoadingMore] = useState(false);
   const [localClipsLoadingMore, setLocalClipsLoadingMore] = useState(false);
   const [cutJobsLoadingMore, setCutJobsLoadingMore] = useState(false);
+  const [cutQueueLeaseWarning, setCutQueueLeaseWarning] = useState("");
   const [cutJobsTotalCount, setCutJobsTotalCount] = useState(0);
   const [cutJobProjectIndex, setCutJobProjectIndex] = useState<CutJobProjectIndex>(() =>
     readCutJobProjectIndex()
@@ -2566,6 +2569,7 @@ export function CutterApp() {
       }
 
       setCutJobsTotalCount(catalog.job_count);
+      setCutQueueLeaseWarning(catalog.lease_unavailable_message ?? "");
       const nextJobs = mapApiCutJobsToQueueJobs(catalog, {
         projectIndex: projectIndexOverride ?? cutJobProjectIndex,
         projectTitlesById: cutterProjectTitlesById(projects)
@@ -2663,6 +2667,7 @@ export function CutterApp() {
         offset
       });
       setCutJobsTotalCount(catalog.job_count);
+      setCutQueueLeaseWarning(catalog.lease_unavailable_message ?? "");
       const nextJobs = mapApiCutJobsToQueueJobs(catalog, {
         projectIndex: cutJobProjectIndex,
         projectTitlesById: cutterProjectTitlesById(projects)
@@ -4649,6 +4654,7 @@ export function CutterApp() {
                 localClipsLoadingMore,
                 cutJobsLoadingMore,
                 cutJobsTotalCount,
+                cutQueueLeaseWarning,
                 cutTasksTab,
                 cutNotice,
                 autoRefreshCutJobs,

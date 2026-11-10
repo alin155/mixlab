@@ -403,6 +403,14 @@ body,
   line-height: 20px;
 }
 
+.cutter-queue-lease-warning {
+  margin: 6px 0 0;
+  color: var(--ml-color-warning, #f2b84b);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
 .cutter-queue-select-input {
   width: 15px;
   height: 15px;

@@ -7654,11 +7654,17 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
         const workspaceRoot = workspaceRootOrThrow(input);
         const rawLimit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
         const rawOffset = Number.parseInt(url.searchParams.get("offset") ?? "", 10);
-        writeJson(response, 200, apiResponse(await listCutJobs({
+        const executionAllowed = await workspaceExecutionAllowed();
+        const catalog = await listCutJobs({
           workspace_root: workspaceRoot,
           limit: Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : undefined,
           offset: Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0
-        })));
+        });
+        writeJson(response, 200, apiResponse({
+          ...catalog,
+          workspace_execution_allowed: executionAllowed,
+          ...(executionAllowed ? {} : { lease_unavailable_message: workspaceLeaseMessage() })
+        }));
         return;
       }
 

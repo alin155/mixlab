@@ -421,6 +421,8 @@ export interface AcquireWorkspaceLeaseInput {
   heartbeat_interval_ms?: number;
   /** 同主机 PID 存活判断；测试可注入。 */
   pid_alive?: (pid: number) => boolean;
+  /** 测试/特殊部署可覆盖 fallback 租约目录；默认 %LOCALAPPDATA%\\MixLab Cutter\\workspace-leases。 */
+  lease_fallback_root?: string;
 }
 
 export interface WorkspaceLease {
@@ -436,6 +438,28 @@ export interface WorkspaceLease {
 
 export function workspaceLeasePath(workspaceRoot: string): string {
   return path.join(path.resolve(workspaceRoot), WORKSPACE_LEASE_FILE_NAME);
+}
+
+export function workspaceLeaseFallbackRoot(): string {
+  const localAppData = process.env.LOCALAPPDATA?.trim();
+  if (localAppData) {
+    return path.join(localAppData, "MixLab Cutter", "workspace-leases");
+  }
+  if (process.platform === "win32") {
+    return path.join(os.homedir(), "AppData", "Local", "MixLab Cutter", "workspace-leases");
+  }
+  return path.join(os.homedir(), ".mixlab-cutter", "workspace-leases");
+}
+
+export function workspaceLeaseFallbackPath(
+  workspaceRoot: string,
+  fallbackRoot: string = workspaceLeaseFallbackRoot()
+): string {
+  const normalized = path.resolve(workspaceRoot);
+  const key = createHash("sha256")
+    .update(process.platform === "win32" ? normalized.toLowerCase() : normalized)
+    .digest("hex");
+  return path.join(fallbackRoot, `${key}.json`);
 }
 
 function defaultPidAlive(pid: number): boolean {
@@ -480,14 +504,36 @@ function normalizeLeaseRecord(value: unknown): WorkspaceLeaseRecord | null {
   };
 }
 
-export async function readWorkspaceLease(workspaceRoot: string): Promise<WorkspaceLeaseRecord | null> {
+async function readWorkspaceLeaseFile(leasePath: string): Promise<WorkspaceLeaseRecord | null> {
   try {
-    return normalizeLeaseRecord(
-      JSON.parse(await readFile(workspaceLeasePath(workspaceRoot), "utf8")) as unknown
-    );
+    return normalizeLeaseRecord(JSON.parse(await readFile(leasePath, "utf8")) as unknown);
   } catch {
     return null;
   }
+}
+
+function leaseHeartbeatMs(record: WorkspaceLeaseRecord | null): number {
+  if (!record) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const parsed = Date.parse(record.heartbeat_at);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+export async function readWorkspaceLease(
+  workspaceRoot: string,
+  fallbackRoot?: string
+): Promise<WorkspaceLeaseRecord | null> {
+  const [primary, fallback] = await Promise.all([
+    readWorkspaceLeaseFile(workspaceLeasePath(workspaceRoot)),
+    readWorkspaceLeaseFile(workspaceLeaseFallbackPath(workspaceRoot, fallbackRoot))
+  ]);
+
+  // 兼容旧版本写在 workspace 根目录的锁；若 fallback 更新则以 fallback 为准。
+  if (primary && fallback) {
+    return leaseHeartbeatMs(fallback) > leaseHeartbeatMs(primary) ? fallback : primary;
+  }
+  return primary ?? fallback;
 }
 
 function leaseIsStale(input: {
@@ -512,8 +558,90 @@ function leaseIsStale(input: {
   return input.now_ms - heartbeatMs > input.stale_after_ms;
 }
 
+class WorkspaceLeaseWriteError extends Error {
+  readonly cause_code?: string;
+
+  constructor(message: string, causeCode?: string) {
+    super(message);
+    this.name = "WorkspaceLeaseWriteError";
+    this.cause_code = causeCode;
+  }
+}
+
+async function tryAcquireWorkspaceLeaseFile(input: {
+  lease_path: string;
+  record: WorkspaceLeaseRecord;
+  now_ms: number;
+  stale_after_ms: number;
+  hostname: string;
+  pid_alive: (pid: number) => boolean;
+}): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await mkdir(path.dirname(input.lease_path), { recursive: true });
+      await writeFile(input.lease_path, `${JSON.stringify(input.record, null, 2)}\n`, {
+        encoding: "utf8",
+        flag: "wx"
+      });
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw new WorkspaceLeaseWriteError(
+          `无法写入本机工作区租约：${(error as Error).message}`,
+          (error as NodeJS.ErrnoException).code
+        );
+      }
+    }
+
+    const holder = await readWorkspaceLeaseFile(input.lease_path);
+    if (!holder) {
+      const blocked = await stat(input.lease_path).catch(() => null);
+      if (blocked?.isDirectory()) {
+        throw new WorkspaceLeaseWriteError(
+          `工作区租约路径被目录占用：${input.lease_path}`,
+          "EISDIR"
+        );
+      }
+    }
+    const stale =
+      !holder ||
+      leaseIsStale({
+        record: holder,
+        now_ms: input.now_ms,
+        stale_after_ms: input.stale_after_ms,
+        hostname: input.hostname,
+        pid_alive: input.pid_alive
+      });
+
+    if (!stale) {
+      throw new WorkspaceLeaseUnavailableError(
+        "本机工作区正被另一个剪辑实例使用（workspace 租约被占用），当前实例将以只读/排队方式运行。",
+        holder ?? undefined
+      );
+    }
+
+    const stalePath = `${input.lease_path}.stale-${input.record.pid}-${randomUUID()}`;
+    try {
+      await rename(input.lease_path, stalePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        continue;
+      }
+      throw new WorkspaceLeaseWriteError(
+        `无法回收陈旧工作区租约：${(error as Error).message}`,
+        (error as NodeJS.ErrnoException).code
+      );
+    }
+    await rm(stalePath, { force: true });
+  }
+
+  throw new WorkspaceLeaseUnavailableError(
+    "无法获取本机工作区租约（锁文件竞争未结束），请稍后重试。"
+  );
+}
+
 /**
- * 原子创建（wx）workspace 租约；陈旧锁（心跳超时或同主机 PID 已退出）可被回收。
+ * 原子创建 workspace 租约；工作区根目录只检查不重复 mkdir，盘符根/只读根写租约失败时降级到本机固定 fallback。
  * 拿不到租约时抛 WorkspaceLeaseUnavailableError（code=workspace_lease_unavailable）。
  */
 export async function acquireWorkspaceLease(
@@ -532,11 +660,54 @@ export async function acquireWorkspaceLease(
       ? Math.max(0, Math.floor(input.heartbeat_interval_ms))
       : Math.min(DEFAULT_WORKSPACE_LEASE_HEARTBEAT_MS, Math.max(250, Math.floor(staleAfterMs / 3)));
   const pidAlive = input.pid_alive ?? defaultPidAlive;
-  const leasePath = workspaceLeasePath(workspaceRoot);
+  const primaryLeasePath = workspaceLeasePath(workspaceRoot);
+  const fallbackLeasePath = workspaceLeaseFallbackPath(workspaceRoot, input.lease_fallback_root);
   const acquiredAt = nowFn();
+  const nowMs = Date.parse(acquiredAt);
+  const effectiveNowMs = Number.isFinite(nowMs) ? nowMs : Date.now();
   let heartbeatAt = acquiredAt;
 
-  await mkdir(workspaceRoot, { recursive: true });
+  let workspaceStat;
+  try {
+    workspaceStat = await stat(workspaceRoot);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw new WorkspaceLeaseUnavailableError(
+        `无法读取本机工作区（${workspaceRoot}）：${(error as Error).message}`
+      );
+    }
+    await mkdir(workspaceRoot, { recursive: true });
+    workspaceStat = await stat(workspaceRoot);
+  }
+
+  if (!workspaceStat.isDirectory()) {
+    throw new WorkspaceLeaseUnavailableError(
+      `本机工作区不是目录（${workspaceRoot}），剪切队列已暂停；请重新选择可写的本地工作区。`
+    );
+  }
+
+  // 先检查旧根锁与 fallback 锁；防止升级瞬间两个实例各持一份。
+  const existingHolders = await Promise.all([
+    readWorkspaceLeaseFile(primaryLeasePath),
+    readWorkspaceLeaseFile(fallbackLeasePath)
+  ]);
+  for (const holder of existingHolders) {
+    if (
+      holder &&
+      !leaseIsStale({
+        record: holder,
+        now_ms: effectiveNowMs,
+        stale_after_ms: staleAfterMs,
+        hostname,
+        pid_alive: pidAlive
+      })
+    ) {
+      throw new WorkspaceLeaseUnavailableError(
+        "本机工作区正被另一个剪辑实例使用（workspace 租约被占用），当前实例将以只读/排队方式运行。",
+        holder
+      );
+    }
+  }
 
   const buildRecord = (): WorkspaceLeaseRecord => ({
     schema_version: "1.0",
@@ -548,65 +719,60 @@ export async function acquireWorkspaceLease(
     heartbeat_at: heartbeatAt
   });
 
-  let acquired = false;
-
-  for (let attempt = 0; attempt < 4 && !acquired; attempt += 1) {
-    try {
-      await writeFile(leasePath, `${JSON.stringify(buildRecord(), null, 2)}\n`, {
-        encoding: "utf8",
-        flag: "wx"
-      });
-      acquired = true;
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
-        throw error;
-      }
+  let leasePath = primaryLeasePath;
+  try {
+    await tryAcquireWorkspaceLeaseFile({
+      lease_path: primaryLeasePath,
+      record: buildRecord(),
+      now_ms: effectiveNowMs,
+      stale_after_ms: staleAfterMs,
+      hostname,
+      pid_alive: pidAlive
+    });
+  } catch (error) {
+    if (!(error instanceof WorkspaceLeaseWriteError)) {
+      throw error;
     }
 
-    const holder = await readWorkspaceLease(workspaceRoot);
-    const nowMs = Date.parse(nowFn());
-    const stale =
-      !holder ||
-      leaseIsStale({
-        record: holder,
-        now_ms: Number.isFinite(nowMs) ? nowMs : Date.now(),
+    // 工作区根不可写（盘符根/只读根），使用本机固定 fallback；仍必须检查旧根锁。
+    const oldRootHolder = await readWorkspaceLeaseFile(primaryLeasePath);
+    if (
+      oldRootHolder &&
+      !leaseIsStale({
+        record: oldRootHolder,
+        now_ms: effectiveNowMs,
+        stale_after_ms: staleAfterMs,
+        hostname,
+        pid_alive: pidAlive
+      })
+    ) {
+      throw new WorkspaceLeaseUnavailableError(
+        "本机工作区正被另一个剪辑实例使用（旧 workspace 根锁仍有效），当前实例将以只读/排队方式运行。",
+        oldRootHolder
+      );
+    }
+
+    leasePath = fallbackLeasePath;
+    try {
+      await tryAcquireWorkspaceLeaseFile({
+        lease_path: fallbackLeasePath,
+        record: buildRecord(),
+        now_ms: effectiveNowMs,
         stale_after_ms: staleAfterMs,
         hostname,
         pid_alive: pidAlive
       });
-
-    if (!stale) {
+    } catch (fallbackError) {
+      const detail = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       throw new WorkspaceLeaseUnavailableError(
-        "本机工作区正被另一个剪辑实例使用（workspace 租约被占用），当前实例将以只读/排队方式运行。",
-        holder ?? undefined
+        `本机工作区无法建立独占锁，剪切队列已暂停；请把本地工作区改为可写子目录或升级版本。${detail}`
       );
     }
-
-    // 先原子 rename 走陈旧锁，只有一个进程能成功 rename，然后重试创建。
-    const stalePath = `${leasePath}.stale-${pid}-${randomUUID()}`;
-
-    try {
-      await rename(leasePath, stalePath);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        continue;
-      }
-
-      throw error;
-    }
-
-    await rm(stalePath, { force: true });
-  }
-
-  if (!acquired) {
-    throw new WorkspaceLeaseUnavailableError(
-      "无法获取本机工作区租约（锁文件竞争未结束），请稍后重试。"
-    );
   }
 
   let held = true;
   let heartbeatTimer: NodeJS.Timeout | undefined;
+  const leasePathForInstance = leasePath;
 
   const lease: WorkspaceLease = {
     workspace_root: workspaceRoot,
@@ -620,7 +786,7 @@ export async function acquireWorkspaceLease(
         return false;
       }
 
-      const current = await readWorkspaceLease(workspaceRoot);
+      const current = await readWorkspaceLeaseFile(leasePathForInstance);
 
       if (!current || current.instance_id !== instanceId) {
         held = false;
@@ -631,7 +797,7 @@ export async function acquireWorkspaceLease(
 
       try {
         await writeFile(
-          leasePath,
+          leasePathForInstance,
           `${JSON.stringify({ ...buildRecord(), heartbeat_at: nextHeartbeatAt }, null, 2)}\n`,
           { encoding: "utf8" }
         );
@@ -654,10 +820,10 @@ export async function acquireWorkspaceLease(
       }
 
       held = false;
-      const current = await readWorkspaceLease(workspaceRoot);
+      const current = await readWorkspaceLeaseFile(leasePathForInstance);
 
       if (current?.instance_id === instanceId) {
-        await rm(leasePath, { force: true });
+        await rm(leasePathForInstance, { force: true });
       }
     }
   };

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, readdir, stat, truncate, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, truncate, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -21,6 +21,7 @@ import {
   recoverInterruptedCutJobs,
   recoverInterruptedCutJobsIfLeased,
   retryCutJob,
+  workspaceLeaseFallbackPath,
   runCutJob,
   runNextCutJob,
   submitClipListToQueue
@@ -1911,6 +1912,116 @@ test("rejects retry for done jobs without legacy output verification record", as
     (error: unknown) =>
       (error as { code?: string }).code === "cut_job_not_retryable" &&
       /缺少输出校验记录/.test((error as Error).message)
+  );
+});
+
+
+test("workspace lease skips blocked root lock and falls back to local lease path", async () => {
+  const workspaceRoot = await makeRoot("mixlab-cutter-local-lease-fallback-");
+  const fallbackRoot = await makeRoot("mixlab-cutter-local-lease-fallback-root-");
+  const primaryLeasePath = path.join(workspaceRoot, ".mixlab-workspace-lock.json");
+
+  // 模拟盘符根/只读根：workspace 已存在，但根目录锁路径不可写。
+  await mkdir(primaryLeasePath);
+  const first = await acquireWorkspaceLease({
+    workspace_root: workspaceRoot,
+    instance_id: "fallback-a",
+    heartbeat_interval_ms: 0,
+    lease_fallback_root: fallbackRoot,
+    now: () => "2026-05-02T10:00:00Z"
+  });
+  assert.equal(first.is_held(), true);
+  assert.equal(
+    (await readWorkspaceLease(workspaceRoot, fallbackRoot))?.instance_id,
+    "fallback-a"
+  );
+
+  const fallbackPath = workspaceLeaseFallbackPath(workspaceRoot, fallbackRoot);
+  assert.equal((await stat(fallbackPath)).isFile(), true);
+
+  // fallback 仍然互斥。
+  await assert.rejects(
+    () =>
+      acquireWorkspaceLease({
+        workspace_root: workspaceRoot,
+        instance_id: "fallback-b",
+        heartbeat_interval_ms: 0,
+        lease_fallback_root: fallbackRoot,
+        now: () => "2026-05-02T10:00:01Z"
+      }),
+    (error: unknown) => (error as { code?: string }).code === "workspace_lease_unavailable"
+  );
+
+  await first.release();
+  assert.equal(await readWorkspaceLease(workspaceRoot, fallbackRoot), null);
+
+  // fallback 陈旧锁可回收。
+  await writeFile(
+    fallbackPath,
+    JSON.stringify({
+      schema_version: "1.0",
+      instance_id: "fallback-dead",
+      pid: 999_999,
+      hostname: "another-host",
+      workspace_root: workspaceRoot,
+      acquired_at: "2026-05-02T09:00:00Z",
+      heartbeat_at: "2026-05-02T09:00:00Z"
+    }),
+    "utf8"
+  );
+  const reclaimed = await acquireWorkspaceLease({
+    workspace_root: workspaceRoot,
+    instance_id: "fallback-c",
+    heartbeat_interval_ms: 0,
+    lease_fallback_root: fallbackRoot,
+    stale_after_ms: 1_000,
+    now: () => "2026-05-02T10:00:02Z"
+  });
+  assert.equal(reclaimed.is_held(), true);
+  await reclaimed.release();
+
+  // 旧版 workspace 根锁仍有效时，fallback 不能绕过。
+  await rm(primaryLeasePath, { recursive: true, force: true });
+  await writeFile(
+    primaryLeasePath,
+    JSON.stringify({
+      schema_version: "1.0",
+      instance_id: "legacy-root-holder",
+      pid: 999_999,
+      hostname: "another-host",
+      workspace_root: workspaceRoot,
+      acquired_at: "2026-05-02T10:00:00Z",
+      heartbeat_at: "2026-05-02T10:00:00Z"
+    }),
+    "utf8"
+  );
+  await assert.rejects(
+    () =>
+      acquireWorkspaceLease({
+        workspace_root: workspaceRoot,
+        instance_id: "fallback-d",
+        heartbeat_interval_ms: 0,
+        lease_fallback_root: fallbackRoot,
+        now: () => "2026-05-02T10:00:03Z"
+      }),
+    (error: unknown) => (error as { code?: string }).code === "workspace_lease_unavailable"
+  );
+});
+
+test("workspace lease rejects a workspace path that is not a directory", async () => {
+  const root = await makeRoot("mixlab-cutter-local-lease-file-");
+  const workspaceFile = path.join(root, "not-a-directory");
+  await writeFile(workspaceFile, "file", "utf8");
+  await assert.rejects(
+    () =>
+      acquireWorkspaceLease({
+        workspace_root: workspaceFile,
+        instance_id: "not-dir",
+        heartbeat_interval_ms: 0
+      }),
+    (error: unknown) =>
+      (error as { code?: string }).code === "workspace_lease_unavailable" &&
+      /不是目录/.test((error as Error).message)
   );
 });
 
