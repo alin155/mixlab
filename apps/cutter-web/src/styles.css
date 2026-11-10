@@ -2549,7 +2549,7 @@ body,
   font-weight: 700;
 }
 .cutter-update-notes {
-  max-height: 180px;
+  max-height: 120px;
   overflow: auto;
   padding-right: 6px;
   color: var(--ml-color-text-secondary);
