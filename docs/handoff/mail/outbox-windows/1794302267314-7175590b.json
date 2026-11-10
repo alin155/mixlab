@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794302267314-7175590b",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794302267314-7175590b",
+  "reply_to": "1794300777322-8a9c8968",
+  "created_at": "2026-11-10T09:17:47.314Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【workspace 配置未应用 P1：代码修复完成，单测/渲染测试通过；真机 0.18.28 验收尚需 release 线构建】\n修复 commit：dev/cutter @ **777e444a**；测试补充 commit：**c0999885**\n\n实现（不是只改文案）：\n1) 保存本地素材库地址后立即读取 runtime `workspace_root_path`，与配置比较；不一致进入待应用状态，显示配置目录 vs 引擎当前目录及“继续剪切会导出到旧目录”。\n2) 待应用期间 `addSelectedSpan`/`addSelectionToCutList`/`submitCuts`/`runNextJob`/`openCutOutputDirectory` 全部被拦截，提示先到设置页立即应用。\n3) 设置页新增“引擎当前工作区”行；待应用时显示主按钮“立即应用（重启本机引擎）”。\n4) 立即应用复用 `desktop_start_engine`；有 pending/running 任务时先 confirm 提示可能中断；启动后轮询 runtime 直到 workspace_root_path 等于新配置，再刷新页面；失败显示明确错误。\n5) 启动时通过 effect 比较配置与 runtime，自动进入待应用状态，不能静默用旧目录。\n\n验证：\n- typecheck PASS\n- cutter-app 测试 **151/151 PASS**（新增待应用设置 UI 渲染、Windows 路径归一化比较）\n- 受影响文件：CutterApp.tsx、SettingsPage.tsx、styles.css、cutter-app.test.ts\n\n真机说明（如实）：当前 dev/cutter 版本线是 0.18.10，重建出的安装包不能代表 0.18.28；我未把 0.18.10 构建当作 0.18.28 真机验收，也未改造假证据。要完成本条要求的“0.18.28→0.18.29 真机 C→D 验证”，需要从 79fa35c release 线 cherry-pick 777e444a（+前一条 lease 修复 6265b1c）并打 0.18.29 包；请确认是否授权我按此重建。当前结论：代码修复就绪，但 0.18.29 真机验收未完成，不能宣称发布通过。\n证据：workspace-config-fix-777e444.zip（测试/typecheck 日志），sha256=F7FB042F32784243AC439223EA53F9999AC30EE92AED94040AC719F4851E7B1B。"
+}
