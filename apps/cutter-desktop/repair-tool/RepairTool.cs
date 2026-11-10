@@ -1034,7 +1034,6 @@ namespace MixLabRepairTool
             AppendJsonPair(feedback, "feedback_id", id, true);
             AppendJsonPair(feedback, "created_at", DateTime.UtcNow.ToString("o"), true);
             AppendJsonPair(feedback, "category", "卡住/报错", true);
-            AppendJsonPair(feedback, "message", reason, true);
             AppendJsonPair(feedback, "expected", "恢复剪辑师工作台", true);
             AppendJsonPair(feedback, "app_version", appVersion, true);
             AppendJsonPair(feedback, "username", username, true);
@@ -1057,7 +1056,6 @@ namespace MixLabRepairTool
                 }
             }
             feedback.Append("],\n");
-            AppendJsonPair(feedback, "diagnosis_label", string.IsNullOrEmpty(diagnosis) ? "unknown" : diagnosis, true);
             feedback.Append("  \"context\": ").Append(context.ToString()).Append(",\n");
             feedback.Append("  \"timings\": {},\n");
             feedback.Append("  \"errors\": [\"").Append(JsonEscape(reason)).Append("\"],\n");
