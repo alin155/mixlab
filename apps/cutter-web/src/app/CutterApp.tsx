@@ -1247,6 +1247,13 @@ function desktopPathIsSameOrChild(candidate: string, parent: string): boolean {
   );
 }
 
+export function workspacePathsEquivalent(left?: string, right?: string): boolean {
+  const normalize = (value?: string) => value?.trim().replace(/[\\/]+$/, "").toLowerCase() ?? "";
+  const leftPath = normalize(left);
+  const rightPath = normalize(right);
+  return Boolean(leftPath && rightPath && leftPath === rightPath);
+}
+
 export function desktopWorkspaceConfigError(config: Pick<DesktopConfig, "public_library_root" | "local_workspace_root">): string {
   const publicRoot = config.public_library_root.trim();
   const localWorkspaceRoot = config.local_workspace_root.trim();
@@ -1468,6 +1475,9 @@ function renderPage(
     selectedCutMode: CutMode;
     localWorkspacePath?: string;
     workspaceConfigNotice?: string;
+    workspaceConfigPending: boolean;
+    workspaceConfigApplying: boolean;
+    engineWorkspacePath?: string;
     hiddenCutJobCount: number;
     verificationEnabled: boolean;
     releaseV2Enabled: boolean;
@@ -1528,6 +1538,7 @@ function renderPage(
     setAppearanceMode: (mode: CutterAppearanceMode) => void;
     setCutMode: (mode: CutMode) => void;
     configureLocalWorkspace?: () => void;
+    applyLocalWorkspace?: () => void;
     changePassword: (input: CutterPasswordChangeRequest) => Promise<void>;
   }
 ) {
@@ -1705,6 +1716,10 @@ function renderPage(
         defaultOrientationFilter={viewState.orientationFilter}
         localWorkspacePath={viewState.localWorkspacePath}
         workspaceConfigNotice={viewState.workspaceConfigNotice}
+        workspaceConfigPending={viewState.workspaceConfigPending}
+        workspaceConfigApplying={viewState.workspaceConfigApplying}
+        engineWorkspacePath={viewState.engineWorkspacePath}
+        onApplyLocalWorkspace={handlers.applyLocalWorkspace}
         onSetAppearanceMode={handlers.setAppearanceMode}
         onSetDefaultCutMode={handlers.setCutMode}
         onSetDefaultSourceFilter={handlers.setSourceFilter}
@@ -1818,6 +1833,8 @@ export function CutterApp() {
   const [errorPresentation, setErrorPresentation] = useState<CutterErrorPresentation | null>(null);
   const [capabilities, setCapabilities] = useState<CutterCapabilityTable | null>(null);
   const [workspaceConfigNotice, setWorkspaceConfigNotice] = useState("");
+  const [workspaceConfigPending, setWorkspaceConfigPending] = useState(false);
+  const [workspaceConfigApplying, setWorkspaceConfigApplying] = useState(false);
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
   const [appearanceMode, setAppearanceMode] = useState<CutterAppearanceMode>(() =>
@@ -1897,6 +1914,27 @@ export function CutterApp() {
   currentProjectIdRef.current = currentProjectId;
   dataRef.current = data;
   queueJobsRef.current = queueJobs;
+
+  useEffect(() => {
+    if (!isDesktopMode || desktopStage !== "ready") {
+      return;
+    }
+    const configured = desktopConfig.local_workspace_root?.trim() ?? "";
+    const engineWorkspace = data?.runtimeStatus?.workspace_root_path?.trim() ?? "";
+    if (!configured || !engineWorkspace) {
+      return;
+    }
+    const pending = !workspacePathsEquivalent(configured, engineWorkspace);
+    setWorkspaceConfigPending(pending);
+    setWorkspaceConfigNotice((current) => {
+      if (pending) {
+        return `新地址尚未应用到本机引擎：配置 ${configured}，引擎当前 ${engineWorkspace}。继续剪切会导出到旧目录，请点击“立即应用”。`;
+      }
+      return /尚未应用|重启 MixLab Cutter 后生效/.test(current)
+        ? "本地素材库地址已生效。"
+        : current;
+    });
+  }, [data?.runtimeStatus?.workspace_root_path, desktopConfig.local_workspace_root, desktopStage, isDesktopMode]);
 
   // Unified 401 handling (CW-10): any protected request that reports an expired
   // session clears the stored session and returns to the login gate.
@@ -3427,7 +3465,16 @@ export function CutterApp() {
       const savedConfig = await writeDesktopConfig(nextConfig);
       setDesktopConfig(savedConfig);
       setDesktopDoctorResult(undefined);
-      setWorkspaceConfigNotice("已保存本地素材库地址，重启 MixLab Cutter 后生效。");
+      const configured = savedConfig.local_workspace_root.trim();
+      const runtime = apiMode ? await client.getRuntimeStatus().catch(() => null) : null;
+      const engineWorkspace = runtime?.workspace_root_path?.trim() ?? "";
+      const pending = !engineWorkspace || !workspacePathsEquivalent(configured, engineWorkspace);
+      setWorkspaceConfigPending(pending);
+      setWorkspaceConfigNotice(
+        pending
+          ? `已保存本地素材库地址，但新地址尚未应用到本机引擎。配置：${configured}${engineWorkspace ? `；引擎当前：${engineWorkspace}` : ""}。继续剪切会导出到旧目录，请点击“立即应用”。`
+          : "已保存本地素材库地址，并已应用到本机引擎。"
+      );
       setDesktopDiagnostics(desktopDiagnosticsForState({
         appVersion: desktopAppVersionText,
         stage: desktopStage,
@@ -3444,6 +3491,54 @@ export function CutterApp() {
         latestError: message,
         logPath: desktopLogPath
       }));
+    }
+  };
+
+  const handleApplyLocalWorkspace = async () => {
+    if (!isDesktopMode || workspaceConfigApplying) {
+      return;
+    }
+    const configured = desktopConfig.local_workspace_root.trim();
+    if (!configured) {
+      setWorkspaceConfigNotice("请先配置本地素材库地址。");
+      return;
+    }
+    const activeTasks = queueJobsRef.current.filter((job) => job.status === "pending" || job.status === "running");
+    if (activeTasks.length > 0) {
+      const confirmed = window.confirm(
+        `当前有 ${activeTasks.length} 个剪切任务正在等待/执行。立即应用会重启本机引擎，可能中断这些任务；需要先等待任务完成或手动取消。\n\n仍要继续应用吗？`
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    setWorkspaceConfigApplying(true);
+    setWorkspaceConfigNotice("正在重启本机引擎并应用新地址，请稍候…");
+    try {
+      const configPath = await desktopConfigPath();
+      await startDesktopEngine(configPath);
+      let engineWorkspace = "";
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const status = await client.getRuntimeStatus().catch(() => null);
+        engineWorkspace = status?.workspace_root_path?.trim() ?? "";
+        if (engineWorkspace && workspacePathsEquivalent(configured, engineWorkspace)) {
+          break;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+      }
+      if (!engineWorkspace || !workspacePathsEquivalent(configured, engineWorkspace)) {
+        throw new Error(`本机引擎仍在使用旧目录${engineWorkspace ? `：${engineWorkspace}` : ""}，请检查目录权限后重试。`);
+      }
+      setWorkspaceConfigPending(false);
+      setWorkspaceConfigNotice("本地素材库地址已应用，正在刷新工作台…");
+      setCutNotice("本地素材库地址已应用，工作台即将刷新。");
+      window.location.reload();
+    } catch (applyError) {
+      const message = applyError instanceof Error ? applyError.message : "应用本地素材库地址失败";
+      setWorkspaceConfigNotice(`应用失败：${message}`);
+      setCutNotice(`应用本地素材库地址失败：${message}`);
+    } finally {
+      setWorkspaceConfigApplying(false);
     }
   };
 
@@ -3776,8 +3871,21 @@ export function CutterApp() {
     }
   }
 
+  const requireWorkspaceApplied = (): boolean => {
+    if (!workspaceConfigPending) {
+      return true;
+    }
+    const message = "本地素材库地址尚未应用到本机引擎，已暂停新的剪切/导出。请到设置页点击“立即应用”，避免继续写到旧目录。";
+    setWorkspaceConfigNotice(message);
+    setCutNotice(message);
+    return false;
+  };
+
   const handlers = {
     async addSelectedSpan() {
+      if (!requireWorkspaceApplied()) {
+        return;
+      }
       if (!data) {
         return;
       }
@@ -3914,6 +4022,9 @@ export function CutterApp() {
       }
     },
     addSelectionToCutList() {
+      if (!requireWorkspaceApplied()) {
+        return;
+      }
       if (!data || !selectedDetail || selectedTranscriptSegments.length === 0) {
         return;
       }
@@ -4068,6 +4179,9 @@ export function CutterApp() {
       setCutList((current) => clearCutList(current));
     },
     async submitCuts() {
+      if (!requireWorkspaceApplied()) {
+        return;
+      }
       if (visibleCutList.length === 0) {
         return;
       }
@@ -4170,6 +4284,9 @@ export function CutterApp() {
       : undefined,
     runNextJob: apiMode
       ? () => {
+          if (!requireWorkspaceApplied()) {
+            return;
+          }
           void runRealCutPipeline();
         }
       : undefined,
@@ -4254,6 +4371,9 @@ export function CutterApp() {
       setCutNotice("已恢复显示被删除的剪切任务");
     },
     openCutOutputDirectory: async () => {
+      if (!requireWorkspaceApplied()) {
+        return;
+      }
       if (!apiMode) {
         setCutNotice("请先连接本机剪辑服务，再打开文件目录");
         return;
@@ -4332,6 +4452,7 @@ export function CutterApp() {
     },
     setAppearanceMode: handleSetAppearanceMode,
     configureLocalWorkspace: isDesktopMode ? handleConfigureLocalWorkspace : undefined,
+    applyLocalWorkspace: isDesktopMode ? handleApplyLocalWorkspace : undefined,
     changePassword: handleChangePassword
   };
 
@@ -4669,6 +4790,9 @@ export function CutterApp() {
                 selectedCutMode,
                 localWorkspacePath: isDesktopMode ? desktopConfig.local_workspace_root : undefined,
                 workspaceConfigNotice,
+                workspaceConfigPending,
+                workspaceConfigApplying,
+                engineWorkspacePath: data.runtimeStatus.workspace_root_path,
                 hiddenCutJobCount: countHiddenCutJobs(queueJobs, hiddenCutJobIdsSet),
                 verificationEnabled: verificationUiEnabled,
                 releaseV2Enabled: releaseV2UiEnabledFlag

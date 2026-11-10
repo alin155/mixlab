@@ -460,3 +460,17 @@ body,
   margin-left: 8px;
 }
 
+
+.cutter-workspace-pending-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+  color: var(--ml-color-warning, #f2b84b);
+}
+
+.cutter-workspace-pending-warning p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
