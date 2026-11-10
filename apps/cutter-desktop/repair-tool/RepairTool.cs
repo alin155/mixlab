@@ -61,6 +61,79 @@ namespace MixLabRepairTool
     }
 
 
+
+    internal sealed class MoreMenuItem
+    {
+        public string Text;
+        public Action Click;
+    }
+
+    internal sealed class MoreMenuForm : Form
+    {
+        public MoreMenuForm(List<MoreMenuItem> items)
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            BackColor = Color.White;
+            Width = 224;
+            Height = items.Count * 36 + 12;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+            int top = 6;
+            foreach (MoreMenuItem item in items)
+            {
+                Button button = new Button();
+                button.Text = item.Text;
+                button.TextAlign = ContentAlignment.MiddleLeft;
+                button.FlatStyle = FlatStyle.Flat;
+                button.FlatAppearance.BorderSize = 0;
+                button.BackColor = Color.White;
+                button.ForeColor = Color.FromArgb(52, 68, 90);
+                button.Font = new Font("Microsoft YaHei UI", 9F);
+                button.TabStop = false;
+                button.Bounds = new Rectangle(8, top, 208, 32);
+                Action click = item.Click;
+                button.Click += delegate { Close(); if (click != null) click(); };
+                Controls.Add(button);
+                top += 36;
+            }
+            Shown += delegate { ApplyRoundedRegion(); };
+        }
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            ApplyRoundedRegion();
+        }
+        private void ApplyRoundedRegion()
+        {
+            if (Width <= 0 || Height <= 0) return;
+            using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                int radius = 8;
+                path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                path.AddArc(Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                path.AddArc(Width - radius * 2, Height - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(0, Height - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                Region = new Region(path);
+            }
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            using (SolidBrush brush = new SolidBrush(Color.White)) e.Graphics.FillRectangle(brush, ClientRectangle);
+            using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
+            {
+                int radius = 8;
+                path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                path.AddArc(Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                path.AddArc(Width - radius * 2, Height - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(0, Height - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                using (Pen pen = new Pen(Color.FromArgb(218, 226, 238), 1f)) e.Graphics.DrawPath(pen, path);
+            }
+        }
+    }
+
     internal sealed class RoundedPanel : Panel
     {
         public int Radius = 18;
@@ -385,34 +458,21 @@ namespace MixLabRepairTool
 
         private void ShowMoreMenu()
         {
-            ContextMenuStrip menu = new ContextMenuStrip();
-            menu.ShowImageMargin = false;
-            menu.Font = new Font("Microsoft YaHei UI", 9F);
-            menu.Padding = new Padding(6);
-            menu.BackColor = Color.White;
-            menu.Opened += delegate
-            {
-                using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
-                {
-                    int radius = 8;
-                    path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
-                    path.AddArc(menu.Width - radius * 2, 0, radius * 2, radius * 2, 270, 90);
-                    path.AddArc(menu.Width - radius * 2, menu.Height - radius * 2, radius * 2, radius * 2, 0, 90);
-                    path.AddArc(0, menu.Height - radius * 2, radius * 2, radius * 2, 90, 90);
-                    path.CloseFigure();
-                    menu.Region = new Region(path);
-                }
-            };
-            menu.Items.Add("导出诊断包（备用）", null, delegate { DiagnosticsButton_Click(null, EventArgs.Empty); });
+            List<MoreMenuItem> items = new List<MoreMenuItem>();
+            items.Add(new MoreMenuItem { Text = "导出诊断包（备用）", Click = delegate { DiagnosticsButton_Click(null, EventArgs.Empty); } });
             string previousVersion;
             string previousInstaller = FindPreviousInstaller(out previousVersion);
             Log("上一版本检测：" + (string.IsNullOrEmpty(previousInstaller) ? "未找到已验证安装包" : previousVersion));
             if (!string.IsNullOrEmpty(previousInstaller))
             {
-                menu.Items.Add("回退到 " + previousVersion, null, delegate { OpenInstaller(previousInstaller, previousVersion); });
+                items.Add(new MoreMenuItem { Text = "回退到 " + previousVersion, Click = delegate { OpenInstaller(previousInstaller, previousVersion); } });
             }
-            menu.Items.Add("打开日志目录", null, delegate { OpenLogDirectory(); });
-            menu.Show(moreLink, new Point(0, moreLink.Height));
+            items.Add(new MoreMenuItem { Text = "打开日志目录", Click = delegate { OpenLogDirectory(); } });
+            MoreMenuForm menu = new MoreMenuForm(items);
+            Point location = moreLink.PointToScreen(new Point(0, moreLink.Height + 2));
+            menu.Location = location;
+            menu.Show();
+            menu.BringToFront();
         }
 
         private void OpenLogDirectory()
