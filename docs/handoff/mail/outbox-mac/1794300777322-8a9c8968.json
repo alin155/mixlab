@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794300777322-8a9c8968",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794300777322-8a9c8968",
+  "created_at": "2026-11-10T08:52:57.322Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-BUG-20261110-WORKSPACE-CONFIG-NOT-APPLIED.md"
+    ]
+  },
+  "body": "请修复 Cutter 0.18.28 P1：设置页修改本地素材库地址后，引擎仍使用旧目录，导出继续写到 C 盘。\n\n现象：剪辑师把“本地素材库地址”从 C:\\ 改到 D:\\，保存后继续剪切，实际仍导出到旧 C:\\ 目录。\n\n代码原因（见 docs/handoff/CUTTER-BUG-20261110-WORKSPACE-CONFIG-NOT-APPLIED.md）：\napps/cutter-web/src/app/CutterApp.tsx 的 handleConfigureLocalWorkspace 只 writeDesktopConfig + 显示“重启后生效”，不重启 sidecar、不检查 runtimeStatus.workspace_root_path、不阻止旧引擎继续导出。\n\n请实现：\n1. 保存后读取 runtime status 的 workspace_root_path，与配置比较；不一致进入“待应用”状态。\n2. 待应用状态显示配置目录 vs 引擎当前目录，明确警告继续剪切会导出到旧目录，并禁止/强警告新剪切导出。\n3. 提供“立即应用（重启本机引擎）”：复用 desktop_start_engine；有 running 剪切任务时先确认/等待；应用后等 health、重读 workspace_root_path、刷新工作台。\n4. 启动时也检测不一致并进入待应用状态，不能静默使用旧目录。\n5. 设置页显示引擎实际 workspace，不只显示配置。\n6. 测试：配置 C→D 后待应用可见、阻止误导出、应用后 runtime 返回 D、导出路径 D、重启后保持 D；有 running 任务时应用有保护。\n7. Windows 真机验收并回复修复 commit/测试/证据，说明是否进入 0.18.29。\n\n不要只改文案；要真正阻止“配置 D 盘但仍导出 C 盘”。"
+}
