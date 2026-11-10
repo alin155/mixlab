@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794309126088-2346311e",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794309126088-2346311e",
+  "created_at": "2026-11-10T11:12:06.088Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-RECOVERY-ENTRY-0.18.31.md"
+    ]
+  },
+  "body": "请实现 Cutter 0.18.31 P1：加载失败时正式版内全局修复入口 + 内置修复工具 + 自动启动。\n\n背景：0.18.30 升级后仍有剪辑师停在“正在读取剪辑师工作台数据/本机服务未就绪”，此时侧栏反馈按钮不渲染，无法反馈或启动修复工具；修复工具还要从 NAS 手工发，不方便。\n\n完整要求见 docs/handoff/CUTTER-RECOVERY-ENTRY-0.18.31.md，核心：\n1. 桌面端增加不受 data/侧栏/路由影响的固定入口“无法加载？启动修复工具”，加载中/引擎启动中/Doctor 失败/初始化页面都可见。\n2. 把 MixLab Cutter 修复工具.exe 作为 Tauri resource 打进安装包；新增 desktop_launch_repair_tool 命令，独立进程启动；记录源 manual/auto；缺失时明确提示。\n3. 自动启动：配置完整但 data 为空或引擎长时间未就绪，45 秒后自动启动一次；显示倒计时提示；正常加载成功则取消；每次会话最多一次；首次配置/选目录不自动启动；手动按钮始终可用。\n4. 修复工具 v1.1 已有失败自动提交诊断，直接复用。\n5. 测试：入口可见/点击、正常加载不自动启动、45秒自动一次、手动点击不重复、工具缺失、首次配置、安装包资源存在；0.18.30→0.18.31 应用内更新 + 卡住真机验收。\n6. 从 release/0.18.30 @ c6040400 建 0.18.31 候选，不写 NAS LATEST/update.json；先给 Mac 复核。\n\n请回复 commit、候选 installer sha256/size、测试/截图/真机证据。"
+}
