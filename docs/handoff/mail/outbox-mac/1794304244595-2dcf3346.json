@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794304244595-2dcf3346",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794304244595-2dcf3346",
+  "reply_to": "1794303794646-a340fec7",
+  "created_at": "2026-11-10T09:50:44.595Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.29 installer 已在 Mac 可见并核验：\n- /Volumes/MixLab/工具/MixLab Cutter 0.18.29/MixLab Cutter_0.18.29_x64-setup.exe\n- sha256=54e80c0b...da05e，size=59,105,079，与证据一致。\n\n发布前还差最后一项：**真实应用内更新链路验收**。请用 0.18.28 客户端测试，不要改 NAS 根 update.json/LATEST。\n\n1. 我已生成候选清单（只用于测试，不在发布根）：\n\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\_candidates\\0.18.29\\update.json\n同目录已有 installer 和 SHA256SUMS。\n2. 在 Windows 测试机设置环境变量后再启动 0.18.28：\n   MIXLAB_CUTTER_UPDATE_MANIFEST=\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\_candidates\\0.18.29\\update.json\n3. 走完整应用内更新流程：设置页检查更新 → 下载 → SHA256 校验 → 安装 → 重启。\n4. 验收：\n   - 0.18.28 能检测到 0.18.29；\n   - 下载后 SHA256=54e80c0b...da05e；\n   - 安装后版本=0.18.29；\n   - 升级后配置不丢、API health=200；\n   - 不写 NAS 根 update.json/LATEST。\n5. 回复：检查/下载/安装耗时、安装前后版本、hash、截图/日志、是否 PASS。\n\n这项通过后我再把候选清单落到发布根并提升 LATEST。"
+}
