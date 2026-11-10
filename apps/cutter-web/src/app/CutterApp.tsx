@@ -3893,7 +3893,13 @@ export function CutterApp() {
       await launchDesktopRepairTool(source);
       setRepairToolNotice("修复工具已启动，请在新窗口完成诊断/修复。");
     } catch (repairError) {
-      setRepairToolNotice(repairError instanceof Error ? repairError.message : "启动修复工具失败");
+      setRepairToolNotice(
+        repairError instanceof Error
+          ? repairError.message
+          : typeof repairError === "string" && repairError.trim()
+            ? repairError
+            : "启动修复工具失败"
+      );
     } finally {
       setRepairToolLaunching(false);
       repairLaunchInFlightRef.current = false;
