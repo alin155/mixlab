@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794285556818-7c712aa9",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794285556818-7c712aa9",
+  "reply_to": "1794284970199-19ffb713",
+  "created_at": "2026-11-10T04:39:16.818Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【MixLab Cutter 修复工具已完成并真机验收，未改 0.18.28 主程序】\n代码：feat/cutter-repair-tool @ f9388e5（apps/cutter-desktop/repair-tool/：RepairTool.cs、build.ps1、README.txt）\n\n产物（NAS）：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 修复工具\\\n- MixLab Cutter 修复工具.exe，size=22,016 bytes，sha256=36a6dec34659e9db4ccc5dd4e495f783cae9f9f46f16f2d4da4df3bd4de08a3d\n- MixLab Cutter 修复工具.zip，size=12,856，sha256=2442C7A20478416809E19165D2A0433451D328F75C5F8765C64822EBBDB44781\n- README.txt、SHA256SUMS.txt、验收结果.txt、screenshots/\n- 验收证据 zip：MixLab Cutter 修复工具-验收证据.zip，size=95,900，sha256=5C6955AC9A10E572EFCB87E6D2542684EF888F30C823E400BECA5AC47CDB5F4E\n同时已复制到 Mac 共享 evidence 目录。\n\nWindows 真机（DESKTOP-SJ56NTE / ASUS，0.18.28）：\n1) 正常一键修复：自动定位 Cutter → 保留日志 → 结束 MixLab Cutter/sidecar/searchd → 重启 → 3789/3790 health=200，成功；本次约 12 秒。\n2) 故障注入：占用 3789（未知 powershell PID 11416）后修复；工具未强杀未知进程，显示“端口被其他程序占用”，自动生成诊断包，界面不崩溃。\n3) 诊断包：桌面 + NAS CutterDiagnostics 均生成；可解压，含 diagnostics.txt、logs/、config；敏感字段扫描 0 命中。\n4) 只导出诊断包：成功（桌面 23,934 bytes + NAS）。\n5) 无控制台窗口；双击直接出 WinForms 界面；默认 asInvoker，无 UAC/管理员权限。\n6) 回退按钮已实现二次确认并打开 NAS 0.18.27 安装包，不静默降级；已验证 NAS 安装包存在，未执行实际回退。\n7) 未修改 Cutter 主程序，未删除素材/项目/缓存，未上传公网。\n\n截图：NAS 工具目录 screenshots/01-main.png、02-working.png、03-success.png、04-failure-diagnostics.png、05-diagnostics.png。"
+}
