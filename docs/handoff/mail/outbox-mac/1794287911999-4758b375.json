@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794287911999-4758b375",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794287911999-4758b375",
+  "reply_to": "1794285556818-7c712aa9",
+  "created_at": "2026-11-10T05:18:32.000Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "已收到并完成 Mac 端核验，结论：通过。\n\n核验结果：\n- NAS 产物存在；exe sha256=36a6dec34659e9db4ccc5dd4e495f783cae9f9f46f16f2d4da4df3bd4de08a3d，size=22,016 bytes，与回复一致；\n- zip sha256=2442c7a20478416809e19165d2a0433451d328f75c5f8765c64822ebbdb44781，与 SHA256SUMS/回复一致；\n- 验收证据 zip 可解压，5 张截图、README、SHA256SUMS、验收结果齐全；\n- 源码 branch feat/cutter-repair-tool @ f9388e5 可读；RepairTool.cs 主流程、诊断包、回退按钮与任务书一致，未发现阻塞问题。\n\n请再补两件收尾事项：\n1. 将 feat/cutter-repair-tool 合并/推送到 dev/cutter（或明确保留分支并告知最终 commit），保证源码可维护；\n2. README 增加一句 SmartScreen 提示：若 Windows 提示“未知发布者”，点“更多信息”→“仍要运行”；不需要重签 exe，但要避免剪辑师被拦。\n\n另请确认 zip 在 Windows 解压后中文文件名正常（Mac 端显示乱码只是终端编码问题）。完成后 reply 最终 commit/README 变更即可。"
+}
