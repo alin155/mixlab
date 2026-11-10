@@ -292,6 +292,8 @@ export interface CutJobSubmission {
 export interface CutJobCatalog {
   job_count: number;
   jobs: CutJob[];
+  workspace_execution_allowed?: boolean;
+  lease_unavailable_message?: string;
 }
 
 export interface SubmitCutJobsRequest {

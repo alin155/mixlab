@@ -215,6 +215,7 @@ export function CutQueuePage({
   onOpenFeedback,
   verificationEnabled = true,
   hiddenJobCount = 0,
+  leaseWarning = "",
   onRestoreHiddenJobs,
   onBatchRetry,
   onBatchPause,
@@ -244,6 +245,7 @@ export function CutQueuePage({
   verificationEnabled?: boolean;
   /** Number of queue rows hidden by the local batch delete action. */
   hiddenJobCount?: number;
+  leaseWarning?: string;
   onRestoreHiddenJobs?: () => void;
   onBatchRetry?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
   onBatchPause?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
@@ -499,6 +501,11 @@ export function CutQueuePage({
             {jobs.length === 0 && totalCount > 0 ? (
               <p className="cutter-queue-batch-notice" role="status">
                 当前项目暂无剪切任务；可切换项目查看。全部项目共 {totalCount} 个任务。
+              </p>
+            ) : null}
+            {leaseWarning ? (
+              <p className="cutter-queue-lease-warning" role="alert">
+                {leaseWarning}
               </p>
             ) : null}
             {batchResult ? (
