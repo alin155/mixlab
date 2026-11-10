@@ -115,7 +115,8 @@ namespace MixLabRepairTool
     {
         public RoundButton()
         {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            SetStyle(ControlStyles.Selectable, false);
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             BackColor = Color.FromArgb(42, 106, 224);
@@ -127,7 +128,7 @@ namespace MixLabRepairTool
         protected override bool ShowKeyboardCues { get { return false; } }
         protected override void OnPaint(PaintEventArgs e)
         {
-            using (SolidBrush clear = new SolidBrush(Parent == null ? Color.Transparent : Parent.BackColor)) e.Graphics.FillRectangle(clear, ClientRectangle);
+            using (SolidBrush clear = new SolidBrush(Color.FromArgb(255, 255, 255))) e.Graphics.FillRectangle(clear, ClientRectangle);
             using (System.Drawing.Drawing2D.GraphicsPath path = new System.Drawing.Drawing2D.GraphicsPath())
             {
                 int radius = 12;
@@ -162,7 +163,7 @@ namespace MixLabRepairTool
         private readonly Label stateDetailLabel;
         private readonly Label[] stepLabels;
         private readonly Button moreLink;
-        private readonly LinkLabel logToggle;
+        private readonly Button logToggle;
         private readonly object logLock = new object();
         private const string ToolVersion = "1.3.0";
         private static readonly string FeedbackInbox = @"\\192.168.1.27\MixLab\CutterFeedback\inbox";
@@ -298,13 +299,14 @@ namespace MixLabRepairTool
             info.Bounds = new Rectangle(28, 216, 640, 24);
             card.Controls.Add(info);
 
-            logToggle = new FocuslessLinkLabel();
+            logToggle = new RoundButton();
             logToggle.Text = "查看诊断日志";
             logToggle.Font = new Font("Microsoft YaHei UI", 8.5F);
-            logToggle.LinkColor = Color.FromArgb(42, 106, 224);
-            logToggle.AutoSize = true;
-            logToggle.Location = new Point(28, 252);
-            logToggle.LinkClicked += delegate { ToggleLog(); };
+            logToggle.BackColor = Color.White;
+            logToggle.ForeColor = Color.FromArgb(42, 106, 224);
+            logToggle.Bounds = new Rectangle(24, 246, 112, 26);
+            logToggle.TabStop = false;
+            logToggle.Click += delegate { ToggleLog(); };
             card.Controls.Add(logToggle);
 
             logBox = new RichTextBox();
@@ -323,7 +325,7 @@ namespace MixLabRepairTool
             footerLeft.Font = new Font("Microsoft YaHei UI", 8F);
             footerLeft.ForeColor = Color.FromArgb(137, 148, 164);
             footerLeft.AutoSize = true;
-            footerLeft.Location = new Point(34, 518);
+            footerLeft.Location = new Point(34, 520);
             Controls.Add(footerLeft);
 
             Label footerRight = new Label();
@@ -331,7 +333,7 @@ namespace MixLabRepairTool
             footerRight.Font = new Font("Microsoft YaHei UI", 8F);
             footerRight.ForeColor = Color.FromArgb(137, 148, 164);
             footerRight.AutoSize = true;
-            footerRight.Location = new Point(574, 518);
+            footerRight.Location = new Point(574, 520);
             Controls.Add(footerRight);
 
             diagnosticsButton = new Button();
