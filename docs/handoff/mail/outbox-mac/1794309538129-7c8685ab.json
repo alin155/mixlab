@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794309538129-7c8685ab",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794309538129-7c8685ab",
+  "created_at": "2026-11-10T11:18:58.130Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-REPAIR-TOOL-1.2.md"
+    ]
+  },
+  "body": "请把修复工具升级到 1.2.0，并随 0.18.31 内置发布；目标不是只重启，而是“先安全自修，解决不了自动升级给 Mac 管理员”。\n\n完整要求：docs/handoff/CUTTER-REPAIR-TOOL-1.2.md（与 0.18.31 恢复入口任务一起做）。\n\n核心：\n1. 诊断分类：engine_unreachable / port_occupied / sidecar 缺失/启动失败 / searchd 不健康 / workspace lease 占用或 stale / workspace 根无效 / config 无效 / app_missing / unknown。\n2. 安全修复矩阵：\n   - 引擎不通：保留日志、只杀 MixLab 进程、重启、最多 2 次健康检查；\n   - 端口被未知进程占用：不杀未知进程，直接升级；\n   - stale lease：确认 PID/心跳失效后备份并清理；active 不清理；\n   - searchd：只重启，不删搜索缓存；\n   - config/workspace：只做可确定的安全纠正，不重置用户路径；\n   - unknown：不做破坏性操作，升级。\n3. 解决不了自动提交“专家介入请求”到 CutterFeedback/inbox，复用反馈包，增加 source=repair-tool、needs_admin=true、diagnosis、repair_attempts、case_id；原子写入/离线 pending/不重复。\n4. UI 失败只显示“已提交专家介入（编号 FB-...），无需手动发送”。\n5. Mac feedback-watch 会读取 needs_admin，DSH 定时反馈检查会提示我处理。\n6. 测试覆盖各类故障、在线/离线提交、不重复、Windows 真机模拟至少 3 类故障。\n7. v1.2.0 打包进 0.18.31 安装包；从 Cutter 恢复入口启动。\n\n请回复 commit、工具/安装包 sha256/size、测试与真机截图。不直接改 NAS LATEST。"
+}
