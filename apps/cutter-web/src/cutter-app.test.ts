@@ -78,6 +78,7 @@ import {
   cutterLocalCacheSnapshot,
   cutterDeviceNameFromNavigator,
   desktopWorkspaceConfigError,
+  workspacePathsEquivalent,
   formatCutterCacheSize,
   hasCompleteDesktopConfig,
   loginGateStatusFromApplication,
@@ -5187,6 +5188,12 @@ test("cache management separators come from foundation border tokens", async () 
   assert.doesNotMatch(cacheCss, /\.cutter-cache-inspector h3\s*{/);
   assert.doesNotMatch(cacheCss, /\.cutter-cache-inspector p\s*{/);
   assert.match(foundationCss, /\.ml-detail-section\s*{[^}]*border-bottom:\s*1px solid var\(--ml-border-subtle\)/s);
+});
+
+test("workspace path comparison treats trailing separators and case as equivalent", () => {
+  assert.equal(workspacePathsEquivalent(String.raw`C:\Users\ASUS\Videos\MixLabLocal`, String.raw`c:\users\asus\videos\mixlablocal\\`), true);
+  assert.equal(workspacePathsEquivalent(String.raw`C:\Videos`, String.raw`D:\Videos`), false);
+  assert.equal(workspacePathsEquivalent("", String.raw`D:\Videos`), false);
 });
 
 test("settings surfaces pending workspace address and engine path before export", () => {
