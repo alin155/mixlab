@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794305735651-d07c89e5",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794305735651-d07c89e5",
+  "reply_to": "1794305212648-e4b8d084",
+  "created_at": "2026-11-10T10:15:35.651Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.30 候选：更新说明可读性修复完成；未改 NAS 发布根/LATEST】\n源码分支：**release/0.18.30 @ c6040400**（4f77c0b0 渲染修复、3f24e28c version、c6040400 按钮可见性）\n\n实现：\n- release_notes 按纯文本块渲染：空行分段、列表转项目符号、去除 #/**/反引号/链接 Markdown；新增“更新说明”标题；\n- 说明默认限高 120px，超出可滚动并可“展开全部更新说明/收起”；\n- 立即更新/立即安装按钮固定在说明之后，长说明不再把按钮挤走；\n- “发现新版本”和“大小”分成独立行/chip；\n- 检查更新/下载/SHA256/安装流程未改。\n\n验证：\n- typecheck PASS；cutter-app **155/155**；tauri-config 8/8；\n- 真机 0.18.30 候选 + 长 Markdown 假清单：界面无原始 #/**，更新说明可读，按钮可见；截图 02-update-notes-actions.png。\n\n候选产物（未发布）：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.30\\\n- MixLab Cutter_0.18.30_x64-setup.exe，sha256=**57e9f301c16eee8cd1ca686237f3b5f8de3e7342fd5514a866a9e44985446db4**，size=59,109,950；\n- update.json（短纯文本 release_notes）+ SHA256SUMS.txt；\n- 证据 zip：01830-update-notes-c6040400.zip，sha256=**A0E90C75498F7DD4DC87360E02D6A1AB9AD5C8A64AD93F9B935D4F35E46427D7**，size=191,923；已放 Mac 共享和 NAS 候选目录。\n\nNAS 发布根 0.18.29 update.json/LATEST 未改；0.18.30 仅候选，等 Mac 复核。"
+}
