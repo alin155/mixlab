@@ -81,6 +81,8 @@ import {
   cutterDeviceNameFromNavigator,
   desktopWorkspaceConfigError,
   workspacePathsEquivalent,
+  RepairToolEntry,
+  shouldAutoLaunchRepairTool,
   formatCutterCacheSize,
   hasCompleteDesktopConfig,
   loginGateStatusFromApplication,
@@ -5227,6 +5229,39 @@ test("cache management separators come from foundation border tokens", async () 
   assert.doesNotMatch(cacheCss, /\.cutter-cache-inspector h3\s*{/);
   assert.doesNotMatch(cacheCss, /\.cutter-cache-inspector p\s*{/);
   assert.match(foundationCss, /\.ml-detail-section\s*{[^}]*border-bottom:\s*1px solid var\(--ml-border-subtle\)/s);
+});
+
+test("repair entry auto-launch eligibility covers loading, stuck, and first-config states", () => {
+  const base = {
+    desktopAvailable: true,
+    configComplete: true,
+    loginGateVisible: false,
+    stage: "ready" as const,
+    dataLoaded: false
+  };
+  assert.equal(shouldAutoLaunchRepairTool(base), true);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, dataLoaded: true }), false);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, stage: "choose-workspace" }), false);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, stage: "choose-public-library" }), false);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, configComplete: false }), false);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, loginGateVisible: true }), false);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, stage: "engine-starting" }), true);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, stage: "doctor-failed" }), true);
+  assert.equal(shouldAutoLaunchRepairTool({ ...base, desktopAvailable: false }), false);
+});
+
+test("repair entry renders a fixed manual entry with countdown and notice", () => {
+  const html = renderToStaticMarkup(
+    h(RepairToolEntry, {
+      countdown: 42,
+      notice: "正在启动修复工具…",
+      launching: false,
+      onLaunch: () => undefined
+    })
+  );
+  assert.match(html, /无法加载？启动修复工具/u);
+  assert.match(html, /42 秒后自动启动修复工具/u);
+  assert.match(html, /正在启动修复工具/u);
 });
 
 test("workspace path comparison treats trailing separators and case as equivalent", () => {

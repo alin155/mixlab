@@ -84,6 +84,24 @@ export function createWindowsDesktopPackagePlan(
       cwd: repoRoot
     },
     {
+      label: "build repair tool",
+      command: "powershell",
+      args: [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        path.join(repoRoot, "apps/cutter-desktop/repair-tool/build.ps1")
+      ],
+      cwd: repoRoot
+    },
+    {
+      label: "prepare repair tool resource",
+      command: "node",
+      args: [path.join(repoRoot, "apps/cutter-desktop/repair-tool/prepare-resource.mjs")],
+      cwd: repoRoot
+    },
+    {
       label: "verify Windows runtime assets",
       command: "npm",
       args: ["run", "verify:cutter-desktop:windows-assets"],

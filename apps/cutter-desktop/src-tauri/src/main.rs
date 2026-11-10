@@ -44,6 +44,7 @@ const SEARCHD_API_TIMEOUT_MS: &str = "20000";
 static FEEDBACK_UPLOAD_LOCK: Mutex<()> = Mutex::new(());
 
 const UPDATE_MANIFEST_ENV: &str = "MIXLAB_CUTTER_UPDATE_MANIFEST";
+const REPAIR_TOOL_EXECUTABLE_NAME: &str = "MixLab Cutter 修复工具.exe";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct UpdateManifest {
@@ -1448,6 +1449,41 @@ fn windows_explorer_path() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("explorer.exe"))
 }
 
+#[tauri::command]
+fn desktop_launch_repair_tool(app: AppHandle, source: Option<String>) -> Result<String, String> {
+    let launch_source = source.unwrap_or_else(|| "manual".to_string());
+    if launch_source != "manual" && launch_source != "auto" {
+        return Err("无效的修复工具启动来源".to_string());
+    }
+
+    let candidates = bundled_binary_path_candidates(&app, REPAIR_TOOL_EXECUTABLE_NAME);
+    let repair_tool = candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+        .ok_or_else(|| "修复工具未安装，请联系管理员".to_string())?;
+
+    let mut command = Command::new(&repair_tool);
+    if let Some(parent) = repair_tool.parent() {
+        command.current_dir(parent);
+    }
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    command
+        .spawn()
+        .map_err(|error| format!("启动修复工具失败：{error}"))?;
+
+    desktop_host_log(
+        &app,
+        "repair_tool_launched",
+        json!({
+            "source": launch_source,
+            "path": repair_tool.display().to_string()
+        }),
+    );
+    Ok(repair_tool.display().to_string())
+}
+
 #[tauri::command(rename_all = "camelCase")]
 fn desktop_open_directory(app: AppHandle, path_value: String) -> Result<(), String> {
     let trimmed = path_value.trim();
@@ -1944,6 +1980,7 @@ fn main() {
             desktop_run_doctor,
             desktop_start_engine,
             desktop_open_directory,
+            desktop_launch_repair_tool,
             desktop_check_update,
             desktop_download_update,
             desktop_install_update,

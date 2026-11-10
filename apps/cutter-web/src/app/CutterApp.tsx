@@ -269,6 +269,7 @@ import {
   defaultDesktopWorkspaceRoot,
   desktopConfigPath,
   desktopLogDirectory,
+  launchDesktopRepairTool,
   openDesktopDirectory,
   openDesktopFileLocation,
   readDesktopConfig,
@@ -1873,6 +1874,67 @@ function renderPage(
   );
 }
 
+export interface AutoLaunchRepairToolInput {
+  desktopAvailable: boolean;
+  configComplete: boolean;
+  loginGateVisible: boolean;
+  stage: DesktopSetupStage;
+  dataLoaded: boolean;
+}
+
+export function shouldAutoLaunchRepairTool(input: AutoLaunchRepairToolInput): boolean {
+  if (!input.desktopAvailable || !input.configComplete || input.loginGateVisible) {
+    return false;
+  }
+  if (input.stage === "loading" || input.stage === "choose-public-library" || input.stage === "choose-workspace") {
+    return false;
+  }
+  if (input.stage === "ready" && input.dataLoaded) {
+    return false;
+  }
+  return (
+    input.stage === "ready" ||
+    input.stage === "doctor-ready" ||
+    input.stage === "doctor-running" ||
+    input.stage === "doctor-failed" ||
+    input.stage === "engine-starting"
+  );
+}
+
+export function RepairToolEntry({
+  countdown,
+  notice,
+  launching,
+  onLaunch
+}: {
+  countdown: number | null;
+  notice: string;
+  launching: boolean;
+  onLaunch: () => void;
+}) {
+  return (
+    <aside className="cutter-repair-entry" aria-label="加载故障恢复">
+      <div className="cutter-repair-entry-card">
+        <strong>无法加载？启动修复工具</strong>
+        <p>本机引擎卡住时，修复工具可独立排查、重启引擎并把诊断提交给管理员。</p>
+        {countdown !== null ? (
+          <p className="cutter-repair-entry-countdown" role="status">
+            {countdown} 秒后自动启动修复工具
+          </p>
+        ) : null}
+        <Button disabled={launching} onClick={onLaunch} size="sm" type="button" variant="primary">
+          {launching ? "正在启动…" : "无法加载？启动修复工具"}
+        </Button>
+        {notice ? (
+          <p className="cutter-repair-entry-notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 export function CutterApp() {
   const desktopEnvironment = useMemo(() => resolveDesktopBridgeEnvironment(), []);
   const isDesktopMode = desktopEnvironment.desktop_available;
@@ -1979,6 +2041,11 @@ export function CutterApp() {
   const [workspaceConfigNotice, setWorkspaceConfigNotice] = useState("");
   const [workspaceConfigPending, setWorkspaceConfigPending] = useState(false);
   const [workspaceConfigApplying, setWorkspaceConfigApplying] = useState(false);
+  const [repairToolNotice, setRepairToolNotice] = useState("");
+  const [repairAutoCountdown, setRepairAutoCountdown] = useState<number | null>(null);
+  const [repairToolLaunching, setRepairToolLaunching] = useState(false);
+  const repairAutoLaunchedRef = useRef(false);
+  const repairLaunchInFlightRef = useRef(false);
   const [hasSubmittedCutJobs, setHasSubmittedCutJobs] = useState(false);
   const [lastQueueUpdatedLabel, setLastQueueUpdatedLabel] = useState("");
   const [appearanceMode, setAppearanceMode] = useState<CutterAppearanceMode>(() =>
@@ -3806,6 +3873,33 @@ export function CutterApp() {
     }
   };
 
+  async function handleLaunchRepairTool(source: "manual" | "auto") {
+    if (repairLaunchInFlightRef.current) {
+      return;
+    }
+    if (source === "auto") {
+      if (repairAutoLaunchedRef.current) {
+        return;
+      }
+      repairAutoLaunchedRef.current = true;
+    } else {
+      repairAutoLaunchedRef.current = true;
+    }
+    repairLaunchInFlightRef.current = true;
+    setRepairToolLaunching(true);
+    setRepairAutoCountdown(null);
+    setRepairToolNotice(source === "auto" ? "加载超时，正在启动修复工具…" : "正在启动修复工具…");
+    try {
+      await launchDesktopRepairTool(source);
+      setRepairToolNotice("修复工具已启动，请在新窗口完成诊断/修复。");
+    } catch (repairError) {
+      setRepairToolNotice(repairError instanceof Error ? repairError.message : "启动修复工具失败");
+    } finally {
+      setRepairToolLaunching(false);
+      repairLaunchInFlightRef.current = false;
+    }
+  }
+
   const handleLoadMoreSourceLibrary = useCallback(async () => {
     const currentData = dataRef.current;
     if (!currentData || sourceLibraryLoadingMore) {
@@ -4944,9 +5038,56 @@ export function CutterApp() {
   const verificationUiEnabled = cutVerificationUiEnabled(capabilities);
   const releaseV2UiEnabledFlag = releaseV2UiEnabled(capabilities);
 
+  const repairAutoEligible = shouldAutoLaunchRepairTool({
+    desktopAvailable: isDesktopMode,
+    configComplete: hasCompleteDesktopConfig(desktopConfig),
+    loginGateVisible,
+    stage: desktopStage,
+    dataLoaded: Boolean(data)
+  });
+
+  useEffect(() => {
+    if (!repairAutoEligible) {
+      setRepairAutoCountdown(null);
+      return;
+    }
+    if (repairAutoLaunchedRef.current || repairLaunchInFlightRef.current) {
+      return;
+    }
+    let remaining = 45;
+    setRepairAutoCountdown(remaining);
+    const timer = window.setInterval(() => {
+      if (repairAutoLaunchedRef.current || repairLaunchInFlightRef.current) {
+        window.clearInterval(timer);
+        setRepairAutoCountdown(null);
+        return;
+      }
+      remaining -= 1;
+      if (remaining <= 0) {
+        window.clearInterval(timer);
+        setRepairAutoCountdown(null);
+        repairAutoLaunchedRef.current = true;
+        void handleLaunchRepairTool("auto");
+      } else {
+        setRepairAutoCountdown(remaining);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [repairAutoEligible]);
+
+  const repairEntry = isDesktopMode ? (
+    <RepairToolEntry
+      countdown={repairAutoCountdown}
+      launching={repairToolLaunching}
+      notice={repairToolNotice}
+      onLaunch={() => void handleLaunchRepairTool("manual")}
+    />
+  ) : null;
+
   if (isDesktopMode && desktopStage !== "ready") {
     if (desktopAutoStarting && desktopStage === "engine-starting") {
       return (
+        <>
         <main className="cutter-app ml-theme-cutter" data-appearance-mode={appearanceMode}>
           <AppShell
             ariaLabel="MixLab 剪辑端导航"
@@ -4968,10 +5109,13 @@ export function CutterApp() {
             </section>
           </AppShell>
         </main>
+        {repairEntry}
+        </>
       );
     }
 
     return (
+      <>
       <DesktopFirstRunPage
         config={desktopConfig}
         stage={desktopStage}
@@ -4985,6 +5129,8 @@ export function CutterApp() {
         onCopyDiagnostics={handleCopyDesktopDiagnostics}
         onOpenLogDirectory={handleOpenDesktopLogDirectory}
       />
+      {repairEntry}
+      </>
     );
   }
 
@@ -5234,14 +5380,17 @@ export function CutterApp() {
   );
 
   return (
-    <CutterLoginGate
-      status={loginStatus}
-      message={loginMessage || undefined}
-      deviceName={cutterDeviceName()}
-      onLogin={handleLoginAccount}
-      onRegister={handleRegisterAccount}
-    >
-      {workbench}
-    </CutterLoginGate>
+    <>
+      <CutterLoginGate
+        status={loginStatus}
+        message={loginMessage || undefined}
+        deviceName={cutterDeviceName()}
+        onLogin={handleLoginAccount}
+        onRegister={handleRegisterAccount}
+      >
+        {workbench}
+      </CutterLoginGate>
+      {repairEntry}
+    </>
   );
 }

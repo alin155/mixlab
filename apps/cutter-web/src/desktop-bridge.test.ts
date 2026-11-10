@@ -5,6 +5,7 @@ import {
   desktopAppVersion,
   downloadDesktopUpdate,
   installDesktopUpdate,
+  launchDesktopRepairTool,
   openDesktopDirectory,
   resolveDesktopBridgeEnvironment,
   resolveRuntimeApiBaseUrl,
@@ -213,3 +214,17 @@ test("desktop update commands delegate to native host", async () => {
   assert.equal((calls[2] as { command: string }).command, "desktop_install_update");
   assert.deepEqual((calls[2] as { args: Record<string, unknown> }).args, { installerPath: downloaded, expectedSha256: "abc" });
 });
+
+test("desktop bridge launches the bundled repair tool as a separate process", async () => {
+  const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+  const path = await launchDesktopRepairTool("manual", {
+    invoke_fn: async <T>(command: string, args?: Record<string, unknown>) => {
+      calls.push({ command, args });
+      return String.raw`C:\Program Files\MixLab Cutter\binaries\MixLab Cutter 修复工具.exe` as T;
+    }
+  });
+  assert.equal(calls[0]?.command, "desktop_launch_repair_tool");
+  assert.deepEqual(calls[0]?.args, { source: "manual" });
+  assert.match(path, /MixLab Cutter 修复工具\.exe$/u);
+});
+

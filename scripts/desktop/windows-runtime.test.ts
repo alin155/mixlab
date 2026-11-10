@@ -232,6 +232,24 @@ test("Windows desktop package plan runs the required build steps in order", () =
       cwd: "/repo"
     },
     {
+      label: "build repair tool",
+      command: "powershell",
+      args: [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        path.join("/repo", "apps/cutter-desktop/repair-tool/build.ps1")
+      ],
+      cwd: "/repo"
+    },
+    {
+      label: "prepare repair tool resource",
+      command: "node",
+      args: [path.join("/repo", "apps/cutter-desktop/repair-tool/prepare-resource.mjs")],
+      cwd: "/repo"
+    },
+    {
       label: "verify Windows runtime assets",
       command: "npm",
       args: ["run", "verify:cutter-desktop:windows-assets"],
@@ -284,6 +302,8 @@ test("Windows desktop packaging executes all plan steps on Windows", async () =>
     "npm.cmd run build:sidecar -w @mixlab/cutter-desktop",
     "npm.cmd run build:searchd -w @mixlab/cutter-desktop",
     "npm.cmd run prepare:cutter-desktop:windows-assets",
+    `powershell -NoProfile -ExecutionPolicy Bypass -File ${path.join("/repo", "apps/cutter-desktop/repair-tool/build.ps1")}`,
+    `node ${path.join("/repo", "apps/cutter-desktop/repair-tool/prepare-resource.mjs")}`,
     "npm.cmd run verify:cutter-desktop:windows-assets",
     "npm.cmd run tauri:build -w @mixlab/cutter-desktop"
   ]);

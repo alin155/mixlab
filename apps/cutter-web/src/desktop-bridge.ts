@@ -138,6 +138,13 @@ function resolveDesktopInvoke(options?: DesktopNativeCommandOptions): DesktopNat
   return options?.invoke_fn ?? invokeDesktopCommand;
 }
 
+export async function launchDesktopRepairTool(
+  source: "manual" | "auto" = "manual",
+  options?: DesktopNativeCommandOptions
+): Promise<string> {
+  return resolveDesktopInvoke(options)<string>("desktop_launch_repair_tool", { source });
+}
+
 export async function chooseDesktopDirectory(title: string): Promise<string | null> {
   if (!resolveDesktopBridgeEnvironment().desktop_available) {
     return null;

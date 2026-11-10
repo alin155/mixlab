@@ -2717,3 +2717,41 @@ body,
   font-size: 13px;
   line-height: 20px;
 }
+
+.cutter-repair-entry {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+  width: min(360px, calc(100vw - 48px));
+}
+
+.cutter-repair-entry-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--ml-color-border);
+  border-radius: var(--ml-radius-md);
+  background: var(--ml-color-surface);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.cutter-repair-entry-card strong {
+  font-size: 14px;
+}
+
+.cutter-repair-entry-card p {
+  margin: 0;
+  color: var(--ml-color-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.cutter-repair-entry-countdown {
+  color: var(--ml-color-warning, #f2b84b) !important;
+  font-weight: 650;
+}
+
+.cutter-repair-entry-notice {
+  color: var(--ml-color-accent, #4ea3ff) !important;
+}
