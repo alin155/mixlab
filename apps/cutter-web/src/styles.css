@@ -2520,10 +2520,62 @@ body,
   border-radius: var(--ml-radius-md);
   background: var(--ml-color-surface-subtle);
 }
+.cutter-update-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+}
+.cutter-update-heading strong {
+  font-size: 15px;
+}
+.cutter-update-size {
+  color: var(--ml-color-text-tertiary);
+  font-size: 13px;
+}
 .cutter-update-available p {
   margin: 0;
   color: var(--ml-color-text-secondary);
   line-height: 1.6;
+  white-space: pre-line;
+}
+.cutter-update-notes-section {
+  display: grid;
+  gap: 6px;
+}
+.cutter-update-notes-title {
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+.cutter-update-notes {
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 6px;
+  color: var(--ml-color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cutter-update-notes.is-expanded {
+  max-height: none;
+  overflow: visible;
+}
+.cutter-update-notes p {
+  margin: 0 0 8px;
+  white-space: pre-line;
+}
+.cutter-update-notes ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.cutter-update-notes li {
+  margin: 2px 0;
+}
+.cutter-update-notes-toggle {
+  justify-self: flex-start;
+  padding: 0;
+  color: var(--ml-color-accent, #4ea3ff);
+  font-size: 13px;
 }
 .cutter-update-actions {
   display: flex;

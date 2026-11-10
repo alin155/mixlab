@@ -30,6 +30,7 @@ import {
 } from "./features/local-library/LocalLibraryPage.tsx";
 import { CutQueuePage } from "./features/cut-queue/CutQueuePage.tsx";
 import { SettingsPage } from "./features/settings/SettingsPage.tsx";
+import { stripUpdateMarkdown, updateNoteBlocks, updateNotesNeedToggle } from "./features/settings/SoftwareUpdateCard.tsx";
 import {
   CacheManagementPage,
   cacheClearPreviewText,
@@ -5232,6 +5233,30 @@ test("workspace path comparison treats trailing separators and case as equivalen
   assert.equal(workspacePathsEquivalent(String.raw`C:\Users\ASUS\Videos\MixLabLocal`, String.raw`c:\users\asus\videos\mixlablocal\\`), true);
   assert.equal(workspacePathsEquivalent(String.raw`C:\Videos`, String.raw`D:\Videos`), false);
   assert.equal(workspacePathsEquivalent("", String.raw`D:\Videos`), false);
+});
+
+test("update notes render as clean paragraphs and lists without markdown markers", () => {
+  const notes = [
+    "# 0.18.30",
+    "",
+    "- **盘符根**任务不再卡住",
+    "- 设置页支持立即应用",
+    "",
+    "详细说明见 [发布文档](https://example.invalid/release)。"
+  ].join("\n");
+  const blocks = updateNoteBlocks(notes);
+  assert.deepEqual(blocks[0], { kind: "paragraph", text: "0.18.30" });
+  assert.deepEqual(blocks[1], { kind: "list", items: ["盘符根任务不再卡住", "设置页支持立即应用"] });
+  assert.deepEqual(blocks[2], { kind: "paragraph", text: "详细说明见 发布文档。" });
+  assert.equal(stripUpdateMarkdown("## 标题 **粗体** `代码`"), "标题 粗体 代码");
+  const visibleText = blocks.map((block) => block.kind === "list" ? block.items.join(" ") : block.text).join(" ");
+  assert.doesNotMatch(visibleText, /[#*\[\]`]/u);
+});
+
+test("update notes expand control appears only for long release notes", () => {
+  assert.equal(updateNotesNeedToggle("短说明\n第二行"), false);
+  const longNotes = Array.from({ length: 12 }, (_, index) => `- 第 ${index + 1} 条修复说明`).join("\n");
+  assert.equal(updateNotesNeedToggle(longNotes), true);
 });
 
 test("settings surfaces pending workspace address and engine path before export", () => {
