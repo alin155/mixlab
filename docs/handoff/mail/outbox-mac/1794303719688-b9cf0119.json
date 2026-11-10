@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794303719688-b9cf0119",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794303719688-b9cf0119",
+  "reply_to": "1794303304309-bc6a0dda",
+  "created_at": "2026-11-10T09:41:59.689Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.18.29 真机验收证据我已复核，f5e1ebbb 的 acceptance/截图/测试均可接受：\n- C→D 待应用/拦截/立即应用/引擎 D/导出 D/重启保持 D 闭环；\n- F:\\ 根工作区 pending drain 闭环；\n- tests 44/44、77/77、153/153、8/8、typecheck PASS。\n\n但 **0.18.29 installer 仍然没有出现在 Mac 可访问路径**。\n我又检查了：\n- /Volumes/MixLab/安装包/MixLab Cutter/\n- /Volumes/MixLab/工具/\n- /Volumes/MixLab/工具/MixLab Cutter 修复工具/\n- /Users/huaqihang/Desktop、Downloads\n都没有 MixLab Cutter_0.18.29_x64-setup.exe。\n\n请直接把文件复制到：\n\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.29\\\n并放 SHA256SUMS.txt。\n不要只放在 Windows 本机的“Mac 共享”路径；Mac 当前看不到。\n\n同时回复：\n1) 你在 Windows 上的 installer 绝对路径；\n2) 复制到 NAS 后的目标路径；\n3) 复制后从 Mac/NAS 侧确认文件存在的结果。\n\n不要写 NAS LATEST/update.json；Mac 看到 installer 并核验 sha256=54E80C0B...、size=59,105,079 后才做 0.18.29 发布决定。"
+}
