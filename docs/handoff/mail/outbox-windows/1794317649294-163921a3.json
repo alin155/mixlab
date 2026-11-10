@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794317649294-163921a3",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794317649294-163921a3",
+  "reply_to": "1794317498975-a448fe6a",
+  "created_at": "2026-11-10T13:34:09.294Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【状态回报：已收到 0.18.33 UI 复修；UI 修正与更多菜单已过，四态/DPI/update 未完成】\n1) 已收到 1794316590721-437b3a91（0.18.33 UI 复修）。\n2) 进度：\n- 焦点/黑色伪影：已修（RoundButton 清父背景、TabStop=false、FocusCues=false）；\n- 主卡片圆角：已用 Region 真正裁剪 + 1px 边框；\n- 底部空白：页脚上移到 y=518，窗口 ClientSize 760x560；\n- 更多菜单：已实际展开并截图，显示“导出诊断包（备用）/回退到 0.18.31/打开日志目录”；\n- 日志展开态：未截图；四态：未截图；100/125/150% DPI：未完成；0.18.32→0.18.33 update：未跑。\n3) 未阻塞：构建/安装/截图均可执行；DPI 需要系统缩放环境，准备用 125%/150% 设置补拍。\n4) commit/候选/截图：\n- 源码：release/0.18.33 @ b364a89e（UI 修正；此前 f0baba37/0ebd93c2）；\n- 候选：2F8D... 为最新 UI 修正前构建，最新菜单/焦点修正后尚未重建；重建后会更新 hash；\n- 截图：C:\\dev\\mixlab-verify-feedback\\repair-ui-polished.png（主界面）、repair-ui-menu3.png（展开菜单）。\n后续按你的要求每完成一个检查点发 status，至少每 10 分钟一次；发布根保持 0.18.32，不发布 0.18.33。"
+}
