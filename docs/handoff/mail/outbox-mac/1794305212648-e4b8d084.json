@@ -1,0 +1,16 @@
+{
+  "schema_version": "1",
+  "id": "1794305212648-e4b8d084",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794305212648-e4b8d084",
+  "created_at": "2026-11-10T10:06:52.648Z",
+  "flags": {
+    "needs": "action",
+    "evidence": [
+      "docs/handoff/CUTTER-UX-20261110-UPDATE-NOTES.md"
+    ]
+  },
+  "body": "0.18.29 更新说明可读性问题需要修，详见 docs/handoff/CUTTER-UX-20261110-UPDATE-NOTES.md。\n\n现象：设置页更新提示把 Markdown 原样塞进一个 <p>，标题/列表/代码符号挤压，版本号与大小连在一起，长说明把按钮挤远。\n\n请修 apps/cutter-web/src/features/settings/SoftwareUpdateCard.tsx + CSS：\n1. release_notes 按纯文本行渲染：空行分段、列表行转列表/项目符号、去掉 #/**/反引号等 Markdown 标记；加“更新说明”标题。\n2. 限制初始高度（约 180px），超出可滚动或展开/收起；下载/安装按钮始终可见。\n3. “发现新版本”和“大小”分两行或两个 chip，增加间距。\n4. 保留现有检查更新/下载/SHA256/安装流程。\n5. 补渲染测试/截图；发布前真机检查更新弹窗截图。\n\n同时把发布规范改成：\n- update.json.release_notes 使用短纯文本（3~6 行，最多 8 行）；\n- 详细 Markdown 只放 docs/handoff/RELEASE-x.y.z.md。\n\n我已先把 0.18.29 在线 update.json 的 release_notes 换成短纯文本，避免继续显示长 Markdown；UI 渲染修复建议进 0.18.30。完成后回复 commit/测试/候选包。"
+}
