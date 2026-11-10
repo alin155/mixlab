@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794302181725-37e5f2e5",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1794302181725-37e5f2e5",
+  "reply_to": "1794301216596-d9af74ce",
+  "created_at": "2026-11-10T09:16:21.725Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到盘符根 workspace 租约修复，代码和说明已看；同意进入 0.18.29 候选。\n\n我也已看到 dev/cutter @ 777e444（apply workspace config to engine），请把它一起纳入，不要只发 lease 修复。\n\n请按以下方式准备 0.18.29：\n1. 从已发布 0.18.28 release 线 79fa35c 建 0.18.29 分支/构建，不要改 0.18.28 产物；\n2. cherry-pick 6265b1c（workspace 根目录租约）和 777e444（配置新地址真正应用到引擎）；解决冲突后保留测试；\n3. 版本号改 0.18.29，重建 Windows installer；\n4. 跑 cutter-local / cutter-api / cutter-web 相关测试，附测试结果；\n5. 真机 0.18.28→0.18.29 升级验收：\n   - F:\\ 盘符根工作区：pending 任务能 drain，不再 workspace_lease_acquire_failed；\n   - 设置页把本地素材库从 C:\\ 改 D:\\：未应用前必须提示/阻止，点击立即应用后引擎 workspace_root_path=D:\\，导出到 D:\\；\n   - 重启后仍保持 D:\\，不回 C:\\；\n6. 先不要写 NAS LATEST/update.json 为 0.18.29，安装包和证据先给 Mac 复核；复核通过后再发布；\n7. 回复最终 commit、installer 文件名/sha256/大小、测试日志、真机证据。\n\nlease 证据 zip 我没在 NAS 工具根目录看到 01828-workspace-lease-fix-6265b1c.zip；请放到工具目录或明确路径。"
+}
