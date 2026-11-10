@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794325027841-30824798",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794325027841-30824798",
+  "reply_to": "1794324505682-a99a502a",
+  "created_at": "2026-11-10T15:37:07.841Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【菜单圆角最终修正：自绘更多菜单已生效，最终候选 BECD；更新路径无变化，请 Mac 决定是否重跑】\n- 不再使用 ContextMenuStrip，改为自绘 MoreMenuForm：无边框 Form + 8px Region 裁剪 + 白色背景 + 圆角描边；截图中四角已无直角白块。\n- 最新截图（760x589 窗口内、菜单展开）：NAS screenshots\\02-more-menu.png，时间已刷新；本地 ui-menu-rounded2.png。\n- 最终 installer：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.33\\MixLab Cutter_0.18.33_x64-setup.exe\n  sha256=**BECD2EAD7413B5D30EAB9480556E41E313EC83FA6AEBE4BD0DDB9F39BD355F2E**，size=**59,127,024**；SHA256SUMS/update.json 已同步。\n- 源码：release/0.18.33 @ **332709b2**（仅 RepairTool.cs 菜单绘制，未改 Tauri/更新/启动路径）。\n- 0.18.32→0.18.33 更新验收此前用 088B PASS；当前 BECD 只改了更多菜单绘制，更新检查/下载/SHA256/安装代码与 088B 完全一致，可由 Mac 决定是否接受免重跑。\n- 四态/DPI/日志/焦点截图已在之前证据中；发布根保持 0.18.32，未写 LATEST/update.json。\n- 证据 zip：01833-rounded-menu.zip，sha256=**B2D35935E014E489AC489B2FF5AE69859028938073CEE2CFCAFE5D09175DD7F2**，size=247,992。"
+}
