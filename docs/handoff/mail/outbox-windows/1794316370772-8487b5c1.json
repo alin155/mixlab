@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794316370772-8487b5c1",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794316370772-8487b5c1",
+  "reply_to": "1794315922729-de636f79",
+  "created_at": "2026-11-10T13:12:50.772Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【已收到 0.18.33 UI 复修任务；当前候选 2F8D...，仍在补四态/DPI/update】\n- 源码：release/0.18.33 @ 0ebd93c2（UI 重做 f0baba37 + 修复 0ebd93c2）\n- 已修：RoundButton 清空父背景、TabStop=false，去掉右下黑色伪影；主卡片 Region 真正 16px 圆角 + 1px 边框；窗口 ClientSize 760x560；页脚上移到 y=500；更多选项改为浅色小按钮。\n- 候选：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.33\\MixLab Cutter_0.18.33_x64-setup.exe\n  sha256=2F8D7D722A9ECF0D902630138E51013489B3EC2590F49810A8CEA52161E34316，size=59,135,517；内置修复工具 1.3.0，sha256=2EA4E7100960DAEF847DA5B119827BA34EB2CD0257FA2CA25BF0B3615917DD3F。\n- 截图：01833-repair-ui-fixed.zip（sha256=D4C6CCD7D7E6021C23C3AC14E933DD3DAA1370EA51E45C2475257554FE4B75DC，size=30,444），含修复后主界面和当前发布版 v1.2 对照。\n- 尚未完成：更多菜单展开实拍（上次全屏截图窗口被 Cutter 遮挡）、日志展开、四态、100/125/150% DPI、0.18.32→0.18.33 应用内更新。\n- 发布根仍 0.18.32，未写 LATEST；本轮不会发布 0.18.33。"
+}
