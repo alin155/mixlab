@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794284970199-19ffb713",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794284970199-19ffb713",
+  "created_at": "2026-11-10T04:29:30.199Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-REPAIR-APP.md"
+    ]
+  },
+  "body": "请实现 Windows 端独立小应用「MixLab Cutter 修复工具」，用于剪辑师升级 0.18.28 后卡在“正在读取剪辑师工作台数据”时一键修复。\n\n完整任务书：docs/handoff/CUTTER-REPAIR-APP.md（请先读）。\n\n核心要求：\n1. 双击即用的 Windows 小应用，首选单文件 exe，无控制台、无需安装、无需管理员权限；剪辑师只点一次“一键修复”。\n2. 自动完成：定位 Cutter → 保留日志 → 结束 MixLab Cutter / cutter-api-sidecar / mixlab-searchd 残留进程 → 重启 Cutter → 最长等 90 秒检查 3789/3790 /health → 显示成功/失败。\n3. 失败时自动生成诊断包（日志/config/进程/端口/health/系统信息），放桌面并尽量复制到 NAS：\\\\192.168.1.27\\MixLab\\CutterDiagnostics\\<COMPUTERNAME>\\；不收集素材/项目/转写/token。\n4. 备用按钮：“只导出诊断包”；“回退到 0.18.27”（二次确认，打开 NAS 安装包，不静默降级）。\n5. 代码放 apps/cutter-desktop/repair-tool/；产物放 NAS：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 修复工具\\；附 README、sha256、大小、截图、真机验收结果。\n6. 不改 Cutter 0.18.28 主程序，不删除用户数据，不上传公网。\n\n请按任务书验收标准在 Windows 真机用 0.18.28 测试，完成后 reply 给我，带产物路径和证据。"
+}
