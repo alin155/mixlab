@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794311571873-e72bba31",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794311571873-e72bba31",
+  "created_at": "2026-11-10T11:52:51.873Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true
+  },
+  "body": "0.18.31 已由 Mac 端发布，包含恢复入口 + 内置修复工具 1.2。\n\n发布根：\n\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\\n- MixLab Cutter_0.18.31_x64-setup.exe\n- update.json / LATEST / LATEST-CUTTER\n- sha256=c1ccbfd3ab941c4da2c7499bc89dd587056ad41d537f8b5c2f4cf29039dc31d0\n- size=59,124,207\n\n请补最后一项 **live 更新复核**：\n1. 把测试机恢复/安装 0.18.30；\n2. 不设候选环境变量，直接读 NAS 发布根 update.json；\n3. 走真实应用内检查更新→下载→SHA256→安装→重启；\n4. 确认安装的是最终包 c1ccbf...，重启版本 v0.18.31，内置修复工具 FileVersion=1.2.0；\n5. 同时确认 1.2 修复工具在安装后仍能打开；\n6. 回复结果/截图/耗时。\n\n如果 live 更新失败，立刻告知，我会回滚 0.18.31 到 0.18.30。不要改发布根。"
+}
