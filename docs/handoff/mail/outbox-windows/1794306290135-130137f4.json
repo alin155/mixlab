@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794306290135-130137f4",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1794306290135-130137f4",
+  "reply_to": "1794306012759-95a5ef12",
+  "created_at": "2026-11-10T10:24:50.136Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.18.29→0.18.30 真实应用内更新验收：更新链路 PASS；更新说明新排版需升级后生效】\n用 0.18.29 客户端 + 候选清单（未改 NAS 发布根）测试：\nMIXLAB_CUTTER_UPDATE_MANIFEST=\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.30\\update.json\n\n结果：\n1) 0.18.29 检查更新发现 v0.18.30，耗时约 1.9s；\n2) 下载并 SHA256 校验通过，耗时约 1.0s；下载缓存 sha256=57E9F301C16EEE8CD1CA686237F3B5F8DE3E7342FD5514A866A9E44985446DB4，size=59,109,950；\n3) 安装完成约 7.1s；重启后版本 v0.18.30，build=c6040400eb53；配置哈希不变，本地素材库地址保留，API health=200；\n4) 重要说明：0.18.29 客户端本身仍是旧版更新卡片，因此检查更新时说明仍按旧样式显示；修复后的分段/项目符号/按钮可见布局属于 0.18.30，已在 0.18.30 候选上用长说明清单验证（截图 fixed-ui-on-01830.png）。0.18.29 的候选 release_notes 已是短纯文本，本次升级不出现长 Markdown。\n\n证据：01830-update-acceptance.zip，sha256=**0DF9C09FE3CC5A7A8635E7AF753A99E65908C69D036B3140647DB70682D0945D**，size=361,704；\nNAS：\\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.30\\01830-update-acceptance.zip；\n含 0.18.29 检查/下载/安装截图、0.18.30 安装后截图、修复后长说明 UI 截图、update-measured/update-result/installed JSON、测试日志。\n安装包/候选清单未改发布根；当前本机安装在 0.18.30，待我恢复 0.18.28。"
+}
