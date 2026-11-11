@@ -1,0 +1,17 @@
+{
+  "schema_version": "1",
+  "id": "1794392418116-fe47ed72",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794392418116-fe47ed72",
+  "created_at": "2026-11-11T10:20:18.116Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true,
+    "evidence": [
+      "docs/handoff/CUTTER-NAS-SMB-READ-FAILURE.md"
+    ]
+  },
+  "body": "新增两条真实剪切失败反馈，请排查 NAS/UNC 读取问题（P1）：\n\n- FB-20261111-30439968 卢小兰 0.18.28：剪切 3 秒一直等待，job pending；\n- FB-20261111-59541048 肖锦森 0.18.31：老是剪辑失败，job running，前面有成功任务。\n\n共同日志：cutter_api_stream_file_failed，文件在 \\\\192.168.1.27\\MixLab\\PublicLibrary\\source-videos\\...，error=UNKNOWN: unknown error, read。Mac 侧 NAS ping/SMB/样例读取正常，怀疑 Windows SMB 会话/负载/大文件读取。\n\n请按 docs/handoff/CUTTER-NAS-SMB-READ-FAILURE.md：\n1. 对齐失败任务时间与 stream read 失败；\n2. 检查 Windows SMB 会话/事件日志；\n3. 对可重试 UNC 读取加有限重试/回退，并记录 source_video_id/range/error；\n4. 与已下发的 cut failure context 增强一起做；\n5. 回复是否确认环境问题、代码修复 commit/证据。\n\n不要直接发新版本，先给结论/候选。"
+}
