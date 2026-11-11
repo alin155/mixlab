@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1794387226093-cbc7f191",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794387226093-cbc7f191",
+  "created_at": "2026-11-11T08:53:46.094Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "请补一个反馈质量修复（P2）：剪辑失败反馈没有 error_code/error_message/verification checks，无法定位失败原因。\n\n证据：FB-20261111-24688204，阳慧，0.18.28；CJ20261111-0001/0002 copy 任务 status=failed、verification=failed、output_path 为空；context 只有 status/verification，没有错误原因。\n\n要求见 docs/handoff/CUTTER-FEEDBACK-CUT-FAILURE-DETAILS.md：\n- feedback.context.cut_tasks 增加 error_code/error_message/cut_mode_used/degrade_reason/verification checks/begin_ms/end_ms/source_video_id/source_title；\n- 只保留最近 3 个失败任务，控制包大小；\n- 补测试，不改变 schema_version；\n- 随下次 Cutter 版本发布，不单独发版。\n\n这对后续真实剪切失败排查是必需的；收到后回复计划/commit/测试。"
+}
