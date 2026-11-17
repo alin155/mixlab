@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794886346764-96679cb6",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794886346764-96679cb6",
+  "created_at": "2026-11-17T03:32:26.764Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true
+  },
+  "body": "新增 2 条真实修复工具专家介入（同一台机器，P1）：\n\n- FB-20261117-28157194 / FB-20261117-34792499\n- 用户：Jiao，机器 DESKTOP-9MOTOA6\n- 应用 0.18.33；Cutter 路径 E:\\M软件\\MixLab Cutter\n- 现象：workspace_lease_unavailable；active pid=38760；3789 health=200；3790 health=失败\n- desktop-host 日志显示 searchd 每次启动都 ready_timeout：attempt=60, elapsed=30088ms，PID 29284 占用 3790，但 health 不通过；之后 sidecar PID 38760 启动，修复工具检测到活跃 lease 后拒绝执行。\n- repair 操作日志：workspace_lease_active ok=False；diagnose 失败；需要管理员介入。\n\n这暴露两个问题：\n1. searchd 在 Jiao 机器上 30s 不 ready，但旧 searchd 仍占 3790；需要查 searchd 失败原因/日志（反馈包里没有 searchd 日志/stderr）。\n2. 修复工具把“活跃 lease”当成不可修复；但 3790 已不健康，说明 lease 实际无效。应在确认无活跃剪切任务后允许重启/安全清理，或至少提供明确的强制恢复入口，而不是把剪辑师卡死。\n\n请：\n- 在反馈包加入 searchd 日志/最后错误；\n- 修 1.3 对“活跃 lease + 3790 不健康”的分类与修复策略；\n- 排查 E:\\... 机器 searchd ready 超时的根因；\n- 先给结论/候选，不直接发版。"
+}
