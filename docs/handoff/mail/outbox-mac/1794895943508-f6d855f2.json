@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794895943508-f6d855f2",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794895943508-f6d855f2",
+  "created_at": "2026-11-17T06:12:23.509Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true
+  },
+  "body": "新增真实反馈 FB-20261117-82972664（P1，和 Jiao 的 searchd 问题同源）：\n\n- 用户孙子姣，0.18.33，素材搜索页，搜索“货币”；\n- 界面显示“没有找到可选素材/候选素材 0 条”；\n- context：searchd_available=false，last_search_ms=null；\n- 日志：searchd_unavailable，fallback_ms 高达 271554ms，多素材详情 fallback 10万~29万ms；实际是搜索服务不可用，不是真的没有素材。\n\n请一并处理：\n1. 搜索页必须区分“无结果”和“searchd 不可用”；后者显示真实错误/恢复入口，不能显示“没有找到素材”误导剪辑师；\n2. searchd 不可用时应快速失败/提示重启，而不是 4~5 分钟 fallback；\n3. 和 Jiao 的 searchd_ready_timeout/3790 health 失败一起查根因；\n4. 修复工具在 3790 不健康时允许安全重启，不因 active lease 卡死；\n5. 修完给候选/测试证据，不直接发版。\n\n这已经是两个用户、同一 searchd 故障路径，优先级高于继续做 UI。"
+}
