@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1794967954765-24c55f26",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1794967954765-24c55f26",
+  "created_at": "2026-11-18T02:12:34.765Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true
+  },
+  "body": "新增修复工具误报 FB-20261118-73683934（P1 UX）：\n\n- 机器 DESKTOP-QPH6BKP\\ASUS，Cutter 0.18.33，路径 D:\\MixLab Cutter；\n- 诊断时 Cutter 正在运行：desktop PID 48736、sidecar PID 49748、searchd PID 37948；\n- 3789 health=200，3790 health=200，进程/端口正常；\n- 仅因 workspace lease active，工具就判定“需要管理员介入”并自动提交专家包，属于误报。\n\n要求：\n1. 3789 和 3790 都健康、Cutter 正在运行时，修复工具不应判定为故障/专家介入；\n2. 应提示“Cutter 正在运行，无需修复；如要修复请先退出”，或直接关闭并聚焦已运行窗口；\n3. 只有出现明确故障（health 失败、启动失败、数据未加载）才允许修复/专家介入；\n4. 测试用例覆盖：正常运行中打开修复工具，不得产生 FB 包；\n5. 这是误报/噪声修复，不直接发版。\n\n如果这台是测试机，也请把测试输出改到 test-inbox，但误报逻辑仍要修。"
+}
