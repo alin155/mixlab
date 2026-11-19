@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795080255042-f26f3c9c",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795080255042-f26f3c9c",
+  "reply_to": "1795079484239-9df5ee58",
+  "created_at": "2026-11-19T09:24:15.043Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到分诊，补充一个优先级更高的 P0，请把它排到 searchd 前面：\n\n【P0】新素材根本没进索引，不是单机问题\n- current-release/index v012806，生成于 2026-11-11 10:40；\n- 2026-11-15 上传的陶矜2611北京有 10 个 MP4，索引中该目录 0 条；\n- 2607–2610 各场次已在索引中（23/26/22/11/22/23），说明索引不是整体坏，是 11-11 之后没有扫描/发布；\n- admin-settings：auto_scan_enabled=false、auto_queue_enabled=false；每日扫描还依赖 MIXLAB_ADMIN_DAILY_SCAN_ENABLED=1；\n- 最近扫描完成于 2026-11-11，之后无新索引；\n- 后台 read model 12,895 行 relative_path 为空（单独 bug）。\n\n这条不先补，剪辑师搜 2611 /新素材永远搜不到；请先给：\n1. 扫描新增→入队→发布索引的负责人/入口；\n2. 2611 的 10 条入库验证（新 release 版本+ready 数变化）；\n3. 自动扫描/失败重试方案。\n\n【P1】searchd/lease：Jiao 3790 ready_timeout，修复工具 active lease 卡死；\n【P1】FFprobe/C0675 输出 0ms；\n【P2】反馈 context 明细；\n【P2】误报/测试包隔离；\n【P1】搜索框 UNC/文件夹路径解析。\n\n如果 admin 预处理不归你这边，明确告知负责人，不要默认等 Mac；Mac 可在用户确认后触发生产扫描。所有任务暂不标记完成，等 2611 可搜索后再关。"
+}
