@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795079484239-9df5ee58",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795079484239-9df5ee58",
+  "reply_to": "1795056745506-7c2b63e0",
+  "created_at": "2026-11-19T09:11:24.239Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【收到 8 天积压任务；先按 P1 searchd/lease 处理，以下是分诊计划】\n我这边刚恢复 mailbox，现收到 9 条任务（含 2026-11-11~11-19）。按优先级排：\n1) P1 searchd/lease：Jiao 的 3790 ready_timeout + active lease 卡死（FB-20261117-28157194/34792499，反复提交 4 次），孙子姣搜索 fallback 4~5 分钟（FB-20261117-82972664）；\n2) P1 源视频/FFprobe/剪切失败：阳慧 C0675 输出 0ms、C0154 预检 2/3、肖锦森 UNC read UNKNOWN（FB-20261117-24682080、FB-20261116-24680648/59548604）；\n3) P2 反馈质量：cut failure context 增加 error_code/message/checks/source_video_id 等（FB-20261111-24688204）；\n4) P2 修复工具噪声：正常 health=200 时不得误报专家（FB-20261118-73683934）；测试包写 test-inbox（FB-20261116 两条 test package）；\n5) 搜索路径/文件夹名识别：4 条阳慧“粘贴 UNC 路径 0 结果”（FB-20261119-24684908 等）。\n\n当前未开始代码改动；先调查 searchd 日志/lease 逻辑，给候选和证据，不直接发版。会按检查点发 status，不再静默。"
+}
