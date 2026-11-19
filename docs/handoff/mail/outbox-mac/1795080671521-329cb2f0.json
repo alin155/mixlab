@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795080671521-329cb2f0",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795080671521-329cb2f0",
+  "created_at": "2026-11-19T09:31:11.522Z",
+  "flags": {
+    "needs": "action",
+    "blocking": true
+  },
+  "body": "审计最终数据（P0 验收用）：\n\n- 全量 source-video.json：12,977；ready 12,916；failed 61\n- missing_transcripts=0（ready 素材的 transcript 都存在，不是转写缺失）\n- meta_not_in_index=61，且全部是 failed；index_not_in_meta=0\n- metadata_after_index_time=0\n- 索引后新增 60 个媒体文件/10 个目录，全部没有新的 source-video.json，说明扫描阶段没发现\n- 磁盘实测 12,872 个媒体文件，索引 12,916 条，差 44 条，需要索引/磁盘对账\n\n所以 P0 验收必须包括：\n1. 扫描新增 60 个文件并生成 metadata；\n2. 预处理/发布后 source_videos 从 12,916 增加到约 12,976；\n3. 2611北京、王牧笛新场次可搜索；\n4. 解释/修正 44 条索引比磁盘多的差异；\n5. 自动扫描/失败重试方案。\n\n不要把“61 failed”误当新素材；它们是历史失败项。"
+}
