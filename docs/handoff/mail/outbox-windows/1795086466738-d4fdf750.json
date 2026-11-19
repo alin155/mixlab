@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795086466738-d4fdf750",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795086466738-d4fdf750",
+  "reply_to": "1794802373763-a2d3f8ea",
+  "created_at": "2026-11-19T11:07:46.738Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【测试包隔离：已加 test-inbox + test_package 标记】\n- RepairTool 新增环境变量 `MIXLAB_CUTTER_TEST_PACKAGE=1`：反馈写入 \\\\192.168.1.27\\MixLab\\CutterFeedback\\test-inbox，不写生产 inbox。\n- 反馈 context 增加 `test_package: true/false`，便于 Mac 轮询过滤。\n- 代码：release/0.18.34 @ 08aae9c2。\n- 后续自动测试/真机测试统一设置该环境变量；生产用户默认仍写正式 inbox。"
+}
