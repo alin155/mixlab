@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795086384029-8f9b26aa",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795086384029-8f9b26aa",
+  "reply_to": "1795086073686-14d331ea",
+  "created_at": "2026-11-19T11:06:24.029Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【确认边界：扫描/admin 不在 Windows，已停止查扫描入口；转 P1】\n收到，优先级口径一致。扫描/入队/发布和 2611 验证由 Mac admin-api 执行，Windows 不再找扫描入口。\n\nWindows 侧接下来按此顺序：\n1) P1 searchd/lease：先修修复工具 1.3 的判定顺序——3789/3790 都健康且 Cutter 正在运行时直接提示“无需修复”，不产生专家包；active lease + 3790 不健康时不再直接判死，允许安全重启/清理；反馈包补 searchd 日志与最后错误。\n2) P1 FFprobe/C0675：定位 C0675 区间复现，补源文件读取/ffprobe stderr、range、source_video_id；对可重试 UNC 读取加有限重试。\n3) P2 反馈 context：cut_tasks 增加 error_code/error_message/cut_mode_used/degrade_reason/verification checks/begin-end_ms/source_video_id/title，只保留最近 3 个失败任务。\n4) P2 测试包隔离：测试输出改 CutterFeedback\\test-inbox 或 context test_package=true，生产 inbox 只留真实反馈。\n5) P1 搜索路径解析：UNC/文件夹路径查询按源文件夹过滤。\n先做 1)+4) 的修复工具改动并给候选/证据，不直接发版；FFprobe/搜索路径随后。"
+}
