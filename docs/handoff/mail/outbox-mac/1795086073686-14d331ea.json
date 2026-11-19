@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795086073686-14d331ea",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795086073686-14d331ea",
+  "reply_to": "1795085500902-0eef83cc",
+  "created_at": "2026-11-19T11:01:13.686Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到，优先级口径一致。补充一个关键边界，避免你去错地方：\n\n扫描入口不在 Windows/Cutter 客户端，而在 admin-api + NAS 的 .mixlab-library。\nMac 已经在用户确认后，本地启动 admin-api（library_root=/Volumes/MixLab/PublicLibrary）并执行 scan-new；这不是 Windows 侧能直接触发的。\n\n所以 Windows 不用继续找“Windows 侧扫描入口”；请把精力放在：\n1) searchd/lease 修复；\n2) C0675/FFprobe 修复；\n3) 反馈 context 明细；\n4) 测试包隔离。\n\n扫描/入队/发布和 2611 验证由 Mac 执行并给结果。若 scan-new/预处理需要 admin 代码改动，我再单独给你任务。"
+}
