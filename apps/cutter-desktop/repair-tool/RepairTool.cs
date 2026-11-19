@@ -239,7 +239,8 @@ namespace MixLabRepairTool
         private readonly Button logToggle;
         private readonly object logLock = new object();
         private const string ToolVersion = "1.3.0";
-        private static readonly string FeedbackInbox = @"\\192.168.1.27\MixLab\CutterFeedback\inbox";
+        private static readonly bool IsTestPackage = string.Equals(Environment.GetEnvironmentVariable("MIXLAB_CUTTER_TEST_PACKAGE"), "1", StringComparison.OrdinalIgnoreCase);
+        private static readonly string FeedbackInbox = IsTestPackage ? @"\\192.168.1.27\MixLab\CutterFeedback\test-inbox" : @"\\192.168.1.27\MixLab\CutterFeedback\inbox";
         private static readonly object QueueLock = new object();
         private static bool queueRunning;
         private readonly List<string> operationLog = new List<string>();
@@ -520,6 +521,12 @@ namespace MixLabRepairTool
                     currentNeedsAdmin = diagnosis.NeedsAdmin;
                     Log("诊断分类：" + diagnosis.Code + (string.IsNullOrEmpty(diagnosis.Detail) ? "" : "；" + diagnosis.Detail));
                     RecordAction("diagnose:" + diagnosis.Code, !diagnosis.NeedsAdmin, diagnosis.Detail);
+                    if (diagnosis.Code == "healthy")
+                    {
+                        SetStatus("Cutter 正在运行，3789/3790 均健康，无需修复");
+                        ShowInfo("Cutter 正在运行，3789/3790 均健康。\r\n如需修复，请先退出 Cutter 再打开本工具。");
+                        return;
+                    }
                     if (diagnosis.NeedsAdmin)
                     {
                         throw new RepairNeedsAdminException("需要管理员介入：" + diagnosis.Detail);
@@ -1099,11 +1106,19 @@ namespace MixLabRepairTool
             if (string.IsNullOrEmpty(workspaceRoot)) return new RepairDiagnosis { Code = "config_invalid", NeedsAdmin = true, Detail = "本地素材库地址为空" };
             if (!Directory.Exists(workspaceRoot)) return new RepairDiagnosis { Code = "workspace_root_invalid", NeedsAdmin = true, Detail = workspaceRoot + " 不存在" };
 
+            bool health3789 = HealthOk(3789);
+            bool health3790 = HealthOk(3790);
+            if (health3789 && health3790)
+            {
+                return new RepairDiagnosis { Code = "healthy", NeedsAdmin = false, Detail = "3789/3790 均健康，Cutter 正在运行，无需修复" };
+            }
+
             CleanupStaleLeaseIfSafe(Path.Combine(workspaceRoot, ".mixlab-workspace-lock.json"));
             CleanupStaleLeaseIfSafe(WorkspaceLeaseFallbackPath(workspaceRoot));
-            if (repairActions.Any(action => action.action == "workspace_lease_active"))
+            bool activeLease = repairActions.Any(action => action.action == "workspace_lease_active");
+            if (activeLease && !health3790)
             {
-                return new RepairDiagnosis { Code = "workspace_lease_unavailable", NeedsAdmin = true, Detail = "存在活跃 workspace 租约" };
+                RecordAction("workspace_lease_active_but_searchd_unhealthy", true, "3790 不健康，允许安全重启，不直接升级");
             }
 
             string binaries = Path.Combine(Path.GetDirectoryName(cutter), "binaries");
@@ -1115,8 +1130,8 @@ namespace MixLabRepairTool
             {
                 if (!ProcessNameIsMixLab(pid)) return new RepairDiagnosis { Code = "port_occupied", NeedsAdmin = true, Detail = "未知进程占用端口：" + DescribePortOwners(new List<int> { pid }) };
             }
-            if (!HealthOk(3789)) return new RepairDiagnosis { Code = "engine_unreachable", NeedsAdmin = false, Detail = "3789 health 不通" };
-            if (!HealthOk(3790)) return new RepairDiagnosis { Code = "searchd_unhealthy", NeedsAdmin = false, Detail = "3790 health 不通" };
+            if (!health3789) return new RepairDiagnosis { Code = "engine_unreachable", NeedsAdmin = false, Detail = "3789 health 不通" };
+            if (!health3790) return new RepairDiagnosis { Code = "searchd_unhealthy", NeedsAdmin = false, Detail = "3790 health 不通" };
             return new RepairDiagnosis { Code = "unknown", NeedsAdmin = false, Detail = "" };
         }
 
@@ -1450,6 +1465,7 @@ namespace MixLabRepairTool
             AppendJsonPair(context, "health_3790", health3790, true);
             AppendJsonPair(context, "os", os, true);
             AppendJsonPair(context, "nas", Directory.Exists(FeedbackInbox) ? "可写" : "不可写", true);
+            AppendJsonPair(context, "test_package", IsTestPackage ? "true" : "false", true);
             context.Append("  \"disk\": \"").Append(JsonEscape(string.Join(", ", DriveInfo.GetDrives().Select(delegate(DriveInfo drive) { return drive.Name + " " + drive.DriveType; }).ToArray()))).Append("\"\n");
             context.Append("}");
             File.WriteAllText(Path.Combine(packageDirectory, "context.json"), context.ToString(), new UTF8Encoding(false));
