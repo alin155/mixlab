@@ -25,7 +25,13 @@
 - current-release.json: v012806，更新于 2026-11-11T10:40:07Z
 - 当前 index：source_videos=12,916，segments=1,329,425
 - library：video_count=12,977，ready=12,916，failed=61，queued=0，processing=0
-- 当前 index 的 source_videos.relative_path 无空值，旧素材索引本身是完整的
+- 当前 index 的 source_videos.relative_path 无空值
+- 对 12,977 个 source-video.json 做了完整审计：
+  - ready 12,916，failed 61
+  - missing_transcripts = 0（ready 素材的 transcript 文件都存在）
+  - meta_not_in_index = 61，且全部是 failed（不是漏索引）
+  - index_not_in_meta = 0
+  - metadata_after_index_time = 0（索引后没有任何新 metadata 写入）
 
 ### 扫描状态
 
@@ -60,7 +66,13 @@ admin/library-scan-new-status.json：
 - 20261023_C1369.mp4 → 0
 - 040A9895.MP4 → 0
 
-这说明不是编码/路径普遍坏了，而是**上次索引之后新增的 60 个文件没有被扫描并发布**。
+并且全量审计发现：
+
+- metadata_after_index_time = 0
+- 这 60 个文件在 .mixlab-library/videos 下没有新的 source-video.json
+- 即：它们不是“有 metadata 但索引没发布”，而是**扫描阶段根本没发现**
+
+另外按常见扩展名实测磁盘 12,872 个媒体文件，索引 12,916 条，差 44 条，需要单独做索引/磁盘对账（可能是已删除素材、不可见素材或扩展名统计差异）。
 
 ### 配置缺口
 
