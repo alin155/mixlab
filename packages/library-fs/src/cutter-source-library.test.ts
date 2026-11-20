@@ -827,3 +827,83 @@ test("artifact cursor continuation stays on artifact search even when sqlite ind
   assert.equal(result.next_cursor, "");
   assert.equal(result.has_more, false);
 });
+
+
+async function preparePathKeywordLibrary(): Promise<string> {
+  const libraryRoot = await makeLibraryRoot();
+  const relativePaths: string[] = [];
+
+  for (let index = 1; index <= 10; index += 1) {
+    relativePaths.push(`source-videos/陶矜2611北京/040A9895_${String(index).padStart(2, "0")}.mp4`);
+  }
+  for (let index = 1; index <= 2; index += 1) {
+    relativePaths.push(`source-videos/C1236/C1236_${String(index).padStart(2, "0")}.mp4`);
+  }
+
+  for (const relativePath of relativePaths) {
+    await writeDummyVideo(path.join(libraryRoot, ...relativePath.split("/")));
+  }
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  for (let index = 0; index < relativePaths.length; index += 1) {
+    const job = await claimNextPreprocessJob({
+      library_root: libraryRoot,
+      worker_id: "worker-a",
+      now: `2026-05-02T00:${String(index).padStart(2, "0")}:01:00Z`
+    });
+    assert.ok(job);
+    await writeReadyArtifacts({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      full_text: "普通台词内容，不含路径关键词。",
+      segments: [
+        segment({
+          source_video_id: job.source_video_id,
+          index: 0,
+          begin_ms: 1000,
+          end_ms: 3600,
+          text: "普通台词内容",
+          normalized_text: "普通台词内容"
+        })
+      ]
+    });
+    await completeVideoToReady({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      duration_ms: 12_000
+    });
+  }
+
+  return libraryRoot;
+}
+
+test("0.19 path and folder keywords match 2611/2611北京/C1236 without transcript hits", async () => {
+  const libraryRoot = await preparePathKeywordLibrary();
+
+  const byNumber = await searchCutterSourceLibrary({ library_root: libraryRoot, query: "2611", limit: 20 });
+  assert.equal(byNumber.returned_count, 10);
+  assert.deepEqual(
+    byNumber.groups.map((group) => group.source_folder_name),
+    Array(10).fill("陶矜2611北京")
+  );
+  assert.ok(byNumber.groups.every((group) => group.relative_path.includes("2611北京")));
+
+  const byFolderName = await searchCutterSourceLibrary({ library_root: libraryRoot, query: "2611北京", limit: 20 });
+  assert.equal(byFolderName.returned_count, 10);
+  assert.ok(byFolderName.groups.every((group) => group.hit_segments[0]?.match_ranges.length === 0));
+
+  const byCode = await searchCutterSourceLibrary({ library_root: libraryRoot, query: "C1236", limit: 20 });
+  assert.equal(byCode.returned_count, 2);
+  assert.ok(byCode.groups.every((group) => group.relative_path.includes("C1236")));
+
+  // 普通台词关键词仍走 transcript 命中，不被路径候选挤出。
+  const transcript = await searchCutterSourceLibrary({ library_root: libraryRoot, query: "普通台词", limit: 20 });
+  assert.equal(transcript.returned_count, 12);
+  assert.ok(transcript.groups.some((group) => group.hit_segments[0]?.text === "普通台词内容"));
+});

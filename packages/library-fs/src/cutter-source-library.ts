@@ -543,14 +543,18 @@ function looksLikeSourceFilenameQuery(query: string): boolean {
     return false;
   }
 
+  // 0.19：路径/文件夹关键词（如 "2611"、"2611北京"、"C1236"）也是候选层查询，
+  // 不能用「4 个汉字/8 字符」阈值把短编号挡在文件名/路径匹配之外。
+  const hasDigitIdentifier = /\d/.test(trimmed) && !/\s/.test(trimmed) && trimmed.length <= 16;
   return (
+    hasDigitIdentifier ||
     /[\\/_.-]/.test(trimmed) ||
     /\.(mp4|mov|mkv|m4v|avi|webm)$/i.test(trimmed) ||
     (/[A-Za-z]/.test(trimmed) && /\d/.test(trimmed))
   );
 }
 
-function shouldTrySourceFilenameSearch(query: string): boolean {
+export function shouldTrySourceFilenameSearch(query: string): boolean {
   const normalized = normalizeTranscriptSearchQuery(query);
   if (!normalized) {
     return false;

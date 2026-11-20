@@ -5548,3 +5548,117 @@ test("0.19 unreachable global capacity falls back to conservative local 1 slot b
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+
+async function preparePathKeywordLibraryForApi(): Promise<string> {
+  const libraryRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-path-search-"));
+  const relativePaths: string[] = [];
+
+  for (let index = 1; index <= 10; index += 1) {
+    relativePaths.push("source-videos/陶矜2611北京/040A9895_" + String(index).padStart(2, "0") + ".mp4");
+  }
+  for (let index = 1; index <= 2; index += 1) {
+    relativePaths.push("source-videos/C1236/C1236_" + String(index).padStart(2, "0") + ".mp4");
+  }
+
+  for (const relativePath of relativePaths) {
+    await writeDummyVideo(path.join(libraryRoot, ...relativePath.split("/")));
+  }
+
+  await scanSourceVideos({
+    library_root: libraryRoot,
+    library_id: "lib_main_001",
+    library_name: "主素材库",
+    now: "2026-05-02T00:00:00Z"
+  });
+
+  for (let index = 0; index < relativePaths.length; index += 1) {
+    const job = await claimNextPreprocessJob({
+      library_root: libraryRoot,
+      worker_id: "worker-a",
+      now: "2026-05-02T00:" + String(index).padStart(2, "0") + ":01:00Z"
+    });
+    assert.ok(job);
+    await writeArtifacts({
+      library_root: libraryRoot,
+      source_video_id: job.source_video_id,
+      full_text: "普通台词内容，不含路径关键词。",
+      segments: [
+        segment({
+          source_video_id: job.source_video_id,
+          index: 0,
+          begin_ms: 1000,
+          end_ms: 3600,
+          text: "普通台词内容",
+          normalized_text: "普通台词内容"
+        })
+      ]
+    });
+    await completeReady({ library_root: libraryRoot, source_video_id: job.source_video_id });
+  }
+
+  return libraryRoot;
+}
+
+test("0.19 source search supplements path/folder keywords when searchd transcript index has no hits", { timeout: 60_000 }, async () => {
+  const libraryRoot = await preparePathKeywordLibraryForApi();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await withSearchdServer(
+    (url) => ({
+      body: {
+        schema_version: "1.0",
+        data: {
+          query: url.searchParams.get("query"),
+          normalized_query: "searchd-empty",
+          cursor: "",
+          next_cursor: "",
+          has_more: false,
+          returned_count: 0,
+          limit: Number.parseInt(url.searchParams.get("limit") ?? "20", 10),
+          index_version: "tantivy-v000001",
+          search_ms: 1,
+          groups: []
+        }
+      }
+    }),
+    async (searchdBaseUrl) => {
+      await withApiServer(
+        libraryRoot,
+        async (baseUrl) => {
+          const byNumber = await fetch(
+            baseUrl + "/cutter/source-search?query=" + encodeURIComponent("2611") + "&limit=20",
+            { headers }
+          );
+          assert.equal(byNumber.status, 200);
+          const numberBody = await byNumber.json() as any;
+          assert.equal(numberBody.data.groups.length, 10);
+          assert.ok(numberBody.data.groups.every((group: any) => group.relative_path.includes("2611北京")));
+          assert.equal(numberBody.data.groups[0].source_folder_name, "陶矜2611北京");
+
+          const byFolderName = await fetch(
+            baseUrl + "/cutter/source-search?query=" + encodeURIComponent("2611北京") + "&limit=20",
+            { headers }
+          );
+          const folderBody = await byFolderName.json() as any;
+          assert.equal(folderBody.data.groups.length, 10);
+
+          const byCode = await fetch(
+            baseUrl + "/cutter/source-search?query=" + encodeURIComponent("C1236") + "&limit=20",
+            { headers }
+          );
+          const codeBody = await byCode.json() as any;
+          assert.equal(codeBody.data.groups.length, 2);
+
+          const transcript = await fetch(
+            baseUrl + "/cutter/source-search?query=" + encodeURIComponent("普通台词") + "&limit=20",
+            { headers }
+          );
+          const transcriptBody = await transcript.json() as any;
+          assert.equal(transcriptBody.data.groups.length, 12);
+        },
+        { searchd_base_url: searchdBaseUrl }
+      );
+    }
+  );
+});
