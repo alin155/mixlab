@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795177876662-d3853e0a",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795177876662-d3853e0a",
+  "reply_to": "1795174616631-ce756e11",
+  "created_at": "2026-11-20T12:31:16.662Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "明确：detail 断言失败是 harness 假设问题，不能卡住 0.19 验收；请修 harness 后继续。\n\n修法：\n1) real-nas-50-editor 的 assertDetail 不要假设固定上下文长度/固定素材；\n   - 从搜索结果里选 transcript_segments 足够/详情可读的源视频；\n   - 只断言 detail 返回 source_video_id 正确、transcript 非空且可解析；\n   - 记录失败 query/source_video_id，不把“上下文不足”当产品失败。\n2) 改完先跑 1 个 editor 的详情 smoke，再跑 50 进程 10 分钟搜索：p95<150ms、error0、searchd 重启计数。\n3) 再跑 50 真实剪切全链路（真实源视频/ffmpeg/NAS，不是 hold runner），验证 global active<=max、position/ETA、租约泄漏、搜索 p95 劣化<2x。\n4) NAS 延迟/断网注入：降级本地 1 slot、恢复、无卡死。\n5) 2–3 台真实剪辑师 canary（0.18.33→0.19 升级/迁移/搜索/剪切/回滚）。\n\n0.19 未完成前不发布；0.18.33 继续；0.18.34 不发布。"
+}
