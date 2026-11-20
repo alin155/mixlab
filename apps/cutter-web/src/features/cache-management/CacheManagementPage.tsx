@@ -109,6 +109,30 @@ function preflightStatus(runtimeStatus?: CutterRuntimeStatus): {
   return { tone: "warning", label: "不可用" };
 }
 
+function releasePhaseLabel(cache?: CutterRuntimeStatus["release_cache"]): string {
+  const labels: Record<string, string> = {
+    syncing: "准备中",
+    copying: "复制制品",
+    verifying: "校验中",
+    ready: "已就绪",
+    failed: "失败"
+  };
+
+  if (cache?.phase) {
+    return labels[cache.phase] ?? cache.phase;
+  }
+
+  if (cache?.sync_status === "syncing") {
+    return "准备中";
+  }
+
+  if (cache?.sync_status === "failed") {
+    return "失败";
+  }
+
+  return cache?.ready ? "已就绪" : "待同步";
+}
+
 function cacheDetailRows(
   runtimeStatus: CutterRuntimeStatus | undefined,
   localStorageCache: CutterLocalCacheSnapshot,
@@ -133,6 +157,21 @@ function cacheDetailRows(
       label: "当前 Release",
       value: release?.active_release_version || "同步中",
       hint: release?.message
+    },
+    {
+      label: "目标 Release",
+      value: release?.target_release_version || release?.source_release_version || "—",
+      hint: release?.target_release_version ? "公共库发布指针指向的版本" : undefined
+    },
+    {
+      label: "同步阶段",
+      value: releasePhaseLabel(release),
+      hint: release?.last_error ? `${release.last_error.code} · ${release.last_error.at}` : undefined
+    },
+    {
+      label: "最后错误",
+      value: release?.last_error ? release.last_error.code : "无",
+      hint: release?.last_error?.message
     },
     {
       label: "搜索索引",
