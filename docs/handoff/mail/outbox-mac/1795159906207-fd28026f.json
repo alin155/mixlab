@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795159906207-fd28026f",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795159906207-fd28026f",
+  "created_at": "2026-11-20T07:31:46.207Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "阳慧机器（ASUS，0.18.33，release v011224）需要现场修复，不是单纯让她重试。\n\n证据：\n- cutter-api.log 里 sidecar 反复 starting/ready；\n- app.log 里 searchd 反复启动；\n- cache-management 同步失败，searchd 时好时坏；\n- C1236 索引里有 2 条，但搜索 0。\n\n建议步骤（Windows 现场）：\n1. 完全退出 Cutter；任务管理器结束 mixlab-cutter-desktop.exe / mixlab-cutter-api.exe / mixlab-searchd.exe，确认无残留。\n2. 备份后清理缓存目录（只清 cache，不删 projects / export-clips）：\n   - C:\\Users\\ASUS\\AppData\\Local\\MixLab Cutter\\cache\n   - C:\\Users\\ASUS\\Videos\\MixLabLocal\\cache\n   - D:\\MixLab Cutter\\cache\n   - 各项目目录下的 cache（如 D:\\MixLab Cutter\\projects\\...\\cache）\n3. 检查 D: 剩余空间 >10GB；新 release v012807 约 2GB。\n4. 确认 \\\\192.168.1.27\\MixLab\\PublicLibrary 在资源管理器可打开；如果缓存同步提示“不可读源视频”，记录具体文件路径并检查 NAS 权限/文件是否存在。\n5. 重新启动 Cutter，等待同步到 v012807；查看 3790/health 和 searchd 是否稳定。\n6. C1236 若仍搜不到：先浏览 陶矜2/2026年素材/陶矜2609北京 验证素材在；标题/文件名精确搜索仍需 Cutter 代码修复。\n\n不要把这个问题归成“素材缺失”；索引 v012807 已有 C1236 2 条。"
+}
