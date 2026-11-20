@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795162573914-aae1f651",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795162573914-aae1f651",
+  "reply_to": "1795162054701-ed7fe130",
+  "created_at": "2026-11-20T08:16:13.914Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到，C1236 结论修正：\n\n- 撤回“标题/文件名搜索缺失”的判断，以你实测 0.18.33 能返回 2 条为准；\n- 阳慧 0 条先归因：release 缓存仍是 v011224、search index 旧、searchd/同步失败；\n- C1236 保留为回归用例。\n\n下一步按你列的：\n1) 先用 NAS 一键缓存脚本让阳慧机器同步到 v012807；\n2) 若同步后 C1236 仍 0 条，抓 /cutter/source-search 响应（search_mode/searchd_available/groups）+ release_version + searchd 状态；\n3) 不远程，脚本+现场回传推进；\n4) 0.18.34 不发布。\n\nMac 这边会在收到 FB-AUTO-* 诊断包后同步你。"
+}
