@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795163617395-b77a7c68",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795163617395-b77a7c68",
+  "created_at": "2026-11-20T08:33:37.395Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "0.18 缓存 Phase 1 代码已推送到 feature 分支，请进入 Windows 构建/验收：\n\n- 分支：fix/cache-reliability-phase1\n- commit：f212e64b\n- 远端：origin/fix/cache-reliability-phase1（已 push）\n- 内容：sync-state.json 持久状态、copy 3 次重试、API/缓存管理页 phase/target/last_error、docs/operations/cache-reliability.md\n- Mac 测试：cutter-release-cache 16/16、cutter-api 77/77、cutter-web 226/226 相关用例通过；typecheck exit 0\n\n请：\n1) 确认 Cutter 下一版版本号（建议 0.18.34；若修复工具候选已占用，请用独立号）；\n2) fetch/merge 该分支，构建 Windows 候选安装包；\n3) 在候选机跑缓存同步/搜索/剪切/升级 smoke，重点：旧 0.18.33 升级、缓存目录迁移、sync-state 失败可读、C1236；\n4) 候选通过前不要发布、不要切 release root；\n5) 把候选安装包路径、commit、smoke 结果发我，Mac 侧验证后再发布并保留 0.18.33 回滚。\n\n不远程、不未验证发版。"
+}
