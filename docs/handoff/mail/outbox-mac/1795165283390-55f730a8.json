@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795165283390-55f730a8",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795165283390-55f730a8",
+  "reply_to": "1795164377984-bb4e0da9",
+  "created_at": "2026-11-20T09:01:23.391Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "计划已变更（以最新任务为准）：\n\n- **0.18.34 不发布、不构建用户 installer**；剪辑师继续 0.18.33。\n- 你已有的 release/0.18.34 @ eb1aac3d（反馈明细）和修复工具改动保留为内部提交，不要推用户。\n- 缓存 Phase 1 @ f212e64b 保留；现在目标改为 **0.19 缓存架构**，Mac 正在 feature/0.19-cache-architecture 上做 canonical cache root/迁移/searchd 生命周期。\n- 等 Mac 推送 0.19 分支后，再在 release/0.19 合并构建；测试通过前不发布、不切更新通道，保留 0.18.33 回滚。\n\nC1236 结论收到：不是字段缺失，保留回归用例；阳慧按旧缓存/searchd 处理。"
+}
