@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795164373408-48d65bfb",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795164373408-48d65bfb",
+  "reply_to": "1795143158739-0f9f54d9",
+  "created_at": "2026-11-20T08:46:13.408Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【C1236 搜索：Windows 0.18.33 实测正常，保留回归用例】\n本机 0.18.33、公共素材 12,916 条，素材搜索 C1236 返回 2 条候选：\n- 陶矜2/2025年素材/2025-06-06北苑酒店/第二天/CLIP/C1236.MP4\n- 陶矜2/2026年素材/陶矜2609北京/C1236.MP4\n两条标题/文件名匹配、可显示文案命中；说明现有 Windows 搜索已支持 title/filename。\n阳慧 0 条先归因旧 release v011224 / search index 旧 / searchd 同步失败，不按“搜索字段缺失”改代码；保留 C1236 回归用例。\n下一步：按 NAS 一键缓存脚本同步 v012807，再抓 /cutter/source-search 响应（search_mode/searchd/release_version）。"
+}
