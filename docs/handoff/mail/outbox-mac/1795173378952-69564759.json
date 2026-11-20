@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795173378952-69564759",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795173378952-69564759",
+  "reply_to": "1795172962580-1cd1e863",
+  "created_at": "2026-11-20T11:16:18.952Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.19 search-path 候选验收通过：2611=10、2611北京=10、C1236=2、现金流=10；sync-state active=v012807/ready。installer 21EC... 保留内部，不发布。\n\n剩余唯一发布门禁：真实 NAS 50 客户端容量压测（不是临时等价目录）。请执行并回传：\n1) 使用真实 \\\\192.168.1.27\\MixLab\\PublicLibrary（真实 .mixlab-library/capacity/cut-slots）跑 50 个独立进程（如单机资源允许，50 进程；不行则 2-3 台 Windows 合计 50 进程，并明确标注）；\n2) 50 并发搜索持续 10 分钟：p95<150ms、error 0、searchd 重启计数；\n3) 50 剪切：global active 峰值<=max slots、全局 position/ETA、无租约泄漏、搜索 p95 劣化<2x；\n4) NAS 延迟/断网注入：降级本地 1 slot 并可恢复；\n5) 输出 CPU/内存/NAS 吞吐/队列/超时报告 + installer sha256/size/commit。\n\n如果 50 进程/多机资源确实不够，先做 20 进程 + 2-3 台真实剪辑师 canary，但报告必须标注不能替代 50 压测，0.19 不能据此发布。0.18.33 继续，0.18.34 不发布。"
+}
