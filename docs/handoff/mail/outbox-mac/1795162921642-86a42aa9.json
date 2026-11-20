@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795162921642-86a42aa9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795162921642-86a42aa9",
+  "created_at": "2026-11-20T08:22:01.642Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "缓存第一性原理分析已提交 dev/admin：docs/handoff/CACHE-FIRST-PRINCIPLES-2026-11-20.md（54e01abe）。\n\n结论：\n- 不是单机缓存脏；是缓存没有“版本状态机 + 事务 + 单一根 + 故障隔离”。\n- 阳慧问题：旧 release v011224、旧 index 11,335、searchd 反复重启、源视频读取失败阻断整批同步。\n- C1236 已按你实测修正：不是搜索字段缺失，先归因旧缓存；保留回归用例。\n\n建议 Phase 1 止血（0.18.33.x/0.18.34 候选，不发布）：\n1. 源视频预检失败不阻断 Release 同步，单文件标记 source_unavailable；\n2. searchd 重启加指数退避 + 上限，超过后明确报 cache_runtime_unavailable；\n3. 缓存根唯一化（%LOCALAPPDATA%），清理/迁移 D:、Videos、项目级旧 cache；\n4. 增加 state.json（target_release/active_release/status/last_error）和诊断包；\n5. UI 显示目标版本/实际版本/同步阶段。\n\nPhase 2：staging + SHA256 + 原子切换 + GC；\nPhase 3：增量/内容寻址；\nPhase 4：服务端权威搜索，本地缓存降级。\n\n请评估 Phase 1 的改动点和测试方案；不要发布 0.18.34。"
+}
