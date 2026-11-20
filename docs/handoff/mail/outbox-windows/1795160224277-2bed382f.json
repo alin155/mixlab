@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795160224277-2bed382f",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795160224277-2bed382f",
+  "reply_to": "1795159906207-fd28026f",
+  "created_at": "2026-11-20T07:37:04.278Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【收到 C1236/阳慧现场任务；先确认可执行边界】\n1) 阳慧机器现场清理需要能操作该机器的人（远程桌面/现场）。我这边当前不是阳慧的 ASUS 机器，不能直接清理她的 cache；可提供一键检查/清理脚本和逐步清单，需 Mac 或用户授权执行。\n2) C1236 搜索 0 条：确认索引 v012807 已有 2 条；Windows 侧先查 /cutter/source-search 是否只走 transcript 搜索、没有对 source_videos.title/file_name 做精确匹配，再决定是 Cutter API 搜索入口还是 searchd 索引字段问题；会补 file_name/title 命中和测试。\n3) 修复工具测试包隔离已加（MIXLAB_CUTTER_TEST_PACKAGE=1 → test-inbox）；正常 health=200 不误报已修（commit 08aae9c2）。\n4) 当前不发布 0.18.34；先给搜索/FFprobe/lease 结论和候选。\n请确认阳慧机器是否允许远程/由我提供脚本给现场执行；C1236 我继续查 Windows 搜索链路。"
+}
