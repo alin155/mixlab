@@ -78,7 +78,41 @@ export interface SyncCutterReleaseCacheResult extends CutterReleaseCacheStatus {
   prune_failed_release_versions?: string[];
   /** Release Manifest v2 校验结果（legacy 路径也会记录 manifest_v2_missing 回退原因）。 */
   verification?: ReleaseCacheVerificationResult;
+  /** 本次同步终态（失败时也可能返回，便于调用方直接读取；文件持久化见 sync-state.json）。 */
+  sync_state?: CutterReleaseSyncState;
 }
+
+export type CutterReleaseSyncPhase = "syncing" | "copying" | "verifying" | "ready" | "failed";
+export type CutterReleaseSyncStatus = "ready" | "syncing" | "failed";
+
+export interface CutterReleaseSyncError {
+  code: string;
+  message: string;
+  phase: CutterReleaseSyncPhase;
+  at: string;
+}
+
+/** 持久化同步状态（<cache_root>/.mixlab-library/sync-state.json）：跨进程/重启可诊断。 */
+export interface CutterReleaseSyncState {
+  schema_version: "1.0";
+  updated_at: string;
+  target_release_version: string;
+  active_release_version: string;
+  phase: CutterReleaseSyncPhase;
+  sync_status: CutterReleaseSyncStatus;
+  copied: boolean;
+  last_error?: CutterReleaseSyncError;
+  verification?: {
+    manifest_schema_version: ReleaseCacheVerificationResult["manifest_schema_version"];
+    verified_files: number;
+    failed_files: number;
+    fallback_reason?: string;
+  };
+}
+
+export const CUTTER_RELEASE_SYNC_STATE_SCHEMA_VERSION = "1.0";
+export const CUTTER_RELEASE_COPY_MAX_ATTEMPTS = 3;
+export const CUTTER_RELEASE_COPY_RETRY_DELAYS_MS = [500, 1500] as const;
 
 interface CachedReleaseDirectory {
   release_version: string;
@@ -117,6 +151,129 @@ function releaseRoot(root: string, releaseVersion: string): string {
 
 function releasesRoot(root: string): string {
   return path.join(mixlabRoot(root), "releases");
+}
+
+export function cutterReleaseSyncStatePath(cacheRoot: string): string {
+  return path.join(mixlabRoot(cacheRoot), "sync-state.json");
+}
+
+function normalizeSyncPhase(value: unknown): CutterReleaseSyncPhase | null {
+  return value === "syncing" || value === "copying" || value === "verifying" || value === "ready" || value === "failed"
+    ? value
+    : null;
+}
+
+/** 读取持久化同步状态；文件缺失/损坏时返回 null（诊断尽力而为，不影响主流程）。 */
+export async function readCutterReleaseSyncState(cacheRoot: string): Promise<CutterReleaseSyncState | null> {
+  try {
+    const parsed = JSON.parse(await readFile(cutterReleaseSyncStatePath(cacheRoot), "utf8")) as Partial<CutterReleaseSyncState>;
+    const phase = normalizeSyncPhase(parsed.phase);
+    const syncStatus = parsed.sync_status === "ready" || parsed.sync_status === "syncing" || parsed.sync_status === "failed"
+      ? parsed.sync_status
+      : null;
+
+    if (parsed.schema_version !== CUTTER_RELEASE_SYNC_STATE_SCHEMA_VERSION || !phase || !syncStatus) {
+      return null;
+    }
+
+    const lastError = parsed.last_error && typeof parsed.last_error === "object"
+      ? {
+          code: typeof parsed.last_error.code === "string" ? parsed.last_error.code : "sync_failed",
+          message: typeof parsed.last_error.message === "string" ? parsed.last_error.message : "",
+          phase: normalizeSyncPhase(parsed.last_error.phase) ?? phase,
+          at: typeof parsed.last_error.at === "string" ? parsed.last_error.at : ""
+        }
+      : undefined;
+
+    return {
+      schema_version: "1.0",
+      updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : "",
+      target_release_version: typeof parsed.target_release_version === "string" ? parsed.target_release_version : "",
+      active_release_version: typeof parsed.active_release_version === "string" ? parsed.active_release_version : "",
+      phase,
+      sync_status: syncStatus,
+      copied: parsed.copied === true,
+      ...(lastError ? { last_error: lastError } : {}),
+      ...(parsed.verification && typeof parsed.verification === "object"
+        ? {
+            verification: {
+              manifest_schema_version:
+                parsed.verification.manifest_schema_version === "2.0" || parsed.verification.manifest_schema_version === "legacy" || parsed.verification.manifest_schema_version === "none"
+                  ? parsed.verification.manifest_schema_version
+                  : "none",
+              verified_files: Number.isSafeInteger(parsed.verification.verified_files) ? parsed.verification.verified_files! : 0,
+              failed_files: Number.isSafeInteger(parsed.verification.failed_files) ? parsed.verification.failed_files! : 0,
+              ...(typeof parsed.verification.fallback_reason === "string"
+                ? { fallback_reason: parsed.verification.fallback_reason }
+                : {})
+            }
+          }
+        : {})
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function currentCacheActiveVersionBestEffort(cacheRoot: string): Promise<string> {
+  try {
+    return (await readCurrentPointer(cacheRoot)).current_version;
+  } catch {
+    return "";
+  }
+}
+
+async function currentSourceTargetVersionBestEffort(sourceLibraryRoot: string): Promise<string> {
+  try {
+    return (await readCurrentPointer(sourceLibraryRoot)).current_version;
+  } catch {
+    return "";
+  }
+}
+
+function verificationSummary(
+  verification: ReleaseCacheVerificationResult | undefined
+): CutterReleaseSyncState["verification"] {
+  if (!verification) {
+    return undefined;
+  }
+
+  return {
+    manifest_schema_version: verification.manifest_schema_version,
+    verified_files: verification.verified_files,
+    failed_files: verification.failed_files.length,
+    ...(verification.fallback_reason ? { fallback_reason: verification.fallback_reason } : {})
+  };
+}
+
+/** 原子写 sync-state.json（tmp+rename）；失败不抛给同步主流程（诊断尽力而为）。 */
+async function writeCutterReleaseSyncState(
+  cacheRoot: string,
+  state: Omit<CutterReleaseSyncState, "schema_version" | "updated_at"> & { updated_at?: string }
+): Promise<CutterReleaseSyncState> {
+  const nextState: CutterReleaseSyncState = {
+    schema_version: "1.0",
+    updated_at: state.updated_at ?? new Date().toISOString(),
+    target_release_version: state.target_release_version,
+    active_release_version: state.active_release_version,
+    phase: state.phase,
+    sync_status: state.sync_status,
+    copied: state.copied,
+    ...(state.last_error ? { last_error: state.last_error } : {}),
+    ...(state.verification ? { verification: state.verification } : {})
+  };
+  const statePath = cutterReleaseSyncStatePath(cacheRoot);
+  const tempPath = statePath + ".tmp-" + process.pid + "-" + Date.now();
+
+  try {
+    await mkdir(path.dirname(statePath), { recursive: true });
+    await writeFile(tempPath, JSON.stringify(nextState, null, 2) + "\n", { encoding: "utf8", mode: 0o640 });
+    await rename(tempPath, statePath);
+  } catch {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+  }
+
+  return nextState;
 }
 
 function releaseManifestPath(root: string, releaseVersion: string): string {
@@ -456,6 +613,15 @@ async function readCurrentPointer(root: string): Promise<CutterReleaseCurrentPoi
   return pointer;
 }
 
+function delayMilliseconds(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** 复制 release 制品；最多 3 次尝试（500ms/1500ms 退避），每次清理临时目录，失败抛带重试次数的错误。 */
 async function copyReleaseFiles(input: {
   source_library_root: string;
   cache_root: string;
@@ -467,24 +633,41 @@ async function copyReleaseFiles(input: {
 
   const sourceReleaseRoot = releaseRoot(input.source_library_root, input.release_version);
   const targetReleaseRoot = releaseRoot(input.cache_root, input.release_version);
-  const tempReleaseRoot = `${targetReleaseRoot}.tmp-${process.pid}-${Date.now()}`;
 
   await mkdir(path.dirname(targetReleaseRoot), { recursive: true });
 
-  try {
-    await cp(sourceReleaseRoot, tempReleaseRoot, {
-      recursive: true,
-      force: true,
-      errorOnExist: false
-    });
-    await makeReleaseTreeReadable(tempReleaseRoot);
-    await rm(targetReleaseRoot, { recursive: true, force: true });
-    await rename(tempReleaseRoot, targetReleaseRoot);
-    return true;
-  } catch (error) {
-    await rm(tempReleaseRoot, { recursive: true, force: true });
-    throw error;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= CUTTER_RELEASE_COPY_MAX_ATTEMPTS; attempt += 1) {
+    const tempReleaseRoot = `${targetReleaseRoot}.tmp-${process.pid}-${Date.now()}-${attempt}`;
+
+    try {
+      await cp(sourceReleaseRoot, tempReleaseRoot, {
+        recursive: true,
+        force: true,
+        errorOnExist: false
+      });
+      await makeReleaseTreeReadable(tempReleaseRoot);
+      await rm(targetReleaseRoot, { recursive: true, force: true });
+      await rename(tempReleaseRoot, targetReleaseRoot);
+      return true;
+    } catch (error) {
+      lastError = error;
+      await rm(tempReleaseRoot, { recursive: true, force: true }).catch(() => undefined);
+      const retryDelayMs = CUTTER_RELEASE_COPY_RETRY_DELAYS_MS[attempt - 1];
+
+      if (attempt < CUTTER_RELEASE_COPY_MAX_ATTEMPTS && retryDelayMs !== undefined) {
+        await delayMilliseconds(retryDelayMs);
+      }
+    }
   }
+
+  throw Object.assign(
+    new Error(
+      `复制 Release 制品失败（已重试 ${CUTTER_RELEASE_COPY_MAX_ATTEMPTS} 次）：${errorMessageOf(lastError)}`
+    ),
+    { code: "CUTTER_RELEASE_COPY_FAILED", cause: lastError }
+  );
 }
 
 async function writeCachePointer(input: {
@@ -755,9 +938,33 @@ export function syncCutterReleaseCache(
     return pending;
   }
 
-  const sync = syncCutterReleaseCacheOnce(input).finally(() => {
-    pendingSyncs.delete(key);
-  });
+  const sync = syncCutterReleaseCacheOnce(input)
+    .catch(async (error) => {
+      // 同步抛错（指针读取/复制重试耗尽/写指针失败等）：持久化 failed 状态，保留旧 active。
+      const previousState = await readCutterReleaseSyncState(input.cache_root);
+      const failedPhase =
+        previousState && previousState.phase !== "ready" && previousState.phase !== "failed"
+          ? previousState.phase
+          : "syncing";
+
+      await writeCutterReleaseSyncState(input.cache_root, {
+        target_release_version: await currentSourceTargetVersionBestEffort(input.source_library_root),
+        active_release_version: await currentCacheActiveVersionBestEffort(input.cache_root),
+        phase: "failed",
+        sync_status: "failed",
+        copied: false,
+        last_error: {
+          code: (error as { code?: string }).code ?? "CUTTER_RELEASE_SYNC_FAILED",
+          message: errorMessageOf(error),
+          phase: failedPhase,
+          at: new Date().toISOString()
+        }
+      });
+      throw error;
+    })
+    .finally(() => {
+      pendingSyncs.delete(key);
+    });
 
   pendingSyncs.set(key, sync);
   return sync;
@@ -773,9 +980,34 @@ async function syncCutterReleaseCacheOnce(
   const preservedUnreferencedVersions = input.preserve_cached_releases_for_unknown_references === true;
   const clientVersion = input.client_version?.trim() ?? "";
 
+  // Phase 1：同步开始/各阶段/终态都持久化到 <cache_root>/.mixlab-library/sync-state.json（原子写）。
+  const initialActiveVersion = await currentCacheActiveVersionBestEffort(input.cache_root);
+  const recordSyncPhase = async (
+    phase: CutterReleaseSyncPhase,
+    syncStatus: CutterReleaseSyncStatus,
+    extra: {
+      active_release_version?: string;
+      copied?: boolean;
+      verification?: ReleaseCacheVerificationResult;
+      last_error?: CutterReleaseSyncError;
+    } = {}
+  ): Promise<CutterReleaseSyncState> =>
+    writeCutterReleaseSyncState(input.cache_root, {
+      target_release_version: sourceReleaseVersion,
+      active_release_version: extra.active_release_version ?? initialActiveVersion,
+      phase,
+      sync_status: syncStatus,
+      copied: extra.copied ?? false,
+      ...(extra.last_error ? { last_error: extra.last_error } : {}),
+      ...(extra.verification ? { verification: verificationSummary(extra.verification) } : {})
+    });
+
+  await recordSyncPhase("syncing", "syncing");
+
   const legacySync = async (
     verification: ReleaseCacheVerificationResult
   ): Promise<SyncCutterReleaseCacheResult> => {
+    await recordSyncPhase("copying", "syncing");
     const copied = await copyReleaseFiles({
       source_library_root: input.source_library_root,
       cache_root: input.cache_root,
@@ -786,6 +1018,7 @@ async function syncCutterReleaseCacheOnce(
       invalidateLocalCacheSize(input.cache_root);
     }
 
+    await recordSyncPhase("verifying", "syncing", { copied });
     await writeCachePointer(input);
     const pruneResult = await pruneCachedReleases({
       cache_root: input.cache_root,
@@ -795,7 +1028,7 @@ async function syncCutterReleaseCacheOnce(
       preserve_cached_releases_for_unknown_references: preservedUnreferencedVersions
     });
 
-    return buildReleaseCacheSyncResult({
+    const result = await buildReleaseCacheSyncResult({
       cache_root: input.cache_root,
       max_cached_releases: maxCachedReleases,
       include_cache_size: input.include_cache_size,
@@ -805,13 +1038,20 @@ async function syncCutterReleaseCacheOnce(
       pinned_release_versions: pinnedReleaseVersions,
       prune_result: pruneResult
     });
+    const syncState = await recordSyncPhase("ready", "ready", {
+      active_release_version: result.active_release_version,
+      copied: result.copied,
+      verification
+    });
+
+    return { ...result, sync_state: syncState };
   };
 
-  const failClosed = (
+  const failClosed = async (
     verification: ReleaseCacheVerificationResult,
     message: string
-  ): Promise<SyncCutterReleaseCacheResult> =>
-    buildReleaseCacheSyncResult({
+  ): Promise<SyncCutterReleaseCacheResult> => {
+    const result = await buildReleaseCacheSyncResult({
       cache_root: input.cache_root,
       max_cached_releases: maxCachedReleases,
       include_cache_size: input.include_cache_size,
@@ -821,6 +1061,24 @@ async function syncCutterReleaseCacheOnce(
       pinned_release_versions: pinnedReleaseVersions,
       message_override: message
     });
+    // 失败保留旧 active，不写指针；持久化真实错误 message 与失败阶段供 UI/API/重启后诊断。
+    const syncState = await writeCutterReleaseSyncState(input.cache_root, {
+      target_release_version: sourceReleaseVersion,
+      active_release_version: result.active_release_version,
+      phase: "failed",
+      sync_status: "failed",
+      copied: false,
+      last_error: {
+        code: verification.fallback_reason ?? verification.contract_error_code ?? "CUTTER_RELEASE_SYNC_FAILED",
+        message,
+        phase: "verifying",
+        at: new Date().toISOString()
+      },
+      verification: verificationSummary(verification)
+    });
+
+    return { ...result, sync_state: syncState };
+  };
 
   const manifestLookup = await readCutterReleaseManifestV2(
     input.source_library_root,
@@ -911,6 +1169,7 @@ async function syncCutterReleaseCacheOnce(
     };
 
     if (!cacheReusable) {
+      await recordSyncPhase("verifying", "syncing");
       const check = await verifyReleaseBundleV2({
         release_root: releaseRoot(input.source_library_root, sourceReleaseVersion),
         manifest
@@ -942,6 +1201,9 @@ async function syncCutterReleaseCacheOnce(
       });
     }
 
+    if (!cacheReusable) {
+      await recordSyncPhase("copying", "syncing");
+    }
     const copied = cacheReusable
       ? false
       : await copyReleaseFiles({
@@ -972,7 +1234,7 @@ async function syncCutterReleaseCacheOnce(
       preserve_cached_releases_for_unknown_references: preservedUnreferencedVersions
     });
 
-    return buildReleaseCacheSyncResult({
+    const result = await buildReleaseCacheSyncResult({
       cache_root: input.cache_root,
       max_cached_releases: maxCachedReleases,
       include_cache_size: input.include_cache_size,
@@ -982,6 +1244,13 @@ async function syncCutterReleaseCacheOnce(
       pinned_release_versions: pinnedReleaseVersions,
       prune_result: pruneResult
     });
+    const syncState = await recordSyncPhase("ready", "ready", {
+      active_release_version: result.active_release_version,
+      copied: result.copied,
+      verification
+    });
+
+    return { ...result, sync_state: syncState };
   }
 
   // Manifest v2 缺失：回退既有 legacy 目录校验/同步（记录 fallback_reason 供诊断）。

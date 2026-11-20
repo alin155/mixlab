@@ -53,6 +53,8 @@ export {
   readCurrentCutterRelease
 } from "./cutter-release.ts";
 export {
+  cutterReleaseSyncStatePath,
+  readCutterReleaseSyncState,
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache
@@ -123,6 +125,10 @@ export type {
 } from "./cutter-release.ts";
 export type {
   CutterReleaseCacheStatus,
+  CutterReleaseSyncError,
+  CutterReleaseSyncPhase,
+  CutterReleaseSyncState,
+  CutterReleaseSyncStatus,
   SyncCutterReleaseCacheInput,
   SyncCutterReleaseCacheResult
 } from "./cutter-release-cache.ts";

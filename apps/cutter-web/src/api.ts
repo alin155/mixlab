@@ -450,6 +450,15 @@ export interface CutterRuntimeStatus {
     cache_size_bytes?: number;
     cache_root_path: string;
     catalog_file_path: string;
+    /** 0.18.34 Phase 1：同步目标版本 / 阶段 / 最后错误（持久化 sync-state.json）。 */
+    target_release_version?: string;
+    phase?: "syncing" | "copying" | "verifying" | "ready" | "failed";
+    last_error?: {
+      code: string;
+      message: string;
+      phase: string;
+      at: string;
+    };
     message: string;
   };
   local_cache?: {

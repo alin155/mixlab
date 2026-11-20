@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  readCutterReleaseSyncState,
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache
@@ -639,4 +640,76 @@ test("round5 wiring fails closed on non-JSON manifest v2 text without switching 
   assert.equal(result.active_release_version, "");
   assert.equal(await fileOrDirExists(releaseRoot(cacheRoot, "v000061")), false);
   assert.match(result.message, /清单 v2 无效/);
+});
+
+
+// --- 0.18.34 Phase 1：持久化 sync-state + 复制重试 + 错误诊断 ---------------------
+
+test("sync persists ready sync-state.json with target, active, and verification summary", async () => {
+  const sourceRoot = await makeRoot("mixlab-sync-state-source-");
+  const cacheRoot = await makeRoot("mixlab-sync-state-cache-");
+
+  await writeRelease({ root: sourceRoot, version: "v000001", payload: "state-ready" });
+  await writePointer(sourceRoot, "v000001");
+
+  const result = await syncCutterReleaseCache({
+    source_library_root: sourceRoot,
+    cache_root: cacheRoot
+  });
+  assert.equal(result.copied, true);
+
+  const state = await readCutterReleaseSyncState(cacheRoot);
+  assert.ok(state);
+  assert.equal(state!.phase, "ready");
+  assert.equal(state!.sync_status, "ready");
+  assert.equal(state!.target_release_version, "v000001");
+  assert.equal(state!.active_release_version, "v000001");
+  assert.equal(state!.copied, true);
+  assert.equal(state!.last_error, undefined);
+  assert.equal(state!.verification?.fallback_reason, "manifest_v2_missing");
+  // 原子写：目录里不残留 tmp 文件。
+  const entries = await readdir(path.join(cacheRoot, ".mixlab-library"));
+  assert.equal(entries.some((name) => name.includes("sync-state.json.tmp-")), false);
+});
+
+test("copy failure writes failed sync-state with real error message, keeps old active, and retries three times", async () => {
+  const sourceRoot = await makeRoot("mixlab-sync-state-fail-source-");
+  const cacheRoot = await makeRoot("mixlab-sync-state-fail-cache-");
+
+  // 旧缓存可用（回滚基准）。
+  await writeRelease({ root: cacheRoot, version: "v000001", payload: "old-cache" });
+  await writePointer(cacheRoot, "v000001");
+
+  await writeRelease({ root: sourceRoot, version: "v000002", payload: "new-source" });
+  await writePointer(sourceRoot, "v000002");
+  // 让 cp 读源目录失败：chmod 000 源 release 目录（EACCES）。
+  const unreadableSourceRelease = releaseRoot(sourceRoot, "v000002");
+  await chmod(unreadableSourceRelease, 0o000);
+
+  try {
+    await assert.rejects(
+      () => syncCutterReleaseCache({ source_library_root: sourceRoot, cache_root: cacheRoot }),
+      /复制 Release 制品失败（已重试 3 次）/
+    );
+
+    const state = await readCutterReleaseSyncState(cacheRoot);
+    assert.ok(state);
+    assert.equal(state!.phase, "failed");
+    assert.equal(state!.sync_status, "failed");
+    assert.equal(state!.target_release_version, "v000002");
+    assert.equal(state!.active_release_version, "v000001");
+    assert.equal(state!.copied, false);
+    assert.equal(state!.last_error?.code, "CUTTER_RELEASE_COPY_FAILED");
+    assert.match(state!.last_error?.message ?? "", /EACCES|permission denied|复制 Release 制品失败/);
+    assert.match(state!.last_error?.message ?? "", /已重试 3 次/);
+    // 失败不动本地 active 指针。
+    const pointer = JSON.parse(await readFile(path.join(cacheRoot, ".mixlab-library", "current-release.json"), "utf8"));
+    assert.equal(pointer.current_version, "v000001");
+    assert.equal(await fileOrDirExists(releaseRoot(cacheRoot, "v000002")), false);
+    // 不残留复制临时目录。
+    const entries = await readdir(path.join(cacheRoot, ".mixlab-library", "releases"));
+    assert.equal(entries.some((name) => name.includes(".tmp-")), false);
+  } finally {
+    await chmod(unreadableSourceRelease, 0o755).catch(() => undefined);
+  }
 });

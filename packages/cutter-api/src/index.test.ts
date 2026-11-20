@@ -4929,3 +4929,72 @@ test("account service mode proxies login through the isolated account service", 
     await new Promise<void>((resolve) => accountServer.close(() => resolve()));
   }
 });
+
+
+// --- 0.18.34 Phase 1：release cache 同步失败时读取持久化 sync-state -----------------
+
+test("runtime status exposes persistent release sync failure (phase/target/last_error) after sync failure", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-cutter-sync-state-api-"));
+  const cacheRoot = path.join(workspaceRoot, "cache");
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+
+  await mkdir(path.join(cacheRoot, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    path.join(cacheRoot, ".mixlab-library", "sync-state.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      updated_at: "2026-05-04T10:00:00.000Z",
+      target_release_version: "v000099",
+      active_release_version: "v000001",
+      phase: "failed",
+      sync_status: "failed",
+      copied: false,
+      last_error: {
+        code: "CUTTER_RELEASE_COPY_FAILED",
+        message: "EACCES: permission denied, open 'catalog.sqlite'（真实异常）",
+        phase: "copying",
+        at: "2026-05-04T10:00:00.000Z"
+      }
+    }, null, 2) + "\n",
+    "utf8"
+  );
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: cacheRoot,
+    release_cache_sync_runner: async () => {
+      throw new Error("copy boom: EACCES permission denied");
+    },
+    now: () => "2026-05-04T10:00:00.000Z"
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    let releaseCache: any;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const response = await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
+      assert.equal(response.status, 200);
+      const body = await response.json() as any;
+      releaseCache = body.data.release_cache;
+      if (releaseCache?.last_error || releaseCache?.sync_status === "failed") {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    assert.equal(releaseCache.enabled, true);
+    assert.equal(releaseCache.sync_status, "failed");
+    assert.equal(releaseCache.phase, "failed");
+    assert.equal(releaseCache.target_release_version, "v000099");
+    assert.equal(releaseCache.last_error.code, "CUTTER_RELEASE_COPY_FAILED");
+    assert.match(releaseCache.last_error.message, /EACCES/);
+    assert.match(releaseCache.message, /最近同步失败/);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});

@@ -38,6 +38,7 @@ import {
   publicCutterUser,
   registerCutterAccount,
   searchCutterSourceLibrary,
+  readCutterReleaseSyncState,
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache,
@@ -45,6 +46,8 @@ import {
   validateCutterSession,
   type CutterUserRecord,
   type CutterReleaseCacheStatus,
+  type CutterReleaseSyncPhase,
+  type CutterReleaseSyncState,
   type SyncCutterReleaseCacheInput,
   type SyncCutterReleaseCacheResult,
   type CutterSourceLibrarySearchGroup,
@@ -434,6 +437,12 @@ interface CutterReleaseCacheRuntimeStatus {
   verification?: CutterReleaseVerificationStatus;
   contract_error_code?: string;
   contract_error_message?: string;
+  /** 同步目标版本（来源 release 指针）与实际 active（本地缓存指针）。 */
+  target_release_version?: string;
+  /** 持久化 sync-state.json 的同步阶段（syncing/copying/verifying/ready/failed）。 */
+  phase?: CutterReleaseSyncPhase;
+  /** 持久化 sync-state.json 的最后错误（真实异常 message，供缓存管理页诊断）。 */
+  last_error?: CutterReleaseSyncState["last_error"];
   cache_root_path: string;
   catalog_file_path: string;
   message: string;
@@ -4045,6 +4054,11 @@ function refreshingReleaseCacheRuntimeStatus(
     cache_size_bytes: previous?.cache_size_bytes ?? 0,
     pruned_release_versions: [],
     ...(previous?.verification ? { verification: previous.verification } : {}),
+    ...(previous?.target_release_version
+      ? { target_release_version: previous.target_release_version }
+      : {}),
+    ...(previous?.phase ? { phase: previous.phase } : {}),
+    ...(previous?.last_error ? { last_error: previous.last_error } : {}),
     ...(previous?.contract_error_code
       ? {
           contract_error_code: previous.contract_error_code,
@@ -4560,10 +4574,16 @@ async function syncCutterReleaseCacheRuntimeStatusUncached(
         )
     );
 
+    // Phase 1：读取持久化 sync-state，把目标版本/阶段/最后错误补进 runtime status（文件缺失时降级为旧字段）。
+    const syncState = result.sync_state ?? await readCutterReleaseSyncState(cacheRoot);
+    const stateFailed = syncState?.sync_status === "failed";
+    const failed = verificationFailed || stateFailed;
+    const lastError = syncState?.last_error;
+
     return {
       enabled: true,
       ready: result.cache_ready,
-      sync_status: verificationFailed
+      sync_status: failed
         ? "failed"
         : result.cache_ready
           ? "ready"
@@ -4595,19 +4615,36 @@ async function syncCutterReleaseCacheRuntimeStatusUncached(
               : {})
           }
         : {}),
+      ...(syncState ? { target_release_version: syncState.target_release_version } : {}),
+      ...(syncState ? { phase: syncState.phase } : {}),
+      ...(lastError ? { last_error: lastError } : {}),
       cache_root_path: result.cache_root,
       catalog_file_path: result.catalog_file_path,
-      message: result.message
+      message: lastError
+        ? `${result.message}；最后错误：${lastError.message}`
+        : result.message
     };
   } catch {
-    return releaseCacheRuntimeStatusFromLocal(
-      await statusReader({
-        cache_root: cacheRoot,
-        max_cached_releases: releaseCacheMaxReleases(input),
-        include_cache_size: false
-      }),
-      "failed"
-    );
+    const localStatus = await statusReader({
+      cache_root: cacheRoot,
+      max_cached_releases: releaseCacheMaxReleases(input),
+      include_cache_size: false
+    });
+    const syncState = await readCutterReleaseSyncState(cacheRoot);
+    const localRuntimeStatus = releaseCacheRuntimeStatusFromLocal(localStatus, "failed");
+    const lastError = syncState?.last_error;
+
+    return {
+      ...localRuntimeStatus,
+      // 同步抛错（含复制重试耗尽）必须显式标 failed，即使本机还没有可用旧缓存。
+      sync_status: "failed",
+      ...(syncState ? { target_release_version: syncState.target_release_version } : {}),
+      ...(syncState ? { phase: syncState.phase } : {}),
+      ...(lastError ? { last_error: lastError } : {}),
+      message: lastError
+        ? `${localRuntimeStatus.message}；最近同步失败：${lastError.message}`
+        : localRuntimeStatus.message
+    };
   }
 }
 
