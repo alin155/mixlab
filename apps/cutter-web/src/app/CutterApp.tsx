@@ -56,7 +56,7 @@ import { CutTasksTabNav } from "../features/cut-tasks/CutTasksTabNav.tsx";
 import type { CutTasksTab } from "../features/cut-tasks/cut-tasks-tab.ts";
 import { SettingsPage } from "../features/settings/SettingsPage.tsx";
 import { FeedbackDialog } from "../features/feedback/FeedbackDialog.tsx";
-import { recentFeedbackEvents, recordFeedbackEvent } from "../features/feedback/feedback.ts";
+import { cutTaskFeedbackContext, recentFeedbackEvents, recordFeedbackEvent } from "../features/feedback/feedback.ts";
 import { captureDesktopFeedbackScreenshot, desktopFeedbackPendingCount, flushDesktopFeedbackQueue } from "../desktop-bridge.ts";
 import {
   DesktopFirstRunPage,
@@ -4268,13 +4268,7 @@ export function CutterApp() {
         selected_text: selectedTranscriptSegments.map((segment) => segment.text).join("\n").slice(0, 2000),
         selected_video_id: selectedSourceVideoId ?? ""
       },
-      cut_tasks: allVisibleQueue.slice(0, 8).map((job) => ({
-        job_id: job.queue_job_id,
-        status: job.status,
-        mode: job.cut_mode,
-        output_path: job.output_file ?? "",
-        verification: job.verification?.passed === undefined ? "" : job.verification.passed ? "passed" : "failed"
-      })),
+      cut_tasks: cutTaskFeedbackContext(allVisibleQueue),
       timings: { last_search_ms: lastMaterialSearchDurationMs ?? null },
       errors: [recoverableError?.code, error].filter((value): value is string => Boolean(value)),
       release_version: data?.runtimeStatus?.release_cache?.active_release_version ?? "",

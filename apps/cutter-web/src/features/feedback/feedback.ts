@@ -70,3 +70,56 @@ export function sanitizeFeedbackContext(input: Record<string, unknown>): Record<
     ? (sanitized as Record<string, unknown>)
     : {};
 }
+
+export interface CutTaskFeedbackInput {
+  queue_job_id: string;
+  status: string;
+  cut_mode?: string;
+  cut_mode_used?: string;
+  output_file?: string;
+  error_code?: string;
+  error_message?: string;
+  degrade_reason?: string;
+  begin_ms?: number;
+  end_ms?: number;
+  source_video_id?: string;
+  source_title?: string;
+  verification?: {
+    passed?: boolean;
+    expected_duration_ms?: number;
+    actual_duration_ms?: number;
+    tolerance_ms?: number;
+    checks?: unknown[];
+  };
+}
+
+export function cutTaskFeedbackContext(
+  jobs: readonly CutTaskFeedbackInput[],
+  limit = 3
+): Array<Record<string, unknown>> {
+  return jobs
+    .filter((job) => job.status === "failed")
+    .slice(0, Math.max(0, limit))
+    .map((job) => ({
+      job_id: job.queue_job_id,
+      status: job.status,
+      error_code: job.error_code ?? "",
+      error_message: job.error_message ?? "",
+      cut_mode_used: job.cut_mode_used ?? job.cut_mode ?? "",
+      degrade_reason: job.degrade_reason ?? "",
+      output_path: job.output_file ?? "",
+      source_video_id: job.source_video_id ?? "",
+      source_title: job.source_title ?? "",
+      begin_ms: job.begin_ms ?? null,
+      end_ms: job.end_ms ?? null,
+      verification: job.verification
+        ? {
+            passed: job.verification.passed ?? false,
+            expected_duration_ms: job.verification.expected_duration_ms ?? null,
+            actual_duration_ms: job.verification.actual_duration_ms ?? null,
+            tolerance_ms: job.verification.tolerance_ms ?? null,
+            checks: job.verification.checks ?? []
+          }
+        : null
+    }));
+}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   FEEDBACK_CATEGORIES,
+  cutTaskFeedbackContext,
   recentFeedbackEvents,
   recordFeedbackEvent,
   sanitizeFeedbackContext
@@ -31,4 +32,40 @@ test("feedback events keep bounded recent trail", () => {
   recordFeedbackEvent("open-feedback", "settings");
   const events = recentFeedbackEvents(5);
   assert.ok(events.some((event) => event.type === "open-feedback"));
+});
+
+test("cut failure feedback keeps only the latest three failed tasks with diagnostics", () => {
+  const jobs = Array.from({ length: 5 }, (_, index) => ({
+    queue_job_id: "CJ-" + index,
+    status: index === 4 ? "done" : "failed",
+    cut_mode: "copy" as const,
+    cut_mode_used: "precise" as const,
+    output_file: "",
+    error_code: "output_missing_video_stream",
+    error_message: "输出缺少视频流",
+    begin_ms: 1000,
+    end_ms: 2000,
+    source_video_id: "V000001",
+    source_title: "C0675",
+    verification: {
+      passed: false,
+      expected_duration_ms: 1000,
+      actual_duration_ms: 0,
+      tolerance_ms: 200,
+      checks: [{ id: "duration" }]
+    }
+  }));
+  const context = cutTaskFeedbackContext(jobs);
+  assert.equal(context.length, 3);
+  assert.deepEqual(context.map((item) => item.job_id), ["CJ-0", "CJ-1", "CJ-2"]);
+  assert.equal(context[0].error_code, "output_missing_video_stream");
+  assert.equal(context[0].error_message, "输出缺少视频流");
+  assert.equal(context[0].cut_mode_used, "precise");
+  assert.deepEqual(context[0].verification, {
+    passed: false,
+    expected_duration_ms: 1000,
+    actual_duration_ms: 0,
+    tolerance_ms: 200,
+    checks: [{ id: "duration" }]
+  });
 });
