@@ -8,6 +8,7 @@ use std::{
     net::{SocketAddr, TcpStream},
     path::{Component, Path, PathBuf},
     process::{Command, Stdio},
+    sync::atomic::{AtomicUsize, Ordering},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -36,6 +37,11 @@ const SEARCHD_PORT: u16 = 3790;
 const SEARCHD_READY_TIMEOUT_MS: u64 = 30_000;
 const SEARCHD_HEALTH_READ_TIMEOUT_MS: u64 = 20_000;
 const SEARCHD_API_TIMEOUT_MS: &str = "20000";
+/// searchd 生命周期：同一进程最多尝试 3 次，退避 2s/10s/60s，成功后重置计数。
+const SEARCHD_MAX_START_ATTEMPTS: usize = 3;
+const SEARCHD_START_BACKOFF_MS: [u64; SEARCHD_MAX_START_ATTEMPTS] = [2_000, 10_000, 60_000];
+static SEARCHD_START_ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+const MIXLAB_DESKTOP_CACHE_DIR_NAME: &str = "MixLab Cutter";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct CutterDesktopConfig {
@@ -97,12 +103,90 @@ fn desktop_log_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("logs"))
 }
 
+/// 0.19 canonical cache root（与 cutter-api/desktop-runtime 同一规则）：
+/// Windows %LOCALAPPDATA%\MixLab Cutter\cache；macOS ~/Library/Application Support/MixLab Cutter/cache；
+/// Linux $XDG_CACHE_HOME/mixlab-cutter/cache 或 ~/.cache/mixlab-cutter/cache。
+fn canonical_cache_root_for_platform(
+    platform: &str,
+    local_app_data: Option<&str>,
+    home: Option<&str>,
+    xdg_cache_home: Option<&str>,
+) -> PathBuf {
+    let clean = |value: Option<&str>| -> Option<String> {
+        value
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(String::from)
+    };
+
+    match platform {
+        "windows" => {
+            if let Some(local_app_data) = clean(local_app_data) {
+                return PathBuf::from(local_app_data)
+                    .join(MIXLAB_DESKTOP_CACHE_DIR_NAME)
+                    .join("cache");
+            }
+            PathBuf::from("C:\\Users\\Default")
+                .join("AppData")
+                .join("Local")
+                .join(MIXLAB_DESKTOP_CACHE_DIR_NAME)
+                .join("cache")
+        }
+        "macos" => match clean(home) {
+            Some(home) => PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join(MIXLAB_DESKTOP_CACHE_DIR_NAME)
+                .join("cache"),
+            None => PathBuf::from(MIXLAB_DESKTOP_CACHE_DIR_NAME).join("cache"),
+        },
+        _ => {
+            if let Some(xdg_cache_home) = clean(xdg_cache_home) {
+                return PathBuf::from(xdg_cache_home)
+                    .join("mixlab-cutter")
+                    .join("cache");
+            }
+            match clean(home) {
+                Some(home) => PathBuf::from(home)
+                    .join(".cache")
+                    .join("mixlab-cutter")
+                    .join("cache"),
+                None => PathBuf::from("mixlab-cutter").join("cache"),
+            }
+        }
+    }
+}
+
+fn canonical_desktop_cache_root() -> PathBuf {
+    if let Some(explicit) = env::var("MIXLAB_CUTTER_RELEASE_CACHE_ROOT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return PathBuf::from(explicit);
+    }
+
+    let platform = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    };
+
+    canonical_cache_root_for_platform(
+        platform,
+        env::var("LOCALAPPDATA").ok().as_deref(),
+        env::var("HOME").ok().as_deref(),
+        env::var("XDG_CACHE_HOME").ok().as_deref(),
+    )
+}
+
 fn desktop_searchd_cache_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
-        return Ok(PathBuf::from(local_app_data)
-            .join("MixLab Cutter")
-            .join("cache")
-            .join("searchd"));
+    let canonical_cache_root = canonical_desktop_cache_root();
+
+    if canonical_cache_root.is_absolute() {
+        return Ok(canonical_cache_root.join("searchd"));
     }
 
     let dir = app
@@ -283,8 +367,9 @@ fn path_matches(left: &str, right: &str) -> bool {
         && normalized_for_compare(left) == normalized_for_compare(right)
 }
 
-fn release_cache_root_for_config(config: &CutterDesktopConfig) -> PathBuf {
-    Path::new(&config.local_workspace_root).join("cache")
+fn release_cache_root_for_config(_config: &CutterDesktopConfig) -> PathBuf {
+    // 0.19：release cache 不再绑 workspace（旧 workspace/cache 由 sidecar 启动时安全迁移）。
+    canonical_desktop_cache_root()
 }
 
 fn current_api_matches_desktop_config(host: &str, port: u16, config: &CutterDesktopConfig) -> bool {
@@ -555,6 +640,78 @@ fn searchd_base_url() -> String {
     format!("http://{SEARCHD_HOST}:{SEARCHD_PORT}")
 }
 
+fn searchd_restart_delay(attempt: usize) -> Duration {
+    let index = attempt
+        .saturating_sub(1)
+        .min(SEARCHD_MAX_START_ATTEMPTS - 1);
+    Duration::from_millis(SEARCHD_START_BACKOFF_MS[index])
+}
+
+fn searchd_start_attempt_allowed(attempt: usize) -> bool {
+    attempt <= SEARCHD_MAX_START_ATTEMPTS
+}
+
+/// 启动/重启 searchd（最多 3 次，指数退避 2s/10s/60s）。成功重置计数；
+/// 达到上限后本进程不再尝试，返回明确错误，Cutter API 搜索降级为 sqlite/transcript fallback。
+fn start_searchd_with_retry(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
+    let already_attempted = SEARCHD_START_ATTEMPTS.load(Ordering::SeqCst);
+
+    if already_attempted >= SEARCHD_MAX_START_ATTEMPTS {
+        desktop_host_log(
+            app,
+            "searchd_restart_suppressed",
+            json!({ "attempts": already_attempted, "max_attempts": SEARCHD_MAX_START_ATTEMPTS }),
+        );
+        return Err(format!(
+            "本地搜索服务 searchd 连续启动失败已达到上限（{SEARCHD_MAX_START_ATTEMPTS} 次），已停止重启；搜索将降级为本地 sqlite/transcript fallback。"
+        ));
+    }
+
+    let mut last_error = String::new();
+
+    for attempt in (already_attempted + 1)..=SEARCHD_MAX_START_ATTEMPTS {
+        SEARCHD_START_ATTEMPTS.store(attempt, Ordering::SeqCst);
+
+        match ensure_searchd_started(app, config) {
+            Ok(true) => {
+                SEARCHD_START_ATTEMPTS.store(0, Ordering::SeqCst);
+                return Ok(true);
+            }
+            Ok(false) => {
+                last_error = "searchd 健康检查未通过".to_string();
+            }
+            Err(error) => {
+                last_error = error;
+            }
+        }
+
+        if attempt < SEARCHD_MAX_START_ATTEMPTS {
+            let delay = searchd_restart_delay(attempt);
+            desktop_host_log(
+                app,
+                "searchd_start_retry_scheduled",
+                json!({
+                    "attempt": attempt,
+                    "max_attempts": SEARCHD_MAX_START_ATTEMPTS,
+                    "delay_ms": delay.as_millis(),
+                    "error": last_error,
+                }),
+            );
+            thread::sleep(delay);
+        }
+    }
+
+    SEARCHD_START_ATTEMPTS.store(SEARCHD_MAX_START_ATTEMPTS, Ordering::SeqCst);
+    desktop_host_log(
+        app,
+        "searchd_start_attempts_exhausted",
+        json!({ "max_attempts": SEARCHD_MAX_START_ATTEMPTS, "error": last_error }),
+    );
+    Err(format!(
+        "本地搜索服务 searchd 启动失败（已尝试 {SEARCHD_MAX_START_ATTEMPTS} 次，最后错误：{last_error}）；搜索将降级为本地 sqlite/transcript fallback。"
+    ))
+}
+
 fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), String> {
     let searchd_path = match resolve_searchd_path(app) {
         Ok(path) => path,
@@ -703,7 +860,13 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
 
     if http_health_endpoint_is_ready("127.0.0.1", 3789) {
         if current_api_matches_desktop_config("127.0.0.1", 3789, &config) {
-            let searchd_is_ready = ensure_searchd_started(&app, &config)?;
+            let searchd_is_ready = match start_searchd_with_retry(&app, &config) {
+                Ok(ready) => ready,
+                Err(error) => {
+                    desktop_host_log(&app, "searchd_degraded", json!({ "error": error }));
+                    false
+                }
+            };
             desktop_host_log(
                 &app,
                 "engine_already_ready",
@@ -737,7 +900,13 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         return Err(message.into());
     }
 
-    let searchd_is_ready = ensure_searchd_started(&app, &config)?;
+    let searchd_is_ready = match start_searchd_with_retry(&app, &config) {
+        Ok(ready) => ready,
+        Err(error) => {
+            desktop_host_log(&app, "searchd_degraded", json!({ "error": error }));
+            false
+        }
+    };
 
     let sidecar_path = match resolve_cutter_api_sidecar_path(&app) {
         Ok(path) => path,
@@ -752,6 +921,11 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
     command.env("MIXLAB_SEARCHD_BASE_URL", searchd_base_url());
     command.env("MIXLAB_SEARCHD_TIMEOUT_MS", SEARCHD_API_TIMEOUT_MS);
     command.env("MIXLAB_CUTTER_SEARCHD_CACHE_ROOT", &searchd_cache_root);
+    // 0.19：统一 canonical release cache root（与 searchd/desktop-runtime 一致，禁止配置漂移）。
+    command.env(
+        "MIXLAB_CUTTER_RELEASE_CACHE_ROOT",
+        path_string(canonical_desktop_cache_root()),
+    );
     configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
@@ -1454,5 +1628,65 @@ mod tests {
             .message
             .unwrap_or_default()
             .contains("抽样源视频不可读"));
+    }
+
+    #[test]
+    fn canonical_cache_root_uses_local_appdata_on_windows() {
+        let root = canonical_cache_root_for_platform(
+            "windows",
+            Some("C:\\Users\\Allen\\AppData\\Local"),
+            Some("/Users/allen"),
+            None,
+        );
+        let text = root.to_string_lossy();
+
+        assert!(text.contains("MixLab Cutter"));
+        assert!(text.ends_with("cache"));
+    }
+
+    #[test]
+    fn canonical_cache_root_uses_application_support_on_macos() {
+        let root = canonical_cache_root_for_platform("macos", None, Some("/Users/allen"), None);
+        let text = root.to_string_lossy();
+
+        assert!(text.contains("Library"));
+        assert!(text.contains("Application Support"));
+        assert!(text.contains("MixLab Cutter"));
+        assert!(text.ends_with("cache"));
+    }
+
+    #[test]
+    fn canonical_cache_root_honors_xdg_on_linux() {
+        let root = canonical_cache_root_for_platform(
+            "linux",
+            None,
+            Some("/home/allen"),
+            Some("/home/allen/.cache"),
+        );
+
+        assert_eq!(
+            root,
+            PathBuf::from("/home/allen/.cache")
+                .join("mixlab-cutter")
+                .join("cache")
+        );
+    }
+
+    #[test]
+    fn searchd_restart_backoff_is_exponential_and_capped() {
+        assert_eq!(searchd_restart_delay(1), Duration::from_secs(2));
+        assert_eq!(searchd_restart_delay(2), Duration::from_secs(10));
+        assert_eq!(searchd_restart_delay(3), Duration::from_secs(60));
+        assert_eq!(searchd_restart_delay(9), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn searchd_attempt_limit_is_three() {
+        assert_eq!(SEARCHD_MAX_START_ATTEMPTS, 3);
+        assert!(searchd_start_attempt_allowed(1));
+        assert!(searchd_start_attempt_allowed(SEARCHD_MAX_START_ATTEMPTS));
+        assert!(!searchd_start_attempt_allowed(
+            SEARCHD_MAX_START_ATTEMPTS + 1
+        ));
     }
 }

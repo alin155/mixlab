@@ -54,10 +54,13 @@ export {
 } from "./cutter-release.ts";
 export {
   cutterReleaseSyncStatePath,
+  detectLegacyWorkspaceReleaseCache,
+  migrateLegacyWorkspaceReleaseCache,
   readCutterReleaseSyncState,
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
-  syncCutterReleaseCache
+  syncCutterReleaseCache,
+  validateCutterReleaseCacheAtStartup
 } from "./cutter-release-cache.ts";
 export {
   allocateNextLocalClipId,
@@ -124,11 +127,14 @@ export type {
   PublishCutterReleaseInput
 } from "./cutter-release.ts";
 export type {
+  CutterReleaseCacheStartupValidation,
   CutterReleaseCacheStatus,
   CutterReleaseSyncError,
   CutterReleaseSyncPhase,
   CutterReleaseSyncState,
   CutterReleaseSyncStatus,
+  LegacyReleaseCacheMigrationResult,
+  LegacyWorkspaceReleaseCacheDetection,
   SyncCutterReleaseCacheInput,
   SyncCutterReleaseCacheResult
 } from "./cutter-release-cache.ts";

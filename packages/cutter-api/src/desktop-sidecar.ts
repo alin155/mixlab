@@ -6,6 +6,7 @@ import {
   buildCutterApiEnv,
   isWindowsUncPath,
   normalizeDesktopPathForStorage,
+  resolveDesktopReleaseCacheRoot,
   type CutterDesktopConfig
 } from "../../desktop-runtime/src/index.ts";
 import { createCutterApiServer, type CreateCutterApiServerInput } from "./index.ts";
@@ -126,9 +127,8 @@ export function buildCutterApiServerInputFromDesktopConfig(
     env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT?.trim() || env.MIXLAB_SEARCHD_CACHE_ROOT?.trim() || "";
 
   const workspaceRoot = normalizeDesktopPathForStorage(config.local_workspace_root);
-  const releaseCacheRoot = isWindowsUncPath(workspaceRoot) || /^[a-zA-Z]:[\\/]/.test(workspaceRoot)
-    ? path.win32.join(workspaceRoot, "cache")
-    : path.join(workspaceRoot, "cache");
+  // 0.19：与 Tauri/searchd 共用同一 canonical release cache root（不再绑 workspace/cache）。
+  const releaseCacheRoot = resolveDesktopReleaseCacheRoot(env);
   const searchdTimeoutMs = optionalPositiveInteger(
     env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
   ) ?? DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS;
@@ -147,7 +147,9 @@ export function buildCutterApiServerInputFromDesktopConfig(
     ...(authMode === "local_trusted"
       ? { trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师" }
       : {}),
-    ...(searchdCacheRoot ? { searchd_cache_root: normalizeDesktopPathForStorage(searchdCacheRoot) } : {}),
+    searchd_cache_root: searchdCacheRoot
+      ? normalizeDesktopPathForStorage(searchdCacheRoot)
+      : path.join(releaseCacheRoot, "searchd"),
     ...(searchdBaseUrl
       ? {
           searchd_base_url: searchdBaseUrl,

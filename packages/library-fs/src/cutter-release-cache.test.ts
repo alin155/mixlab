@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
+  detectLegacyWorkspaceReleaseCache,
+  migrateLegacyWorkspaceReleaseCache,
   readCutterReleaseSyncState,
+  validateCutterReleaseCacheAtStartup,
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache
@@ -712,4 +715,107 @@ test("copy failure writes failed sync-state with real error message, keeps old a
   } finally {
     await chmod(unreadableSourceRelease, 0o755).catch(() => undefined);
   }
+});
+
+
+// --- 0.19 Phase 2：canonical cache root 迁移 + 启动校验 -------------------------------
+
+async function seedLegacyWorkspaceCache(workspaceRoot: string): Promise<string> {
+  const legacyRoot = path.join(workspaceRoot, "cache");
+  await writeRelease({ root: legacyRoot, version: "v000001", payload: "legacy-active" });
+  await writePointer(legacyRoot, "v000001");
+  return legacyRoot;
+}
+
+test("0.19 migrates legacy workspace/cache to canonical root without losing the active release", async () => {
+  const workspaceRoot = await makeRoot("mixlab-migrate-workspace-");
+  const canonicalRoot = await makeRoot("mixlab-migrate-canonical-");
+  const legacyRoot = await seedLegacyWorkspaceCache(workspaceRoot);
+
+  const detection = await detectLegacyWorkspaceReleaseCache(workspaceRoot);
+  assert.equal(detection.has_cache, true);
+  assert.equal(detection.active_release_version, "v000001");
+
+  const result = await migrateLegacyWorkspaceReleaseCache({
+    workspace_root: workspaceRoot,
+    cache_root: canonicalRoot,
+    now: "2026-11-20T00:00:00.000Z"
+  });
+
+  assert.equal(result.migrated, true);
+  assert.equal(result.active_release_version, "v000001");
+  const canonicalPointer = JSON.parse(
+    await readFile(path.join(canonicalRoot, ".mixlab-library", "current-release.json"), "utf8")
+  );
+  assert.equal(canonicalPointer.current_version, "v000001");
+  assert.equal(await fileOrDirExists(releaseRoot(canonicalRoot, "v000001")), true);
+  // 旧目录保留（可回滚），不静默删除。
+  assert.equal(await fileOrDirExists(path.join(legacyRoot, ".mixlab-library", "current-release.json")), true);
+  const marker = JSON.parse(
+    await readFile(path.join(canonicalRoot, ".mixlab-library", "cache-migration.json"), "utf8")
+  );
+  assert.equal(marker.from, legacyRoot);
+  assert.equal(marker.active_release_version, "v000001");
+});
+
+test("0.19 migration never overwrites an existing canonical cache", async () => {
+  const workspaceRoot = await makeRoot("mixlab-migrate-skip-workspace-");
+  const canonicalRoot = await makeRoot("mixlab-migrate-skip-canonical-");
+  await seedLegacyWorkspaceCache(workspaceRoot);
+  await writeRelease({ root: canonicalRoot, version: "v000002", payload: "canonical-newer" });
+  await writePointer(canonicalRoot, "v000002");
+
+  const result = await migrateLegacyWorkspaceReleaseCache({
+    workspace_root: workspaceRoot,
+    cache_root: canonicalRoot
+  });
+
+  assert.equal(result.migrated, false);
+  assert.equal(result.reason, "canonical_already_present");
+  assert.equal(
+    JSON.parse(await readFile(path.join(canonicalRoot, ".mixlab-library", "current-release.json"), "utf8")).current_version,
+    "v000002"
+  );
+});
+
+test("0.19 migration reports incomplete legacy cache without touching canonical", async () => {
+  const workspaceRoot = await makeRoot("mixlab-migrate-bad-workspace-");
+  const canonicalRoot = await makeRoot("mixlab-migrate-bad-canonical-");
+  const legacyRoot = path.join(workspaceRoot, "cache");
+  await mkdir(path.join(legacyRoot, ".mixlab-library"), { recursive: true });
+  await writePointer(legacyRoot, "v000009"); // 只有指针，没有 release 制品
+
+  const result = await migrateLegacyWorkspaceReleaseCache({
+    workspace_root: workspaceRoot,
+    cache_root: canonicalRoot
+  });
+
+  assert.equal(result.migrated, false);
+  assert.equal(result.reason, "legacy_active_release_incomplete");
+  assert.equal(await fileOrDirExists(path.join(canonicalRoot, ".mixlab-library", "current-release.json")), false);
+});
+
+test("0.19 startup validation flags incomplete active release, keeps pointer, and writes failed sync-state", async () => {
+  const cacheRoot = await makeRoot("mixlab-startup-validation-");
+  await writeRelease({ root: cacheRoot, version: "v000003", payload: "broken-index" });
+  await writePointer(cacheRoot, "v000003");
+  await rm(path.join(releaseRoot(cacheRoot, "v000003"), "search-index"), { recursive: true, force: true });
+
+  const invalid = await validateCutterReleaseCacheAtStartup({ cache_root: cacheRoot });
+  assert.equal(invalid.ok, false);
+  assert.ok(invalid.reasons.length > 0);
+  // 校验失败保留旧 active（不切指针、不删缓存）。
+  assert.equal(
+    JSON.parse(await readFile(path.join(cacheRoot, ".mixlab-library", "current-release.json"), "utf8")).current_version,
+    "v000003"
+  );
+  const failedState = await readCutterReleaseSyncState(cacheRoot);
+  assert.equal(failedState?.phase, "failed");
+  assert.equal(failedState?.last_error?.code, "STARTUP_CACHE_INVALID");
+
+  // 修复制品后再次校验通过。
+  await writeRelease({ root: cacheRoot, version: "v000003", payload: "fixed-index" });
+  const valid = await validateCutterReleaseCacheAtStartup({ cache_root: cacheRoot });
+  assert.equal(valid.ok, true);
+  assert.equal(valid.active_release_version, "v000003");
 });

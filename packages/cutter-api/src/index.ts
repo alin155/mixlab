@@ -38,13 +38,17 @@ import {
   publicCutterUser,
   registerCutterAccount,
   searchCutterSourceLibrary,
+  detectLegacyWorkspaceReleaseCache,
+  migrateLegacyWorkspaceReleaseCache,
   readCutterReleaseSyncState,
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache,
+  validateCutterReleaseCacheAtStartup,
   writeLocalClipManifest,
   validateCutterSession,
   type CutterUserRecord,
+  type CutterReleaseCacheStartupValidation,
   type CutterReleaseCacheStatus,
   type CutterReleaseSyncPhase,
   type CutterReleaseSyncState,
@@ -606,14 +610,106 @@ function defaultCutterWorkspaceRoot(): string {
   return path.join(os.homedir(), "Movies", "MixLabLocal");
 }
 
-function defaultCutterReleaseCacheRoot(env: NodeJS.ProcessEnv = process.env): string {
+/**
+ * 0.19 canonical release cache root（非桌面进程也使用同一规则，避免配置漂移）：
+ * Windows %LOCALAPPDATA%\MixLab Cutter\cache；macOS ~/Library/Application Support/MixLab Cutter/cache；
+ * Linux $XDG_CACHE_HOME/mixlab-cutter/cache。显式 MIXLAB_CUTTER_RELEASE_CACHE_ROOT 仍可覆盖（测试/运维）。
+ */
+function defaultCutterReleaseCacheRoot(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform
+): string {
   const localAppData = optionalTrimmed(env.LOCALAPPDATA);
 
-  if (localAppData) {
-    return path.join(localAppData, "MixLab Cutter", "cache");
+  if (platform === "win32") {
+    if (localAppData) {
+      return path.win32.join(localAppData, "MixLab Cutter", "cache");
+    }
+
+    const userProfile = optionalTrimmed(env.USERPROFILE);
+    return path.win32.join(
+      userProfile ?? "C:\\Users\\Default",
+      "AppData",
+      "Local",
+      "MixLab Cutter",
+      "cache"
+    );
   }
 
-  return path.join(defaultCutterWorkspaceRoot(), "cache");
+  if (platform === "darwin") {
+    const home = optionalTrimmed(env.HOME) ?? os.homedir();
+    return path.posix.join(home, "Library", "Application Support", "MixLab Cutter", "cache");
+  }
+
+  const xdgCacheHome = optionalTrimmed(env.XDG_CACHE_HOME);
+  if (xdgCacheHome) {
+    return path.posix.join(xdgCacheHome, "mixlab-cutter", "cache");
+  }
+
+  return path.posix.join(optionalTrimmed(env.HOME) ?? os.homedir(), ".cache", "mixlab-cutter", "cache");
+}
+
+export interface CutterReleaseCacheStartupMaintenanceResult {
+  cache_root: string;
+  migration?: Awaited<ReturnType<typeof migrateLegacyWorkspaceReleaseCache>>;
+  legacy_detection?: Awaited<ReturnType<typeof detectLegacyWorkspaceReleaseCache>>;
+  validation?: Awaited<ReturnType<typeof validateCutterReleaseCacheAtStartup>>;
+}
+
+/**
+ * 启动时缓存维护（0.19）：旧 workspace/cache 迁移 → 校验 active release/manifest/index。
+ * 只读 + 安全复制；任何失败只记录日志，不阻塞 Cutter API 启动、不删除旧缓存。
+ */
+export async function prepareCutterReleaseCacheForStartup(
+  input: CreateCutterApiServerInput
+): Promise<CutterReleaseCacheStartupMaintenanceResult | null> {
+  const cacheRoot = releaseCacheRootForInput(input);
+
+  if (!cacheRoot) {
+    return null;
+  }
+
+  const result: CutterReleaseCacheStartupMaintenanceResult = { cache_root: cacheRoot };
+
+  if (input.workspace_root) {
+    const legacyRoot = path.join(input.workspace_root, "cache");
+
+    if (path.resolve(legacyRoot) !== path.resolve(cacheRoot)) {
+      result.legacy_detection = await detectLegacyWorkspaceReleaseCache(input.workspace_root);
+      result.migration = await migrateLegacyWorkspaceReleaseCache({
+        workspace_root: input.workspace_root,
+        cache_root: cacheRoot
+      });
+
+      if (result.migration.migrated) {
+        console.error(JSON.stringify({
+          event: "release_cache_migrated_to_canonical_root",
+          legacy_root: result.migration.legacy_root,
+          cache_root: result.migration.cache_root,
+          active_release_version: result.migration.active_release_version
+        }));
+      } else if (result.migration.reason && result.migration.reason !== "legacy_cache_missing") {
+        console.error(JSON.stringify({
+          event: "release_cache_migration_skipped",
+          reason: result.migration.reason,
+          error: result.migration.error ?? null
+        }));
+      }
+    }
+  }
+
+  result.validation = await validateCutterReleaseCacheAtStartup({ cache_root: cacheRoot });
+
+  if (!result.validation.ok) {
+    console.error(JSON.stringify({
+      event: "release_cache_startup_validation_failed",
+      cache_root: cacheRoot,
+      active_release_version: result.validation.active_release_version,
+      reasons: result.validation.reasons
+    }));
+  }
+
+  return result;
 }
 
 const DEFAULT_THUMBNAIL_CACHE_MAX_BYTES = 512 * 1024 * 1024;
@@ -5764,6 +5860,16 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
       await usageOutbox.enqueue(event);
     };
   }
+
+  // 0.19：canonical cache root 迁移 + 启动校验（异步 best-effort，失败不阻塞启动）。
+  const releaseCacheStartupMaintenance = prepareCutterReleaseCacheForStartup(input).catch((error) => {
+    console.error(JSON.stringify({
+      event: "release_cache_startup_maintenance_failed",
+      message: error instanceof Error ? error.message : String(error)
+    }));
+    return null;
+  });
+  void releaseCacheStartupMaintenance;
 
   let cutQueueDrainRunning = false;
   let cutQueueDrainRequested = false;

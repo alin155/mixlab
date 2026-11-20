@@ -5,6 +5,7 @@ import type { Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { resolveDesktopReleaseCacheRoot } from "../../desktop-runtime/src/index.ts";
 import {
   buildCutterApiServerInputFromDesktopConfig,
   readCutterDesktopConfig,
@@ -94,9 +95,10 @@ test("maps desktop config to reviewed cutter API server input without mutating p
     {
       library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      release_cache_root: resolveDesktopReleaseCacheRoot({}),
       auto_run_cut_queue: true,
-      auth_mode: "reviewed"
+      auth_mode: "reviewed",
+      searchd_cache_root: path.join(resolveDesktopReleaseCacheRoot({}), "searchd")
     }
   );
 });
@@ -139,7 +141,7 @@ test("maps desktop searchd env to cutter API server input", () => {
     {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      release_cache_root: resolveDesktopReleaseCacheRoot({}),
       auto_run_cut_queue: true,
       auth_mode: "reviewed",
       searchd_cache_root: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`,
@@ -183,9 +185,10 @@ test("maps explicit desktop local trusted env to cutter API server input", () =>
     {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      release_cache_root: resolveDesktopReleaseCacheRoot({}),
       auto_run_cut_queue: true,
       auth_mode: "local_trusted",
+      searchd_cache_root: path.join(resolveDesktopReleaseCacheRoot({}), "searchd"),
       trusted_username: "Allen"
     }
   );
@@ -205,7 +208,8 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
     create_server: (input) => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
-      assert.equal(input.release_cache_root, String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`);
+      assert.equal(input.release_cache_root, resolveDesktopReleaseCacheRoot({}));
+      assert.equal(input.searchd_cache_root, path.join(resolveDesktopReleaseCacheRoot({}), "searchd"));
       assert.equal(input.auto_run_cut_queue, true);
       assert.equal(input.auth_mode, "reviewed");
       assert.equal(input.trusted_username, undefined);

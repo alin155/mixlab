@@ -30,6 +30,7 @@ import {
   cutterApiInfrastructureErrorPayload,
   type CreateCutterApiServerInput,
   parseIostatDiskIoBytesPerSecond,
+  prepareCutterReleaseCacheForStartup,
   resolveCutterApiRuntimeConfigFromEnv
 } from "./index.ts";
 
@@ -44,7 +45,10 @@ test("cutter API runtime config defaults the local workspace to the user Movies 
 
   assert.equal(config.library_root, "/Volumes/PublicLibrary");
   assert.equal(config.workspace_root, path.join(os.homedir(), "Movies", "MixLabLocal"));
-  assert.equal(config.release_cache_root, path.join(os.homedir(), "Movies", "MixLabLocal", "cache"));
+  // 0.19：release cache 使用 canonical root（macOS Application Support / Windows LOCALAPPDATA），不再绑 workspace。
+  assert.ok(config.release_cache_root);
+  assert.match(config.release_cache_root!, /(?:MixLab Cutter[\\/]cache|mixlab-cutter[\\/]cache)$/);
+  assert.notEqual(config.release_cache_root, path.join(os.homedir(), "Movies", "MixLabLocal", "cache"));
   assert.equal(config.host, "127.0.0.1");
   assert.equal(config.port, 3789);
 });
@@ -4998,3 +5002,101 @@ test("runtime status exposes persistent release sync failure (phase/target/last_
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   }
 });
+
+
+// --- 0.19 Phase 2：canonical cache root + 旧 workspace/cache 启动迁移 -------------------
+
+async function seedLegacyWorkspaceCacheForApi(workspaceRoot: string): Promise<void> {
+  const legacyRoot = path.join(workspaceRoot, "cache");
+  const releaseRoot = path.join(legacyRoot, ".mixlab-library", "releases", "v000001");
+  await mkdir(path.join(releaseRoot, "search-index", "source-transcript-index", "v000001"), { recursive: true });
+  await writeFile(path.join(releaseRoot, "search-index", "source-transcript-index", "v000001", "index.sqlite"), "index");
+  await writeFile(path.join(releaseRoot, "catalog.sqlite"), "catalog");
+  await writeFile(
+    path.join(releaseRoot, "source-path-map.json"),
+    JSON.stringify({ schema_version: "1.0", release_version: "v000001", library_id: "lib_main_001", source_videos: {} })
+  );
+  await writeFile(
+    path.join(releaseRoot, "release.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      release_version: "v000001",
+      library_id: "lib_main_001",
+      generated_at: "2026-11-19T00:00:00.000Z",
+      ready_video_count: 1,
+      source_index_version: "v000001",
+      catalog_path: "catalog.sqlite",
+      source_path_map_path: "source-path-map.json",
+      search_index_path: "search-index/source-transcript-index",
+      thumbnails_path: "thumbnails",
+      transcript_pack_path: "transcript-pack"
+    })
+  );
+  await mkdir(path.join(legacyRoot, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    path.join(legacyRoot, ".mixlab-library", "current-release.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      library_id: "lib_main_001",
+      current_version: "v000001",
+      updated_at: "2026-11-19T00:00:00.000Z",
+      manifest_path: ".mixlab-library/releases/v000001/release.json"
+    })
+  );
+}
+
+test("0.19 startup maintenance migrates legacy workspace cache into canonical root and validates it", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-cache-workspace-"));
+  const canonicalRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-cache-canonical-"));
+  await seedLegacyWorkspaceCacheForApi(workspaceRoot);
+
+  const result = await prepareCutterReleaseCacheForStartup({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: canonicalRoot
+  });
+
+  assert.ok(result);
+  assert.equal(result!.migration?.migrated, true);
+  assert.equal(result!.migration?.active_release_version, "v000001");
+  assert.equal(result!.validation?.ok, true);
+  assert.equal(
+    JSON.parse(await readFile(path.join(canonicalRoot, ".mixlab-library", "current-release.json"), "utf8")).current_version,
+    "v000001"
+  );
+  // 旧 workspace cache 仍在（回滚路径，不静默删除）。
+  assert.equal(await fileOrDirExistsForApi(path.join(workspaceRoot, "cache", ".mixlab-library", "current-release.json")), true);
+  // 二次启动不会覆盖 canonical。
+  const second = await prepareCutterReleaseCacheForStartup({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: canonicalRoot
+  });
+  assert.equal(second!.migration?.migrated, false);
+  assert.equal(second!.migration?.reason, "canonical_already_present");
+});
+
+test("0.19 canonical default release cache root no longer follows the workspace", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary",
+    MIXLAB_CUTTER_WORKSPACE_ROOT: "/Volumes/FastDisk/MixLabLocal"
+  });
+
+  assert.ok(config.release_cache_root);
+  assert.notEqual(config.release_cache_root!, path.join("/Volumes/FastDisk/MixLabLocal", "cache"));
+  assert.match(String(config.release_cache_root), /(?:MixLab Cutter[\\/]cache|mixlab-cutter[\\/]cache)$/);
+  assert.equal(config.workspace_root, "/Volumes/FastDisk/MixLabLocal");
+});
+
+async function fileOrDirExistsForApi(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
