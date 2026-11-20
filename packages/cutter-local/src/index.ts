@@ -24,6 +24,25 @@ export type {
   WriteExportClipManifestInput
 } from "./export-manifest.ts";
 export {
+  GlobalCapacityAbortedError,
+  GlobalCapacityUnavailableError,
+  GlobalCutCapacityCoordinator,
+  defaultGlobalCutCapacityRoot,
+  estimateGlobalQueueEtaMs,
+  resolveGlobalCutCapacityConfig,
+  GLOBAL_CAPACITY_ABORTED_CODE,
+  GLOBAL_CAPACITY_LEASE_LOST_CODE,
+  GLOBAL_CAPACITY_UNAVAILABLE_CODE
+} from "./cut-capacity-coordinator.ts";
+export type {
+  AcquireGlobalCutSlotInput,
+  GlobalCutCapacityConfig,
+  GlobalCutCapacityLeaseSnapshot,
+  GlobalCutCapacitySnapshot,
+  GlobalCutSlotLease,
+  GlobalQueueTicketPosition
+} from "./cut-capacity-coordinator.ts";
+export {
   allocateNextClipListId,
   listClipLists,
   readClipList,

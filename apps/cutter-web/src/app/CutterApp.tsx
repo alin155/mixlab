@@ -1574,6 +1574,7 @@ function renderPage(
         onOpenCutOutputDirectory={handlers.openCutOutputDirectory}
         onLoadMore={handlers.loadMoreCutJobs}
         verificationEnabled={viewState.verificationEnabled}
+        queueStatus={data.runtimeStatus.cut_queue}
       />
     );
   }
