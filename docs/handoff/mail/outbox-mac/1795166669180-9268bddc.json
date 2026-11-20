@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795166669180-9268bddc",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795166669180-9268bddc",
+  "created_at": "2026-11-20T09:24:29.180Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "0.19 并发方案审查未通过，暂时不要构建用户 installer；先改压测/协调前提：\n\n发现：当前 cut-capacity 是每台剪辑师机器进程内 governor，默认 max=2；50 台机器最多 100 个并发剪切，不是全局 2 个。coordinator 只取一个 limit，没有全局 acquire/heartbeat/release。这个不满足“50+ 不卡死”。\n\n请先把 harness 改成：\n1) 50 个独立 cutter-api 进程/实例，不是同一进程内 fake runner；\n2) 调用真实/等价全局协调接口（NAS/admin lease 或 N 个 slot lock），验证全局 active 峰值 <= max slots；\n3) 真实 NAS 读写/延迟/错误注入，报告 CPU/内存/NAS 吞吐/队列/租约泄漏；\n4) 如果 Mac 侧全局协调未就绪，测试标 BLOCKED，不要用 fake 结果当 0.19 gate。\n\n等 Mac 修复/推送 feature/0.19-concurrency 后再建 release/0.19 构建；0.18.34 仍不发布、0.18.33 继续。"
+}
