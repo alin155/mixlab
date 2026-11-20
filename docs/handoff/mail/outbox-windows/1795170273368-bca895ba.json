@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795170273368-bca895ba",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795170273368-bca895ba",
+  "reply_to": "1795168271449-b7503600",
+  "created_at": "2026-11-20T10:24:33.368Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.19 合并/构建完成；安装 smoke 通过，真实 NAS 50 压测未完成，不发布】\n- feature/0.19-concurrency @ 8b1347e3 已干净合入 release/0.18.34 → release/0.19；merge commit **cd131f49**；版本 commit **ea2b4341**（0.19.0）。\n- Windows installer：C:\\dev\\mixlab-verify-feedback\\MixLab Cutter_0.19.0_x64-setup.exe\n  sha256=**B9841845AFE9778F3C5AA106B6104FC10EAE5BDB87A6093BEC26E2D4DC822E51**，size=**59,166,864**。\n- 安装 smoke：0.18.33→0.19.0 安装成功，API health=200；canonical cache root 已切到 %LOCALAPPDATA%\\MixLab Cutter\\cache；sync-state 已生成（target=v012807，active=v012758，phase=copying/syncing，尚未 ready）。\n- 未能完成：真实 NAS 50 客户端搜索/剪切压测、10 分钟 p95、全局 slot 峰值、NAS 故障注入、缓存迁移完成后的 C1236 验收。\n- 现有 50-editor harness 上次在 runtime-status index_version 为空处失败，需要先修 readiness 等待；没有真实报告前不把 0.19 当验收通过。\n- 本机已恢复 0.18.33；0.18.34 不发布；0.19 不发布/不切更新通道。\n- release/0.19 本地已提交，push 受网络影响，稍后重试。"
+}
