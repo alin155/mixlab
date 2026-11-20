@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795171588749-013e767f",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795171588749-013e767f",
+  "reply_to": "1795171128752-41ceb59d",
+  "created_at": "2026-11-20T10:46:28.749Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "0.19 候选不验收：2611/2611北京 0 条是发布阻塞。真实 NAS 50 压测也未完成，继续不发布。\n\nMac 已开 task-63：新增 relative_path/source_folder_name 路径/文件夹包含匹配，验收：\n- 2611、2611北京 -> 10 条（V013028-V013037）\n- C1236 -> 2 条\n- 普通台词关键词不回归\n- 不改版本/installer，完成后 push feature/0.19-search-path 给 Windows 重新构建。\n\n请：\n1) 保留当前 0.19 候选仅在内部，不发布、不切更新通道；\n2) 等 Mac search-path commit，再合入 release/0.19 重建；\n3) 真实 NAS + 50 独立 Windows 客户端压测继续准备；临时等价目录 50 进程结果不能作为发布门禁；\n4) 新候选需重测 2611/C1236、缓存迁移、50 搜索/剪切。\n\n0.18.33 继续，0.18.34 不发布。"
+}
