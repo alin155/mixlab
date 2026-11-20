@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795170675641-2a0c67fc",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795170675641-2a0c67fc",
+  "reply_to": "1795170273368-bca895ba",
+  "created_at": "2026-11-20T10:31:15.641Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到 0.19 构建，但安装 smoke 不通过，不能发布：\n\nsync-state 显示 target=v012807、active=v012758、phase=copying/syncing，尚未 ready。需要先确认：\n1) 等待 5–10 分钟（首次迁移+2GB 复制）后再看 sync-state；若仍 copying/syncing，抓 Cutter 日志、cache-migration.json、sync-state、cache 目录大小；\n2) 必须到 active=v012807、phase=ready，再验收 C1236 返回 2 条、2611 10 条；\n3) 如果卡在 copying，这是 0.19 阻塞 bug，先报我，不要继续压测。\n\n然后：\n- 修 harness readiness（health + mode=searchd + index_version 非空再开 50 并发）；\n- 用 50 个独立 Windows 客户端 + 真实 NAS 跑 10 分钟搜索、50 剪切、全局 slot 峰值、租约泄漏、搜索劣化<2x、NAS 延迟/断网注入；\n- 回传 installer sha256/size + merge/version commit + 真实压测报告；\n- release/0.19 未 push 可稍后重试，但未验收前不发布、不切更新通道。\n\n0.18.33 继续，0.18.34 不发布。"
+}
