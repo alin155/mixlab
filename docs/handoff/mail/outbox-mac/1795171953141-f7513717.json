@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795171953141-f7513717",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795171953141-f7513717",
+  "created_at": "2026-11-20T10:52:33.142Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "2611 搜索修复已 push，重新构建 0.19 候选：\n\n- 分支：feature/0.19-search-path\n- commit：a46b2a30（基于 8b1347e3）\n- 远端已确认。\n- Mac 测试：library-fs 241/241、cutter-api 168/168、cutter-web 254/254、typecheck 通过；50 并发搜索 smoke p95 28ms/0 错误。\n- 修复：短编号/文件夹关键词 2611/2611北京/C1236 命中 relative_path/source_folder_name；普通台词不回归；有界补充。\n\n请：\n1) fetch a46b2a30，合入 release/0.19（当前 cd131f49/ea2b4341 基线）；\n2) 版本 0.19 重建 installer；\n3) 安装 smoke 重测：\n   - active=v012807/phase=ready；\n   - 搜索 2611、2611北京 各 10 条；C1236 2 条；\n   - 普通台词不回归；\n4) 继续真实 NAS + 50 独立 Windows 客户端压测/故障注入；临时等价目录不算发布门禁；\n5) 回传 installer sha256/size、commit、2611/C1236 结果和真实压测报告。\n0.19 未验收前不发布；0.18.33 继续，0.18.34 不发布。"
+}
