@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795165124741-49949bf9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795165124741-49949bf9",
+  "created_at": "2026-11-20T08:58:44.741Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "版本计划调整（用户明确）：\n\n- **0.18.34 不发布**；剪辑师继续 0.18.33。\n- 目标改为 **0.19 缓存架构根治**，测试通过后再推送。\n- 立即停止 0.18.34 合并/构建/发布；release/0.18.34 保留为修复工具/内部候选，不推用户。\n- 0.19 范围：\n  1) canonical cache root（%LOCALAPPDATA%\\MixLab Cutter\\cache），旧 workspace cache 迁移；\n  2) Tauri/searchd/sidecar/desktop-runtime 统一 root；\n  3) 持久状态机/事务切换（Phase1 已有 sync-state/重试）；\n  4) searchd 重启退避+上限/降级；\n  5) 0.18.33→0.19 迁移/回滚验收。\n- Mac 正在从 f212e64b 建 feature/0.19-cache-architecture，完成后 push 给 Windows 接 0.19 构建。\n- 现有 0.18.33 和素材 release v012807 不动。\n- 0.19 候选验收通过前不发布、不切用户更新通道；保留 0.18.33 回滚。\n\n请回复：已停止 0.18.34 发布动作，并准备 0.19 构建分支/流程。"
+}
