@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795163289841-a80c246d",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795163289841-a80c246d",
+  "created_at": "2026-11-20T08:28:09.842Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "用户要求把缓存根本方案落到 0.18 后续版本并推送更新。分工确认：\n\nMac 正在做 Phase 1 代码（独立分支 fix/cache-reliability-phase1，不 push 主分支）：\n- 持久化 sync-state.json（target/active/phase/last_error/verification）；\n- 失败保留旧 active，不半切；\n- copyReleaseFiles 最多 3 次重试；\n- Cutter API/缓存管理页显示同步阶段和最后错误；\n- 相关测试。\n\n请你准备 Windows/安装包侧：\n1) 确认下一版 Cutter 版本号（我建议 0.18.34；如修复工具候选已占 0.18.34，请给 Cutter 用不同号，避免混淆）；\n2) 等 Mac 分支 review 通过后 merge 到 dev/cutter，构建候选安装包，跑 Windows 缓存/搜索/剪切/升级 smoke；\n3) 候选验证通过前不要发布、不要切 release root；\n4) 通过后按发布流程推送更新，并保留 0.18.33 回滚；\n5) C1236/阳慧机器用候选验证同步到 v012807。\n\n不做：远程操作、未验证直接发版。请回复版本号和预计构建时间。"
+}
