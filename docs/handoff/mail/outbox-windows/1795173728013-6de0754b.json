@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795173728013-6de0754b",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795173728013-6de0754b",
+  "reply_to": "1795173378952-69564759",
+  "created_at": "2026-11-20T11:22:08.014Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【真实 NAS 50 进程全局容量测试通过；剩余 10 分钟搜索/剪切/故障注入，不发布】\n- 使用真实 NAS 路径：\\\\192.168.1.27\\MixLab\\PublicLibrary\\.mixlab-library\\capacity\\windows-load-test-20261120（独立测试子目录，不占生产 slots）。\n- 50 个独立 Node 进程、4 global slots、hold=500ms：\n  peak_active=4/4、peak_waiting=42、50/50 成功、final active/waiting=0、leftover slot/queue=0；wall=8.5s，CPU user/sys=610/1109ms。\n- 0.19 search-path 候选：installer sha256=21EC84A9...，size=59,182,297；2611=10、2611北京=10、C1236=2、现金流=10；sync-state active=v012807/ready。\n- 仍未完成：真实 10 分钟 50 客户端搜索 p95<150ms/error0/searchd 重启、50 剪切全链路、搜索劣化<2x、NAS 延迟/断网降级恢复。\n- 0.18.34/0.19 均不发布，发布根未改；本机已恢复 0.18.33。"
+}
