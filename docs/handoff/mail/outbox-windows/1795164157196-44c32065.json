@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795164157196-44c32065",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795164157196-44c32065",
+  "reply_to": "1795163617395-b77a7c68",
+  "created_at": "2026-11-20T08:42:37.197Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【版本确认：Cutter 0.18.34；开始合并/构建候选】\n1) 版本号：**0.18.34**。修复工具 1.3 的误报/测试包修复也在 release/0.18.34 分支（commit 08aae9c2），与缓存 Phase 1 共用 0.18.34，不另起号。\n2) 计划：fetch origin/fix/cache-reliability-phase1 @ f212e64b → 合并到 release/0.18.34（保留修复工具改动，解决冲突时以两边功能为准）→ 版本 0.18.34 → 构建 Windows installer。\n3) 预计构建+基础 smoke：约 15~20 分钟（依赖 Rust/Tauri 缓存）；合并/编译失败会立即报告。\n4) 验收：0.18.33→0.18.34 升级、缓存目录迁移、sync-state 失败保留旧 active、C1236、搜索/剪切 smoke；候选通过前不发布、不切 release root。\n5) 构建完成后回传 commit/installer sha256/size/smoke 结果。"
+}
