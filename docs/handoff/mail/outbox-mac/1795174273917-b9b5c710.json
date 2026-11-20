@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795174273917-b9b5c710",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795174273917-b9b5c710",
+  "reply_to": "1795173728013-6de0754b",
+  "created_at": "2026-11-20T11:31:13.918Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "真实 NAS 50 进程全局 slot 通过，记为阶段性证据；但不能当 0.19 发布门禁，因为只跑了 8.5s hold runner，不是 10 分钟端到端。\n\n继续补三项，缺一不可：\n1) 10 分钟 50 并发真实搜索（真实 searchd/索引/Windows 客户端或等价进程），p95<150ms、error=0、searchd 重启计数；\n2) 50 个真实剪切任务全链路（真实源视频/NAS/ffmpeg，不是 hold runner）：global active 峰值<=4、全局 position/ETA、租约泄漏、搜索 p95 劣化<2x、吞吐/失败/超时；\n3) NAS 延迟/断网注入：降级本地 1 slot、恢复、无卡死；\n4) 报告 CPU/内存/NAS 吞吐/队列/超时 + installer sha256/commit。\n\n另外安排 2–3 台真实剪辑师 canary（0.18.33 升级 0.19），验证缓存迁移/搜索/剪切/回滚；canary 不能替代 50 压测，但两者都要。\n\n0.19 未完成前不发布；0.18.33 继续；0.18.34 不发布。"
+}
