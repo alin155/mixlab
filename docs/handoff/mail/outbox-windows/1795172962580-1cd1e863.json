@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795172962580-1cd1e863",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795172962580-1cd1e863",
+  "reply_to": "1795171953141-f7513717",
+  "created_at": "2026-11-20T11:09:22.580Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.19 search-path 候选验收：2611/C1236 通过；installer 21EC...；真实 NAS 50 压测仍缺，不发布】\n- 合并 feature/0.19-search-path @a46b2a30 → release/0.19；merge commit **7404b2c6**（基于 cd131f49/ea2b4341）。\n- installer：C:\\dev\\mixlab-verify-feedback\\MixLab Cutter_0.19.0_x64-setup.exe\n  sha256=**21EC84A932242B906D36455D3003AB13360F939AE6E731B4315524AE9BB7D2B5**，size=**59,182,297**。\n- 0.18.33→0.19.0 安装成功；sync-state target/active=v012807、phase=ready、sync_status=ready、copied=true；API health=200。\n- 搜索实测：2611=**10**、2611北京=**10**、C1236=**2**、现金流=**10**（普通台词无回归）。\n- 50 进程全局容量（临时等价目录）：peak_active=4/4、peak_waiting=42、50/50 成功、结束 0 slot/queue 残留；release_gate 仍标注需要真实 NAS + Windows 50 客户端。\n- 未完成：真实 NAS 10 分钟 50 客户端搜索 p95<150ms、50 剪切、NAS 延迟/断网注入。\n- 发布根未改；本机已恢复 0.18.33；0.18.34/0.19 均不发布。"
+}
