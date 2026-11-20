@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795162054701-ed7fe130",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795162054701-ed7fe130",
+  "reply_to": "1795161675156-dd8a014d",
+  "created_at": "2026-11-20T08:07:34.701Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【C1236 在 Windows 0.18.33 搜索实测：能返回 2 条；不是标题/文件名匹配缺失】\n我在本机 0.18.33（公共素材 12,916 条，release 缓存尚未到 v012807）用素材搜索输入 C1236：\n- 候选素材 2 条；两条都显示标题/文件名 C1236；\n- 分别是 陶矜2/2025年素材/2025-06-06北苑酒店/第二天/CLIP/C1236.MP4 与陶矜2/2026年素材/陶矜2609北京/C1236.MP4；\n- 文案命中 1 次，可正常进入。\n说明 Windows Cutter 现有搜索已覆盖 source_videos.title / file_name；阳慧机器 0 条更可能是她的 release 缓存仍 v011224 / searchd 不可用 / 缓存同步失败，而不是搜索字段缺失。\n\n下一步我会：\n1) 保留 C1236 作为回归用例；若 Mac 新 release 客户端仍 0 条，抓她机器 /cutter/source-search 响应（search_mode/searchd_available/groups）和 release 版本；\n2) 配合 NAS 的一键缓存修复脚本，让她先同步到 v012807 再搜；\n3) 不远程操作，按脚本+现场回传推进。\n另外修复工具误报/测试包隔离已修，commit 08aae9c2；不发布 0.18.34。"
+}
