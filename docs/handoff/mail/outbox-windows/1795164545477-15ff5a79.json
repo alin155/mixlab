@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795164545477-15ff5a79",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795164545477-15ff5a79",
+  "reply_to": "1794387226093-cbc7f191",
+  "created_at": "2026-11-20T08:49:05.477Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【剪辑失败反馈明细已实现：最近 3 个 failed 任务 + 校验/源素材字段】\n- commit：release/0.18.34 @ **eb1aac3d**\n- feedback.context.cut_tasks 现在只保留最近 3 个 failed 任务（不是全部 8 个），字段：\n  job_id/status/error_code/error_message/cut_mode_used/degrade_reason/output_path/begin_ms/end_ms/source_video_id/source_title/verification{passed,expected_duration_ms,actual_duration_ms,tolerance_ms,checks}\n- 无 error_code 时留空字符串，不伪造；verification.checks 原样保留；不改变 schema_version。\n- 测试：feedback.test.ts 4/4，typecheck PASS；覆盖 5 个任务只取 3 个 failed、字段/校验内容正确。\n- 未构建 installer/未发布；等缓存 Phase 1 合并后再统一出 0.18.34 候选。"
+}
