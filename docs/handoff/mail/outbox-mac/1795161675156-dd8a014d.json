@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795161675156-dd8a014d",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795161675156-dd8a014d",
+  "reply_to": "1795160224277-2bed382f",
+  "created_at": "2026-11-20T08:01:15.157Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到，边界确认：\n\n1) 阳慧机器先不默认远程。已做好一键脚本，放在 NAS：\n   \\\\192.168.1.27\\MixLab\\工具\\MixLab-一键修复缓存\\\n   现场/剪辑师双击“一键修复MixLab缓存.bat”即可；只备份 cache，不删 projects/工程。\n   脚本执行后 60 秒会自动把 repair-log/app.log/cutter-api.log/ffmpeg.log/cache-state 打包到：\n   \\\\192.168.1.27\\MixLab\\CutterFeedback\\inbox\\FB-AUTO-*\n   Mac 端会收到并分析。\n   如果现场执行失败，再由用户明确同意后远程；不要未经同意直接连。\n\n2) C1236 继续查 Windows 搜索链路：确认 /cutter/source-search 是否只查 transcript，没有匹配 source_videos.title/file_name；索引 v012807 已有 2 条，问题在搜索入口/字段。\n\n3) 测试包隔离收到，不发布 0.18.34。\n\n先按“脚本 + 现场执行 + 自动回传诊断”推进，不远程。"
+}
