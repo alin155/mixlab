@@ -1886,3 +1886,33 @@ test("optimistic queue rows are replaced by submitted API jobs without losing or
   assert.equal(next[0]?.project_id, "P-a");
   assert.equal(next.some((job) => job.queue_job_id === optimistic.queue_job_id), false);
 });
+
+
+test("material locator candidates expose source folder for path keyword hits", () => {
+  const sections = buildMaterialLocatorSections({
+    query: "2611",
+    sourceFilter: "all",
+    orientationFilter: "all",
+    localClips: { local_clip_count: 0, clips: [] } as unknown as LocalClipCatalog,
+    library: { available_video_count: 1, videos: [] },
+    search: {
+      query: "2611",
+      normalized_query: "2611",
+      groups: [
+        {
+          source_video_id: "V013028",
+          title: "040A9895",
+          hit_count: 1,
+          best_excerpt: "040A9895",
+          hit_segments: [],
+          source_folder_name: "陶矜2611北京",
+          relative_path: "陶矜2611北京/040A9895.mp4"
+        }
+      ]
+    }
+  });
+
+  const item = sections.find((section) => section.key === "public")?.items[0];
+  assert.equal(item?.source_folder_name, "陶矜2611北京");
+  assert.equal(item?.relative_path, "陶矜2611北京/040A9895.mp4");
+});

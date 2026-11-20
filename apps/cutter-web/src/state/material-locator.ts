@@ -42,6 +42,9 @@ export interface MaterialLocatorResult {
   hit_count: number;
   transcript_character_count: number;
   excerpt: string;
+  /** 0.19 路径关键词命中：来源目录/相对路径，供候选列表展示。 */
+  source_folder_name?: string;
+  relative_path?: string;
   media_url: string;
   cover_url: string;
   detail_url: string;
@@ -259,6 +262,12 @@ function publicResultFromGroup(
     orientation_label: videoOrientationLabel(dimensions),
     segments: group.hit_segments,
     teacher: group.teacher ?? sourceVideo?.teacher ?? teacherFromFolderName(group.source_folder_name),
+    ...(group.source_folder_name || sourceVideo?.source_folder_name
+      ? { source_folder_name: group.source_folder_name ?? sourceVideo?.source_folder_name }
+      : {}),
+    ...(group.relative_path || sourceVideo?.relative_path
+      ? { relative_path: group.relative_path ?? sourceVideo?.relative_path }
+      : {}),
     source_video: sourceVideo
   };
 }

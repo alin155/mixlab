@@ -2501,7 +2501,10 @@ function looksLikeSourceFilenameQuery(query: string): boolean {
     return false;
   }
 
+  // 0.19：短编号/文件夹关键词（2611、2611北京、C1236）也走路径候选；
+  // 不能用 4 汉字/8 字符阈值把它们挡掉。
   return (
+    (/\d/.test(trimmed) && !/\s/.test(trimmed) && trimmed.length <= 16) ||
     /[\\/_.-]/.test(trimmed) ||
     /\.(mp4|mov|mkv|m4v|avi|webm)$/i.test(trimmed) ||
     (/[A-Za-z]/.test(trimmed) && /\d/.test(trimmed))
@@ -2857,6 +2860,47 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     const groups = result.groups.filter((group) => teacherForSourceFolder(group.source_folder_name) === normalizedTeacher);
     return { ...result, groups, returned_count: groups.length };
   };
+  const supplementWithPathCandidates = async (
+    result: CutterSourceLibrarySearchResult
+  ): Promise<CutterSourceLibrarySearchResult> => {
+    if (input.cursor || result.groups.length >= input.limit) {
+      return result;
+    }
+
+    // 只有路径/文件/编号类查询才补扫路径，避免 50 并发普通台词搜索因全库扫描而劣化。
+    if (!shouldTrySourceFilenameSearch(input.query)) {
+      return result;
+    }
+
+    const missing = input.limit - result.groups.length;
+    const releaseRoot = await releaseRootForFastLibraryRead(input.api_input);
+    const pathResult = filterByTeacher(await searchCutterSourceLibrary({
+      library_root: input.api_input.library_root,
+      ...(releaseRoot ? { release_root: releaseRoot } : {}),
+      query: input.query,
+      limit: missing,
+      source_folder_name: localSourceFolderName,
+      filename_only: true
+    }));
+    const seen = new Set(result.groups.map((group) => group.source_video_id));
+    const extras = pathResult.groups
+      .filter((group) => !seen.has(group.source_video_id))
+      .slice(0, missing);
+
+    if (extras.length === 0) {
+      return result;
+    }
+
+    // 候选/过滤层只做有界补充：台词命中在前，路径/文件夹命中随后，绝不无界 ngram。
+    return {
+      ...result,
+      groups: [...result.groups, ...extras],
+      returned_count: result.groups.length + extras.length,
+      has_more: result.has_more,
+      next_cursor: result.next_cursor
+    };
+  };
+
   const searchdBaseUrl = optionalTrimmed(input.api_input.searchd_base_url);
   const cursorBackend = searchCursorBackend(input.cursor);
   if (input.folder_query?.trim()) {
@@ -2928,8 +2972,11 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
           cursor: input.cursor,
           source_folder_name: searchdSourceFolderName
         });
-        if (input.cursor || searchdResult.groups.length > 0) {
+        if (input.cursor) {
           return searchdResult;
+        }
+        if (searchdResult.groups.length > 0) {
+          return supplementWithPathCandidates(searchdResult);
         }
         // Searchd is transcript-indexed. Keep filename-only queries usable by
         // falling through to the local library search, which can supplement by
@@ -2974,14 +3021,16 @@ async function searchCutterSourceLibraryWithPreferredBackend(input: {
     source_folder_name: localSourceFolderName
   }));
 
+  const supplementedLocalResult = await supplementWithPathCandidates(localResult);
+
   if (searchdFallback) {
     return {
-      ...localResult,
+      ...supplementedLocalResult,
       searchd_fallback_reason: searchdFallback,
       searchd_attempts: searchdAttempts
     };
   }
-  return localResult;
+  return supplementedLocalResult;
 }
 
 function parseSourceVideoRoute(

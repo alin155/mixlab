@@ -52,7 +52,8 @@ export {
   getCutterSourceVideoDetail,
   listCutterSourceFolders,
   listCutterSourceLibrary,
-  searchCutterSourceLibrary
+  searchCutterSourceLibrary,
+  shouldTrySourceFilenameSearch
 } from "./cutter-source-library.ts";
 export {
   listCutterReleaseCatalog,

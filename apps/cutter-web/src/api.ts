@@ -103,6 +103,7 @@ export interface SearchGroup {
   hit_segments: SearchHitSegment[];
   transcript_character_count?: number;
   source_folder_name?: string;
+  relative_path?: string;
   teacher?: string;
   media_url?: string;
   cover_url?: string;

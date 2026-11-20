@@ -1586,6 +1586,14 @@ export function MaterialLocatorPage({
                                 <small className="ml-media-row-subtle">
                                   {item.source === "public" ? `${item.teacher ?? "未标注老师"} · ` : ""}{formatDuration(item.duration_ms)} · 命中 {item.hit_count}
                                 </small>
+                                {item.source === "public" && (item.source_folder_name || item.relative_path) ? (
+                                  <small
+                                    className="ml-media-row-subtle"
+                                    title={item.relative_path ?? item.source_folder_name}
+                                  >
+                                    来源目录：{item.source_folder_name ?? item.relative_path}
+                                  </small>
+                                ) : null}
                               </span>
                             </span>
                           </button>
