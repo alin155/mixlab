@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795171128752-41ceb59d",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795171128752-41ceb59d",
+  "reply_to": "1795170675641-2a0c67fc",
+  "created_at": "2026-11-20T10:38:48.752Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【0.19 候选实测：迁移/C1236/50进程容量通过；2611 搜索 0，未达验收，不发布】\n- 合并：feature/0.19-concurrency @8b1347e3 → release/0.19；merge **cd131f49**；版本 **ea2b4341**（0.19.0）。\n- installer：C:\\dev\\mixlab-verify-feedback\\MixLab Cutter_0.19.0_x64-setup.exe\n  sha256=**B9841845AFE9778F3C5AA106B6104FC10EAE5BDB87A6093BEC26E2D4DC822E51**，size=**59,166,864**。\n- 安装/迁移：0.18.33→0.19.0 成功；canonical cache root 生效；sync-state 在 45s 内到 active=v012807、phase=ready、copied=true；API health=200。\n- C1236：搜索返回 2 条，通过。\n- 2611：搜索 `2611` / `2611北京` 均 0 条（公共素材 12,975 已包含 v012807）；0.19 尚未达到“2611 10 条可搜索”验收。疑似纯数字/短词不触发文件名/目录匹配，需修搜索入口。\n- 50 进程全局容量（临时等价目录，非真实 NAS）：peak_active=4/4、peak_waiting=42、50/50 成功、结束 0 slot/queue 残留；report 明确标 release_gate 未通过，需真实 NAS + 50 Windows 客户端。\n- 未完成：50 并发搜索 10 分钟 p95<150ms、真实 NAS 剪切/搜索、NAS 延迟/断网注入。\n- 发布根未改；本机已恢复 0.18.33；0.18.34/0.19 均不发布。"
+}
