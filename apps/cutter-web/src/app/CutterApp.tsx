@@ -1806,6 +1806,7 @@ function renderPage(
             onOpenCutJobDirectory={handlers.openCutJobDirectory}
             onLoadMore={handlers.loadMoreCutJobs}
             verificationEnabled={viewState.verificationEnabled}
+            queueStatus={data.runtimeStatus.cut_queue}
           />
         )}
       </div>

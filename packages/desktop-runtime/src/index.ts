@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 
 export interface CutterDesktopConfig {
@@ -93,6 +94,57 @@ function joinDesktopPath(root: string, child: string): string {
   return isWindowsUncPath(root) || hasWindowsDrivePrefix(root)
     ? path.win32.join(root, child)
     : path.join(root, child);
+}
+
+export const MIXLAB_DESKTOP_CACHE_DIR_NAME = "MixLab Cutter";
+export const RELEASE_CACHE_DIR_NAME = "cache";
+
+/**
+ * 0.19 canonical release cache root（单一来源，Tauri/searchd/cutter-api sidecar 三处必须一致）：
+ * - Windows: %LOCALAPPDATA%\MixLab Cutter\cache（LOCALAPPDATA 缺失时 USERPROFILE\AppData\Local 兜底）
+ * - macOS: ~/Library/Application Support/MixLab Cutter/cache
+ * - Linux: $XDG_CACHE_HOME/mixlab-cutter/cache（缺失时 ~/.cache/mixlab-cutter/cache）
+ */
+export function canonicalDesktopCacheRoot(
+  env: Partial<Record<string, string | undefined>> = {},
+  platform: NodeJS.Platform = process.platform
+): string {
+  if (platform === "win32") {
+    const localAppData = env.LOCALAPPDATA?.trim();
+    if (localAppData) {
+      return path.win32.join(localAppData, MIXLAB_DESKTOP_CACHE_DIR_NAME, RELEASE_CACHE_DIR_NAME);
+    }
+    const userProfile = env.USERPROFILE?.trim();
+    if (userProfile) {
+      return path.win32.join(userProfile, "AppData", "Local", MIXLAB_DESKTOP_CACHE_DIR_NAME, RELEASE_CACHE_DIR_NAME);
+    }
+    return path.win32.join("C:\\Users\\Default", "AppData", "Local", MIXLAB_DESKTOP_CACHE_DIR_NAME, RELEASE_CACHE_DIR_NAME);
+  }
+
+  if (platform === "darwin") {
+    const homeDir = env.HOME?.trim() || env.USERPROFILE?.trim() || os.homedir();
+    return path.posix.join(homeDir, "Library", "Application Support", MIXLAB_DESKTOP_CACHE_DIR_NAME, RELEASE_CACHE_DIR_NAME);
+  }
+
+  const xdgCacheHome = env.XDG_CACHE_HOME?.trim();
+  if (xdgCacheHome) {
+    return path.posix.join(xdgCacheHome, "mixlab-cutter", RELEASE_CACHE_DIR_NAME);
+  }
+  return path.posix.join(env.HOME?.trim() || os.homedir(), ".cache", "mixlab-cutter", RELEASE_CACHE_DIR_NAME);
+}
+
+/** 0.18 及更早版本把 release cache 放在 local_workspace_root/cache；0.19 启动时用于检测迁移。 */
+export function legacyWorkspaceCacheRoot(localWorkspaceRoot: string): string {
+  return joinDesktopPath(normalizeDesktopPathForStorage(localWorkspaceRoot), RELEASE_CACHE_DIR_NAME);
+}
+
+/** 桌面端统一 release cache root：显式 env 覆盖（测试/运维）优先，否则 canonical。 */
+export function resolveDesktopReleaseCacheRoot(
+  env: Partial<Record<string, string | undefined>> = {},
+  platform: NodeJS.Platform = process.platform
+): string {
+  const explicit = env.MIXLAB_CUTTER_RELEASE_CACHE_ROOT?.trim();
+  return explicit ? normalizeDesktopPathForStorage(explicit) : canonicalDesktopCacheRoot(env, platform);
 }
 
 export function defaultWindowsWorkspaceRoot(env: Partial<Record<string, string | undefined>> = {}): string {
@@ -209,15 +261,26 @@ export async function validateLocalWorkspaceCandidate(
   };
 }
 
-export function buildCutterApiEnv(config: CutterDesktopConfig): Record<string, string> {
+export function buildCutterApiEnv(
+  config: CutterDesktopConfig,
+  env: Partial<Record<string, string | undefined>> = process.env,
+  platform: NodeJS.Platform = process.platform
+): Record<string, string> {
   const workspaceRoot = normalizeDesktopPathForStorage(config.local_workspace_root);
+  // 0.19：release cache 从 workspace/cache 迁到 canonical root；searchd 缓存同 root 子目录，禁止三处配置漂移。
+  const releaseCacheRoot = resolveDesktopReleaseCacheRoot(env, platform);
 
   return {
     MIXLAB_CUTTER_API_HOST: config.api_host,
     MIXLAB_CUTTER_API_PORT: String(config.api_port),
     MIXLAB_CUTTER_LIBRARY_ROOT: normalizeDesktopPathForStorage(config.public_library_root),
     MIXLAB_CUTTER_WORKSPACE_ROOT: workspaceRoot,
-    MIXLAB_CUTTER_RELEASE_CACHE_ROOT: joinDesktopPath(workspaceRoot, "cache"),
+    MIXLAB_CUTTER_RELEASE_CACHE_ROOT: releaseCacheRoot,
+    MIXLAB_CUTTER_SEARCHD_CACHE_ROOT:
+      env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT?.trim() ||
+      joinDesktopPath(releaseCacheRoot, "searchd"),
+    // 0.19 防雪崩：50 客户端同时启动时错峰首次 release 全量复制（显式 env 优先）。
+    MIXLAB_RELEASE_SYNC_JITTER_MS: env.MIXLAB_RELEASE_SYNC_JITTER_MS?.trim() || "3000",
     ...(config.log_root ? { MIXLAB_DESKTOP_LOG_DIR: normalizeDesktopPathForStorage(config.log_root) } : {}),
     ...(config.ffmpeg_path ? { MIXLAB_FFMPEG_PATH: normalizeDesktopPathForStorage(config.ffmpeg_path) } : {}),
     ...(config.ffprobe_path ? { MIXLAB_FFPROBE_PATH: normalizeDesktopPathForStorage(config.ffprobe_path) } : {})

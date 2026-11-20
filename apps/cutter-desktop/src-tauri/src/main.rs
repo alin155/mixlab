@@ -1,21 +1,22 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
-    sync::Mutex,
     collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
     env, fs,
+    hash::{Hash, Hasher},
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Component, Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
+    sync::atomic::{AtomicUsize, Ordering},
+    sync::Mutex,
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 
 #[cfg(windows)]
@@ -111,20 +112,32 @@ fn desktop_update_manifest_path(app: &AppHandle) -> Result<PathBuf, String> {
     let parent = public_root
         .parent()
         .ok_or_else(|| "无法从公共素材库路径推导更新目录".to_string())?;
-    Ok(parent.join("安装包").join("MixLab Cutter").join("update.json"))
+    Ok(parent
+        .join("安装包")
+        .join("MixLab Cutter")
+        .join("update.json"))
 }
 
 fn read_update_manifest(app: &AppHandle) -> Result<UpdateManifest, String> {
     let path = desktop_update_manifest_path(app)?;
     let raw = fs::read_to_string(&path).map_err(|error| {
-        format!("无法读取更新清单（{}）：{error}。请确认已连接 NAS 并检查公共素材库路径。", path.display())
+        format!(
+            "无法读取更新清单（{}）：{error}。请确认已连接 NAS 并检查公共素材库路径。",
+            path.display()
+        )
     })?;
-    serde_json::from_str(raw.trim_start_matches('﻿')).map_err(|error| format!("更新清单格式错误：{error}"))
+    serde_json::from_str(raw.trim_start_matches('﻿'))
+        .map_err(|error| format!("更新清单格式错误：{error}"))
 }
 
 fn update_installer_name_is_valid(installer_name: &str) -> bool {
-    !installer_name.trim().is_empty()
-        && Path::new(installer_name).file_name().and_then(|name| name.to_str()) == Some(installer_name)
+    let name = installer_name.trim();
+    // 跨平台显式拒绝路径分隔符/父目录，避免仅依赖 Path 的平台差异（Windows 测试仍通过，macOS 也安全）。
+    !name.is_empty()
+        && name != ".."
+        && !name.contains('/')
+        && !name.contains('\\')
+        && Path::new(name).file_name().and_then(|value| value.to_str()) == Some(name)
 }
 
 fn file_sha256(path: &Path) -> Result<String, String> {
@@ -132,7 +145,6 @@ fn file_sha256(path: &Path) -> Result<String, String> {
     let digest = Sha256::digest(bytes);
     Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -182,7 +194,9 @@ fn feedback_sent_dir() -> PathBuf {
 
 fn feedback_machine_suffix() -> u64 {
     let mut hasher = DefaultHasher::new();
-    env::var("COMPUTERNAME").unwrap_or_default().hash(&mut hasher);
+    env::var("COMPUTERNAME")
+        .unwrap_or_default()
+        .hash(&mut hasher);
     env::var("USERNAME").unwrap_or_default().hash(&mut hasher);
     hasher.finish()
 }
@@ -199,25 +213,37 @@ fn feedback_unique_suffix() -> String {
 
 fn feedback_id_for_directory(pending: &Path, sent: &Path) -> String {
     let now = time::OffsetDateTime::now_utc();
-    let date = format!("{:04}{:02}{:02}", now.year(), u8::from(now.month()), now.day());
+    let date = format!(
+        "{:04}{:02}{:02}",
+        now.year(),
+        u8::from(now.month()),
+        now.day()
+    );
     for offset in 0..1000 {
         let suffix = feedback_unique_suffix();
         let suffix = if offset == 0 {
             suffix
         } else {
-            format!("{:08}", (suffix.parse::<u64>().unwrap_or(0) + offset as u64) % 100_000_000)
+            format!(
+                "{:08}",
+                (suffix.parse::<u64>().unwrap_or(0) + offset as u64) % 100_000_000
+            )
         };
         let id = format!("FB-{date}-{suffix}");
         if !pending.join(&id).exists() && !sent.join(&id).exists() {
             return id;
         }
     }
-    format!("FB-{date}-{:08}", (now.unix_timestamp().unsigned_abs() as u64) % 100_000_000)
+    format!(
+        "FB-{date}-{:08}",
+        (now.unix_timestamp().unsigned_abs() as u64) % 100_000_000
+    )
 }
 
 fn copy_feedback_directory(source: &Path, destination: &Path) -> Result<(), String> {
     fs::create_dir_all(destination).map_err(|error| format!("创建反馈目录失败：{error}"))?;
-    for entry in fs::read_dir(source).map_err(|error| format!("读取反馈目录失败：{error}"))? {
+    for entry in fs::read_dir(source).map_err(|error| format!("读取反馈目录失败：{error}"))?
+    {
         let entry = entry.map_err(|error| format!("读取反馈文件失败：{error}"))?;
         let path = entry.path();
         let target = destination.join(entry.file_name());
@@ -252,7 +278,11 @@ fn write_feedback_log_tails(directory: &Path) {
                 if !path.is_file() {
                     continue;
                 }
-                let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+                let name = path
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
                 let Ok(text) = fs::read_to_string(&path) else {
                     continue;
                 };
@@ -264,7 +294,10 @@ fn write_feedback_log_tails(directory: &Path) {
                     ffmpeg_log.push_str(&text);
                     ffmpeg_log.push('\n');
                 }
-                if name.contains("desktop-host") || name.contains("app") || name.contains("mixlab-searchd") {
+                if name.contains("desktop-host")
+                    || name.contains("app")
+                    || name.contains("mixlab-searchd")
+                {
                     app_log.push_str(&text);
                     app_log.push('\n');
                 }
@@ -281,7 +314,10 @@ fn write_feedback_log_tails(directory: &Path) {
             .collect::<Vec<_>>()
             .join("\n");
         ffmpeg_log = if filtered.trim().is_empty() {
-            format!("[本次会话未捕获 ffmpeg 专属行；以下为 cutter-api 尾部]\n{}", feedback_tail(&api_log, 4_000))
+            format!(
+                "[本次会话未捕获 ffmpeg 专属行；以下为 cutter-api 尾部]\n{}",
+                feedback_tail(&api_log, 4_000)
+            )
         } else {
             filtered
         };
@@ -290,8 +326,14 @@ fn write_feedback_log_tails(directory: &Path) {
         app_log = api_log.clone();
     }
     let _ = fs::write(logs_dir.join("app.log"), feedback_tail(&app_log, 32_000));
-    let _ = fs::write(logs_dir.join("cutter-api.log"), feedback_tail(&api_log, 32_000));
-    let _ = fs::write(logs_dir.join("ffmpeg.log"), feedback_tail(&ffmpeg_log, 32_000));
+    let _ = fs::write(
+        logs_dir.join("cutter-api.log"),
+        feedback_tail(&api_log, 32_000),
+    );
+    let _ = fs::write(
+        logs_dir.join("ffmpeg.log"),
+        feedback_tail(&ffmpeg_log, 32_000),
+    );
 }
 
 fn feedback_upload_destination(inbox: &Path, feedback_id: &str) -> PathBuf {
@@ -310,7 +352,10 @@ fn try_upload_feedback(directory: &Path, feedback_id: &str) -> Result<(), String
     // Never delete an existing feedback package. A collision gets a conflict suffix
     // so both packages are preserved for Mac-side review.
     let destination = feedback_upload_destination(&inbox, feedback_id);
-    let partial = inbox.join(format!("{feedback_id}-{}.partial", feedback_unique_suffix()));
+    let partial = inbox.join(format!(
+        "{feedback_id}-{}.partial",
+        feedback_unique_suffix()
+    ));
     copy_feedback_directory(directory, &partial)?;
     if destination.exists() {
         let _ = fs::remove_dir_all(&partial);
@@ -462,11 +507,24 @@ $bmp.Dispose()
         .replace("__PID__", &std::process::id().to_string())
         .replace("__PATH__", &escaped_path);
     let mut command = Command::new("powershell.exe");
-    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", &script]);
+    command.args([
+        "-NoProfile",
+        "-WindowStyle",
+        "Hidden",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        &script,
+    ]);
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    let mut child = command.spawn().map_err(|error| format!("截图命令启动失败：{error}"))?;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("截图命令启动失败：{error}"))?;
     let deadline = Instant::now() + Duration::from_secs(8);
     loop {
         match child.try_wait() {
@@ -502,7 +560,10 @@ async fn desktop_capture_feedback_screenshot() -> Result<Option<String>, String>
         .map_err(|error| format!("截图任务失败：{error}"))?
 }
 
-fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> Result<FeedbackSubmitResult, String> {
+fn submit_feedback_blocking(
+    app: AppHandle,
+    submission: FeedbackSubmission,
+) -> Result<FeedbackSubmitResult, String> {
     let pending = feedback_pending_dir();
     let sent = feedback_sent_dir();
     fs::create_dir_all(&pending).map_err(|error| format!("创建反馈队列失败：{error}"))?;
@@ -543,15 +604,29 @@ fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> R
         "errors": submission.context.get("errors").cloned().unwrap_or_else(|| json!([])),
         "attachments": if submission.screenshot_png_base64.is_some() { json!(["screenshot.png", "events.jsonl"]) } else { json!(["events.jsonl"]) },
     });
-    fs::write(staging.join("feedback.json"), serde_json::to_vec_pretty(&feedback).map_err(|error| error.to_string())?)
-        .map_err(|error| format!("写入反馈包失败：{error}"))?;
-    let context_bytes = serde_json::to_vec_pretty(&submission.context).map_err(|error| error.to_string())?;
-    fs::write(staging.join("context.json"), context_bytes).map_err(|error| format!("写入反馈上下文失败：{error}"))?;
-    let events = submission.events.iter().map(|event| event.to_string()).collect::<Vec<_>>().join("\n");
-    fs::write(staging.join("events.jsonl"), format!("{events}\n")).map_err(|error| format!("写入操作轨迹失败：{error}"))?;
+    fs::write(
+        staging.join("feedback.json"),
+        serde_json::to_vec_pretty(&feedback).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| format!("写入反馈包失败：{error}"))?;
+    let context_bytes =
+        serde_json::to_vec_pretty(&submission.context).map_err(|error| error.to_string())?;
+    fs::write(staging.join("context.json"), context_bytes)
+        .map_err(|error| format!("写入反馈上下文失败：{error}"))?;
+    let events = submission
+        .events
+        .iter()
+        .map(|event| event.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(staging.join("events.jsonl"), format!("{events}\n"))
+        .map_err(|error| format!("写入操作轨迹失败：{error}"))?;
     if let Some(encoded) = submission.screenshot_png_base64.as_deref() {
-        let bytes = BASE64.decode(encoded).map_err(|error| format!("截图数据无效：{error}"))?;
-        fs::write(staging.join("screenshot.png"), bytes).map_err(|error| format!("写入截图失败：{error}"))?;
+        let bytes = BASE64
+            .decode(encoded)
+            .map_err(|error| format!("截图数据无效：{error}"))?;
+        fs::write(staging.join("screenshot.png"), bytes)
+            .map_err(|error| format!("写入截图失败：{error}"))?;
     }
     write_feedback_log_tails(&staging);
     fs::rename(&staging, &directory).map_err(|error| format!("反馈包入队失败：{error}"))?;
@@ -565,7 +640,10 @@ fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> R
             Err(error) => {
                 let _ = fs::write(
                     directory.join("upload-error.json"),
-                    serde_json::to_vec_pretty(&json!({ "error": error, "updated_at": chrono_like_timestamp() })).unwrap_or_default(),
+                    serde_json::to_vec_pretty(
+                        &json!({ "error": error, "updated_at": chrono_like_timestamp() }),
+                    )
+                    .unwrap_or_default(),
                 );
                 false
             }
@@ -574,12 +652,23 @@ fn submit_feedback_blocking(app: AppHandle, submission: FeedbackSubmission) -> R
         true
     };
     let pending_count = pending_feedback_count();
-    desktop_host_log(&app, "feedback_submitted", json!({ "feedback_id": feedback_id, "delivered": delivered }));
-    Ok(FeedbackSubmitResult { feedback_id, delivered, pending_count })
+    desktop_host_log(
+        &app,
+        "feedback_submitted",
+        json!({ "feedback_id": feedback_id, "delivered": delivered }),
+    );
+    Ok(FeedbackSubmitResult {
+        feedback_id,
+        delivered,
+        pending_count,
+    })
 }
 
 #[tauri::command]
-async fn desktop_submit_feedback(app: AppHandle, submission: FeedbackSubmission) -> Result<FeedbackSubmitResult, String> {
+async fn desktop_submit_feedback(
+    app: AppHandle,
+    submission: FeedbackSubmission,
+) -> Result<FeedbackSubmitResult, String> {
     tauri::async_runtime::spawn_blocking(move || submit_feedback_blocking(app, submission))
         .await
         .map_err(|error| format!("反馈打包任务失败：{error}"))?
@@ -591,7 +680,11 @@ fn desktop_check_update(app: AppHandle) -> Result<UpdateCheckResult, String> {
     let current_version = env!("CARGO_PKG_VERSION").to_string();
     let latest_version = manifest.version.trim().to_string();
     let available = update_is_newer(&current_version, &latest_version);
-    desktop_host_log(&app, "update_check_completed", json!({ "current_version": current_version, "latest_version": latest_version, "available": available }));
+    desktop_host_log(
+        &app,
+        "update_check_completed",
+        json!({ "current_version": current_version, "latest_version": latest_version, "available": available }),
+    );
     Ok(UpdateCheckResult {
         available,
         current_version,
@@ -609,7 +702,9 @@ fn desktop_download_update(app: AppHandle, manifest: UpdateManifest) -> Result<S
         return Err("更新清单中的安装包名称不合法".into());
     }
     let manifest_path = desktop_update_manifest_path(&app)?;
-    let source_dir = manifest_path.parent().ok_or_else(|| "无法定位更新清单目录".to_string())?;
+    let source_dir = manifest_path
+        .parent()
+        .ok_or_else(|| "无法定位更新清单目录".to_string())?;
     let source = source_dir.join(installer_name);
     if !source.is_file() {
         return Err(format!("更新安装包不存在：{}", source.display()));
@@ -646,12 +741,20 @@ fn desktop_download_update(app: AppHandle, manifest: UpdateManifest) -> Result<S
         let _ = fs::remove_file(&temporary);
         format!("保存更新安装包失败：{error}")
     })?;
-    desktop_host_log(&app, "update_download_completed", json!({ "installer": path_string(destination.clone()), "sha256": manifest.sha256 }));
+    desktop_host_log(
+        &app,
+        "update_download_completed",
+        json!({ "installer": path_string(destination.clone()), "sha256": manifest.sha256 }),
+    );
     Ok(path_string(destination))
 }
 
 #[tauri::command(rename_all = "camelCase")]
-fn desktop_install_update(app: AppHandle, installer_path: String, expected_sha256: String) -> Result<(), String> {
+fn desktop_install_update(
+    app: AppHandle,
+    installer_path: String,
+    expected_sha256: String,
+) -> Result<(), String> {
     let updates_dir = env::var("LOCALAPPDATA")
         .map(|root| PathBuf::from(root).join("MixLab Cutter").join("updates"))
         .unwrap_or_else(|_| std::env::temp_dir().join("MixLab Cutter").join("updates"));
@@ -679,16 +782,37 @@ fn desktop_install_update(app: AppHandle, installer_path: String, expected_sha25
     );
     fs::write(&helper, script).map_err(|error| format!("无法创建更新安装辅助脚本：{error}"))?;
     let mut command = Command::new("powershell.exe");
-    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File"]);
+    command.args([
+        "-NoProfile",
+        "-WindowStyle",
+        "Hidden",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+    ]);
     command.arg(&helper);
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    command.spawn().map_err(|error| format!("无法启动更新安装程序：{error}"))?;
-    desktop_host_log(&app, "update_install_started", json!({ "installer": path_string(installer.clone()) }));
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    command
+        .spawn()
+        .map_err(|error| format!("无法启动更新安装程序：{error}"))?;
+    desktop_host_log(
+        &app,
+        "update_install_started",
+        json!({ "installer": path_string(installer.clone()) }),
+    );
     app.exit(0);
     Ok(())
 }
+/// searchd 生命周期：同一进程最多尝试 3 次，退避 2s/10s/60s，成功后重置计数。
+const SEARCHD_MAX_START_ATTEMPTS: usize = 3;
+const SEARCHD_START_BACKOFF_MS: [u64; SEARCHD_MAX_START_ATTEMPTS] = [2_000, 10_000, 60_000];
+static SEARCHD_START_ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+const MIXLAB_DESKTOP_CACHE_DIR_NAME: &str = "MixLab Cutter";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct CutterDesktopConfig {
@@ -750,12 +874,90 @@ fn desktop_log_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("logs"))
 }
 
+/// 0.19 canonical cache root（与 cutter-api/desktop-runtime 同一规则）：
+/// Windows %LOCALAPPDATA%\MixLab Cutter\cache；macOS ~/Library/Application Support/MixLab Cutter/cache；
+/// Linux $XDG_CACHE_HOME/mixlab-cutter/cache 或 ~/.cache/mixlab-cutter/cache。
+fn canonical_cache_root_for_platform(
+    platform: &str,
+    local_app_data: Option<&str>,
+    home: Option<&str>,
+    xdg_cache_home: Option<&str>,
+) -> PathBuf {
+    let clean = |value: Option<&str>| -> Option<String> {
+        value
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(String::from)
+    };
+
+    match platform {
+        "windows" => {
+            if let Some(local_app_data) = clean(local_app_data) {
+                return PathBuf::from(local_app_data)
+                    .join(MIXLAB_DESKTOP_CACHE_DIR_NAME)
+                    .join("cache");
+            }
+            PathBuf::from("C:\\Users\\Default")
+                .join("AppData")
+                .join("Local")
+                .join(MIXLAB_DESKTOP_CACHE_DIR_NAME)
+                .join("cache")
+        }
+        "macos" => match clean(home) {
+            Some(home) => PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join(MIXLAB_DESKTOP_CACHE_DIR_NAME)
+                .join("cache"),
+            None => PathBuf::from(MIXLAB_DESKTOP_CACHE_DIR_NAME).join("cache"),
+        },
+        _ => {
+            if let Some(xdg_cache_home) = clean(xdg_cache_home) {
+                return PathBuf::from(xdg_cache_home)
+                    .join("mixlab-cutter")
+                    .join("cache");
+            }
+            match clean(home) {
+                Some(home) => PathBuf::from(home)
+                    .join(".cache")
+                    .join("mixlab-cutter")
+                    .join("cache"),
+                None => PathBuf::from("mixlab-cutter").join("cache"),
+            }
+        }
+    }
+}
+
+fn canonical_desktop_cache_root() -> PathBuf {
+    if let Some(explicit) = env::var("MIXLAB_CUTTER_RELEASE_CACHE_ROOT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return PathBuf::from(explicit);
+    }
+
+    let platform = if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
+    };
+
+    canonical_cache_root_for_platform(
+        platform,
+        env::var("LOCALAPPDATA").ok().as_deref(),
+        env::var("HOME").ok().as_deref(),
+        env::var("XDG_CACHE_HOME").ok().as_deref(),
+    )
+}
+
 fn desktop_searchd_cache_dir_path(app: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
-        return Ok(PathBuf::from(local_app_data)
-            .join("MixLab Cutter")
-            .join("cache")
-            .join("searchd"));
+    let canonical_cache_root = canonical_desktop_cache_root();
+
+    if canonical_cache_root.is_absolute() {
+        return Ok(canonical_cache_root.join("searchd"));
     }
 
     let dir = app
@@ -936,8 +1138,9 @@ fn path_matches(left: &str, right: &str) -> bool {
         && normalized_for_compare(left) == normalized_for_compare(right)
 }
 
-fn release_cache_root_for_config(config: &CutterDesktopConfig) -> PathBuf {
-    Path::new(&config.local_workspace_root).join("cache")
+fn release_cache_root_for_config(_config: &CutterDesktopConfig) -> PathBuf {
+    // 0.19：release cache 不再绑 workspace（旧 workspace/cache 由 sidecar 启动时安全迁移）。
+    canonical_desktop_cache_root()
 }
 
 fn current_api_matches_desktop_config(host: &str, port: u16, config: &CutterDesktopConfig) -> bool {
@@ -1219,6 +1422,192 @@ fn searchd_base_url() -> String {
     format!("http://{SEARCHD_HOST}:{SEARCHD_PORT}")
 }
 
+fn searchd_restart_delay(attempt: usize) -> Duration {
+    let index = attempt
+        .saturating_sub(1)
+        .min(SEARCHD_MAX_START_ATTEMPTS - 1);
+    Duration::from_millis(SEARCHD_START_BACKOFF_MS[index])
+}
+
+fn searchd_start_attempt_allowed(attempt: usize) -> bool {
+    attempt <= SEARCHD_MAX_START_ATTEMPTS
+}
+
+/// 非阻塞启动 searchd：启动路径只做一次快速尝试，剩余 2 次重试放到后台线程（2s/10s 退避）。
+/// 任何失败都让 Cutter API 搜索降级，绝不阻塞 UI 启动（最坏等待仅进程 spawn/健康探测的短超时）。
+fn searchd_background_retry_attempts(attempted: usize) -> usize {
+    SEARCHD_MAX_START_ATTEMPTS.saturating_sub(attempted)
+}
+
+fn searchd_startup_plan() -> (usize, usize) {
+    // (同步尝试次数, 后台重试次数)
+    (1, SEARCHD_MAX_START_ATTEMPTS - 1)
+}
+
+fn start_searchd_nonblocking(app: &AppHandle, config: &CutterDesktopConfig) -> bool {
+    let already_attempted = SEARCHD_START_ATTEMPTS.load(Ordering::SeqCst);
+
+    if already_attempted >= SEARCHD_MAX_START_ATTEMPTS {
+        desktop_host_log(
+            app,
+            "searchd_restart_suppressed",
+            json!({ "attempts": already_attempted, "max_attempts": SEARCHD_MAX_START_ATTEMPTS }),
+        );
+        return false;
+    }
+
+    if http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT)
+        && searchd_matches_desktop_config(config)
+    {
+        SEARCHD_START_ATTEMPTS.store(0, Ordering::SeqCst);
+        desktop_host_log(
+            app,
+            "searchd_already_ready",
+            json!({ "searchd_base_url": searchd_base_url() }),
+        );
+        return true;
+    }
+
+    if http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT) {
+        desktop_host_log(
+            app,
+            "searchd_config_mismatch_restart",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "本地搜索服务配置与当前桌面配置不一致，准备重启 searchd" }),
+        );
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(300));
+    } else if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
+        desktop_host_log(
+            app,
+            "searchd_port_accepts_connection",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "端口已打开但健康检查尚未完成，按本地搜索服务预热中处理" }),
+        );
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(300));
+    }
+
+    if let Err(error) = spawn_searchd(app, config) {
+        SEARCHD_START_ATTEMPTS.store(SEARCHD_MAX_START_ATTEMPTS, Ordering::SeqCst);
+        desktop_host_log(
+            app,
+            "searchd_spawn_failed_degraded",
+            json!({ "error": error, "message": "searchd 启动失败，搜索降级为本地 sqlite/transcript fallback" }),
+        );
+        return false;
+    }
+
+    SEARCHD_START_ATTEMPTS.store(1, Ordering::SeqCst);
+    desktop_host_log(
+        app,
+        "searchd_started_background_warmup",
+        json!({ "attempt": 1, "max_attempts": SEARCHD_MAX_START_ATTEMPTS, "searchd_base_url": searchd_base_url() }),
+    );
+
+    let app_handle = app.clone();
+    let config_clone = config.clone();
+    std::thread::spawn(move || {
+        for attempt in 2..=SEARCHD_MAX_START_ATTEMPTS {
+            thread::sleep(searchd_restart_delay(attempt - 1));
+            match ensure_searchd_started(&app_handle, &config_clone) {
+                Ok(true) => {
+                    SEARCHD_START_ATTEMPTS.store(0, Ordering::SeqCst);
+                    desktop_host_log(
+                        &app_handle,
+                        "searchd_ready_after_background_retry",
+                        json!({ "attempt": attempt, "searchd_base_url": searchd_base_url() }),
+                    );
+                    return;
+                }
+                Ok(false) => {
+                    desktop_host_log(
+                        &app_handle,
+                        "searchd_background_retry_unhealthy",
+                        json!({ "attempt": attempt, "max_attempts": SEARCHD_MAX_START_ATTEMPTS }),
+                    );
+                }
+                Err(error) => {
+                    desktop_host_log(
+                        &app_handle,
+                        "searchd_background_retry_failed",
+                        json!({ "attempt": attempt, "error": error }),
+                    );
+                }
+            }
+            SEARCHD_START_ATTEMPTS.store(attempt, Ordering::SeqCst);
+        }
+
+        SEARCHD_START_ATTEMPTS.store(SEARCHD_MAX_START_ATTEMPTS, Ordering::SeqCst);
+        desktop_host_log(
+            &app_handle,
+            "searchd_start_attempts_exhausted",
+            json!({ "max_attempts": SEARCHD_MAX_START_ATTEMPTS, "message": "searchd 连续启动失败，已停止重启；搜索降级为本地 sqlite/transcript fallback" }),
+        );
+    });
+
+    false
+}
+
+/// Tauri 在启动 searchd/sidecar 前运行：调用 sidecar exe 的 cache-prepare-only 模式，完成旧缓存迁移+校验。
+/// 有界等待（30s）且失败不阻塞启动（后续 sidecar 正常启动会再次执行幂等维护 + 同步等待锁）。
+fn prepare_release_cache_before_engine(app: &AppHandle, config_path: &str) -> Result<(), String> {
+    let sidecar_path = resolve_cutter_api_sidecar_path(app)?;
+    let mut command = Command::new(&sidecar_path);
+    let cache_root = canonical_desktop_cache_root();
+    command.arg("--config").arg(config_path);
+    command.env("MIXLAB_CUTTER_CACHE_PREPARE_ONLY", "1");
+    command.env(
+        "MIXLAB_CUTTER_RELEASE_CACHE_ROOT",
+        path_string(cache_root.clone()),
+    );
+    command.env(
+        "MIXLAB_CUTTER_SEARCHD_CACHE_ROOT",
+        path_string(cache_root.join("searchd")),
+    );
+    configure_bundled_runtime_env(app, &mut command);
+    command.stdin(Stdio::null());
+    command.stdout(Stdio::null());
+    command.stderr(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    if let Some(parent) = sidecar_path.parent() {
+        command.current_dir(parent);
+    }
+
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("无法启动缓存准备进程：{error}"))?;
+    let prepared = wait_child_with_timeout(&mut child, Duration::from_secs(30));
+    desktop_host_log(
+        app,
+        "release_cache_prepared_before_searchd",
+        json!({ "success": prepared, "timeout_ms": 30_000 }),
+    );
+
+    if prepared {
+        Ok(())
+    } else {
+        Err("缓存准备超时或失败（不会阻塞启动，搜索/缓存将按降级路径处理）".to_string())
+    }
+}
+
+fn wait_child_with_timeout(child: &mut Child, timeout: Duration) -> bool {
+    let started = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) => {
+                if started.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return false;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => return false,
+        }
+    }
+}
 fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), String> {
     let searchd_path = match resolve_searchd_path(app) {
         Ok(path) => path,
@@ -1367,7 +1756,16 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
 
     if http_health_endpoint_is_ready("127.0.0.1", 3789) {
         if current_api_matches_desktop_config("127.0.0.1", 3789, &config) {
-            let searchd_is_ready = ensure_searchd_started(&app, &config)?;
+            // 0.19：先完成 legacy→canonical 迁移/启动校验，再启动 searchd（避免对着空 canonical cache 退避）。
+            if let Err(error) = prepare_release_cache_before_engine(&app, &config_path) {
+                desktop_host_log(
+                    &app,
+                    "release_cache_prepare_degraded",
+                    json!({ "error": error }),
+                );
+            }
+
+            let searchd_is_ready = start_searchd_nonblocking(&app, &config);
             desktop_host_log(
                 &app,
                 "engine_already_ready",
@@ -1401,7 +1799,16 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         return Err(message.into());
     }
 
-    let searchd_is_ready = ensure_searchd_started(&app, &config)?;
+    // 0.19：先完成 legacy→canonical 迁移/启动校验，再启动 searchd（避免对着空 canonical cache 退避）。
+    if let Err(error) = prepare_release_cache_before_engine(&app, &config_path) {
+        desktop_host_log(
+            &app,
+            "release_cache_prepare_degraded",
+            json!({ "error": error }),
+        );
+    }
+
+    let searchd_is_ready = start_searchd_nonblocking(&app, &config);
 
     let sidecar_path = match resolve_cutter_api_sidecar_path(&app) {
         Ok(path) => path,
@@ -1416,6 +1823,11 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
     command.env("MIXLAB_SEARCHD_BASE_URL", searchd_base_url());
     command.env("MIXLAB_SEARCHD_TIMEOUT_MS", SEARCHD_API_TIMEOUT_MS);
     command.env("MIXLAB_CUTTER_SEARCHD_CACHE_ROOT", &searchd_cache_root);
+    // 0.19：统一 canonical release cache root（与 searchd/desktop-runtime 一致，禁止配置漂移）。
+    command.env(
+        "MIXLAB_CUTTER_RELEASE_CACHE_ROOT",
+        path_string(canonical_desktop_cache_root()),
+    );
     configure_bundled_runtime_env(&app, &mut command);
     if let Some(parent) = sidecar_path.parent() {
         command.current_dir(parent);
@@ -2202,7 +2614,9 @@ mod tests {
 
     #[test]
     fn update_manifest_rejects_nested_installer_name() {
-        assert!(update_installer_name_is_valid("MixLab Cutter_0.18.27_x64-setup.exe"));
+        assert!(update_installer_name_is_valid(
+            "MixLab Cutter_0.18.27_x64-setup.exe"
+        ));
         assert!(!update_installer_name_is_valid(r"..\\evil.exe"));
         assert!(!update_installer_name_is_valid("sub/evil.exe"));
         assert!(!update_installer_name_is_valid(""));
@@ -2220,9 +2634,11 @@ mod tests {
         fs::write(&file, b"mixlab").expect("write installer");
         let digest = file_sha256(&file).expect("hash");
         fs::remove_dir_all(root).ok();
-        assert_eq!(digest, "6ee040147a5059533e22f613ccdcb1eb433c7eb3a50e2385f92a44ad0fff24d3");
+        assert_eq!(
+            digest,
+            "6ee040147a5059533e22f613ccdcb1eb433c7eb3a50e2385f92a44ad0fff24d3"
+        );
     }
-
 
     #[test]
     fn feedback_ids_are_unique_across_calls() {
@@ -2257,7 +2673,6 @@ mod tests {
         assert!(existing_still_there);
     }
 
-
     #[test]
     fn feedback_upload_preserves_existing_package_on_conflict() {
         let root = temp_library_root("feedback-actual-conflict");
@@ -2270,15 +2685,24 @@ mod tests {
         fs::write(existing.join("marker.txt"), "original").expect("write existing marker");
         fs::create_dir_all(&source).expect("create source");
         fs::write(source.join("feedback.json"), "{}").expect("write source");
-        std::env::set_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT", nas_root.to_string_lossy().to_string());
+        std::env::set_var(
+            "MIXLAB_CUTTER_FEEDBACK_NAS_ROOT",
+            nas_root.to_string_lossy().to_string(),
+        );
         let result = try_upload_feedback(&source, feedback_id);
         std::env::remove_var("MIXLAB_CUTTER_FEEDBACK_NAS_ROOT");
-        let original_intact = fs::read_to_string(existing.join("marker.txt")).unwrap_or_default() == "original";
+        let original_intact =
+            fs::read_to_string(existing.join("marker.txt")).unwrap_or_default() == "original";
         let uploaded = fs::read_dir(&inbox)
             .map(|entries| {
                 entries
                     .flatten()
-                    .filter(|entry| entry.file_name().to_string_lossy().starts_with("FB-20261102-7777-"))
+                    .filter(|entry| {
+                        entry
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with("FB-20261102-7777-")
+                    })
                     .count()
             })
             .unwrap_or(0);
@@ -2288,7 +2712,6 @@ mod tests {
         assert_eq!(uploaded, 1);
     }
 
-
     #[test]
     fn feedback_sent_destination_preserves_existing_archive() {
         let root = temp_library_root("feedback-sent-conflict");
@@ -2297,7 +2720,8 @@ mod tests {
         fs::create_dir_all(&existing).expect("create sent archive");
         fs::write(existing.join("marker.txt"), "kept").expect("write marker");
         let destination = feedback_sent_destination(&sent, "FB-20261102-8888");
-        let preserved = fs::read_to_string(existing.join("marker.txt")).unwrap_or_default() == "kept";
+        let preserved =
+            fs::read_to_string(existing.join("marker.txt")).unwrap_or_default() == "kept";
         let suffixed = destination
             .file_name()
             .and_then(|value| value.to_str())
@@ -2307,4 +2731,94 @@ mod tests {
         assert!(suffixed);
     }
 
+    fn canonical_cache_root_uses_local_appdata_on_windows() {
+        let root = canonical_cache_root_for_platform(
+            "windows",
+            Some("C:\\Users\\Allen\\AppData\\Local"),
+            Some("/Users/allen"),
+            None,
+        );
+        let text = root.to_string_lossy();
+
+        assert!(text.contains("MixLab Cutter"));
+        assert!(text.ends_with("cache"));
+    }
+
+    #[test]
+    fn canonical_cache_root_uses_application_support_on_macos() {
+        let root = canonical_cache_root_for_platform("macos", None, Some("/Users/allen"), None);
+        let text = root.to_string_lossy();
+
+        assert!(text.contains("Library"));
+        assert!(text.contains("Application Support"));
+        assert!(text.contains("MixLab Cutter"));
+        assert!(text.ends_with("cache"));
+    }
+
+    #[test]
+    fn canonical_cache_root_honors_xdg_on_linux() {
+        let root = canonical_cache_root_for_platform(
+            "linux",
+            None,
+            Some("/home/allen"),
+            Some("/home/allen/.cache"),
+        );
+
+        assert_eq!(
+            root,
+            PathBuf::from("/home/allen/.cache")
+                .join("mixlab-cutter")
+                .join("cache")
+        );
+    }
+
+    #[test]
+    fn searchd_restart_backoff_is_exponential_and_capped() {
+        assert_eq!(searchd_restart_delay(1), Duration::from_secs(2));
+        assert_eq!(searchd_restart_delay(2), Duration::from_secs(10));
+        assert_eq!(searchd_restart_delay(3), Duration::from_secs(60));
+        assert_eq!(searchd_restart_delay(9), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn searchd_attempt_limit_is_three() {
+        assert_eq!(SEARCHD_MAX_START_ATTEMPTS, 3);
+        assert!(searchd_start_attempt_allowed(1));
+        assert!(searchd_start_attempt_allowed(SEARCHD_MAX_START_ATTEMPTS));
+        assert!(!searchd_start_attempt_allowed(
+            SEARCHD_MAX_START_ATTEMPTS + 1
+        ));
+    }
+
+    #[test]
+    fn searchd_startup_is_non_blocking() {
+        // 启动路径只同步尝试一次；剩余 2 次放后台线程（2s/10s），不阻塞 UI。
+        let (sync_attempts, background_attempts) = searchd_startup_plan();
+
+        assert_eq!(sync_attempts, 1);
+        assert_eq!(background_attempts, SEARCHD_MAX_START_ATTEMPTS - 1);
+        assert_eq!(searchd_background_retry_attempts(1), 2);
+        assert_eq!(searchd_background_retry_attempts(2), 1);
+        assert_eq!(
+            searchd_background_retry_attempts(SEARCHD_MAX_START_ATTEMPTS),
+            0
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_prepare_wait_is_bounded() {
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg("sleep 2")
+            .spawn()
+            .expect("spawn sleep child");
+        let started = Instant::now();
+
+        assert!(!wait_child_with_timeout(
+            &mut child,
+            Duration::from_millis(100)
+        ));
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
 }

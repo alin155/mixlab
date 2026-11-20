@@ -2512,6 +2512,9 @@ test("NAS rehearsal smoke locks the 50-editor report to final target scale", () 
 
 test("packages GitHub Actions provenance into target evidence drafts when available", async () => {
   const tempRoot = mkdtempSync(path.join(tmpdir(), "mixlab-evidence-kit-ci-"));
+  const currentCutterVersion = JSON.parse(
+    readFileSync("apps/cutter-desktop/package.json", "utf8")
+  ).version as string;
   const envKeys = [
     "GITHUB_SERVER_URL",
     "GITHUB_REPOSITORY",
@@ -2532,7 +2535,7 @@ test("packages GitHub Actions provenance into target evidence drafts when availa
     process.env.GITHUB_REPOSITORY = "alin155/mixlab";
     process.env.GITHUB_RUN_ID = "1234567890";
     process.env.GITHUB_SHA = TEST_COMMIT_SHA;
-    process.env.MIXLAB_WINDOWS_INSTALLER_FILE_NAME = "MixLab Cutter_0.18.26_x64-setup.exe";
+    process.env.MIXLAB_WINDOWS_INSTALLER_FILE_NAME = `MixLab Cutter_${currentCutterVersion}_x64-setup.exe`;
     process.env.MIXLAB_WINDOWS_INSTALLER_SHA256 = TEST_INSTALLER_SHA256;
     delete process.env.MIXLAB_WINDOWS_INSTALLER_WORKFLOW_RUN_URL;
     delete process.env.MIXLAB_WINDOWS_INSTALLER_VERSION;
@@ -2545,10 +2548,10 @@ test("packages GitHub Actions provenance into target evidence drafts when availa
     const windowsDraft = JSON.parse(readFileSync(path.join(windowsKitDir, "windows", "windows-acc-008.json"), "utf8"));
     const windowsNasDraft = JSON.parse(readFileSync(path.join(windowsKitDir, "nas", "nas-acc-009.json"), "utf8"));
     assert.deepEqual(windowsDraft.artifact_provenance, artifactProvenance());
-    assert.equal(windowsDraft.installer.file_name, "MixLab Cutter_0.18.26_x64-setup.exe");
+    assert.equal(windowsDraft.installer.file_name, `MixLab Cutter_${currentCutterVersion}_x64-setup.exe`);
     assert.equal(windowsDraft.installer.file_sha256, TEST_INSTALLER_SHA256);
     assert.equal(windowsDraft.installer.workflow_run_url, TEST_WORKFLOW_RUN_URL);
-    assert.equal(windowsDraft.installer.version, "0.18.26");
+    assert.equal(windowsDraft.installer.version, currentCutterVersion);
     assert.equal(windowsNasDraft.deployment.image_tag, "");
     assert.equal(windowsNasDraft.deployment.preprocess_count_refresh_interval, 0);
     const windowsDraftMetadataReport = await validateEvidenceKitDraftMetadata({ kitDir: windowsKitDir });

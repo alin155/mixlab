@@ -5,10 +5,13 @@ import type { Server } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { resolveDesktopReleaseCacheRoot } from "../../desktop-runtime/src/index.ts";
 import {
   buildCutterApiServerInputFromDesktopConfig,
   createAsyncUsageEventRecorder,
   readCutterDesktopConfig,
+  runDesktopCachePrepareMode,
+  shouldRunCachePrepareOnly,
   resolveDesktopSidecarConfigPath,
   shouldRunDirectSidecar,
   startCutterApiSidecar
@@ -95,7 +98,8 @@ test("maps desktop config to reviewed cutter API server input without mutating p
     {
       library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      release_cache_root: resolveDesktopReleaseCacheRoot({}),
+      searchd_cache_root: path.join(resolveDesktopReleaseCacheRoot({}), "searchd"),
       auto_run_cut_queue: true,
       auth_mode: "reviewed"
     }
@@ -140,7 +144,7 @@ test("maps desktop searchd env to cutter API server input", () => {
     {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      release_cache_root: resolveDesktopReleaseCacheRoot({}),
       auto_run_cut_queue: true,
       auth_mode: "reviewed",
       searchd_cache_root: String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`,
@@ -189,7 +193,8 @@ test("maps explicit desktop local trusted env to cutter API server input", () =>
     {
       library_root: String.raw`D:\MixLabPublicLibrary`,
       workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      release_cache_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      release_cache_root: resolveDesktopReleaseCacheRoot({}),
+      searchd_cache_root: path.join(resolveDesktopReleaseCacheRoot({}), "searchd"),
       auto_run_cut_queue: true,
       auth_mode: "local_trusted",
       trusted_username: "Allen"
@@ -211,7 +216,8 @@ test("starts cutter API sidecar and emits lifecycle events", async () => {
     create_server: (input) => {
       assert.equal(input.library_root, String.raw`D:\MixLabPublicLibrary`);
       assert.equal(input.workspace_root, String.raw`C:\Users\Allen\Videos\MixLabLocal`);
-      assert.equal(input.release_cache_root, String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`);
+      assert.equal(input.release_cache_root, resolveDesktopReleaseCacheRoot({}));
+      assert.equal(input.searchd_cache_root, path.join(resolveDesktopReleaseCacheRoot({}), "searchd"));
       assert.equal(input.auto_run_cut_queue, true);
       assert.equal(input.auth_mode, "reviewed");
       assert.equal(input.trusted_username, undefined);
@@ -451,4 +457,50 @@ test("async usage recorder best-effort flushes queued events before shutdown", a
 
   await recorder.dispose();
   assert.equal(writes.length, 1);
+});
+
+
+test("0.19 cache prepare-only mode completes migration before searchd/engine startup", async () => {
+  const stdout = makeWritable();
+  let prepareCalls = 0;
+  const prepared = await runDesktopCachePrepareMode({
+    config_path: String.raw`C:\MixLab\desktop-config.json`,
+    read_config: async () => ({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`D:\MixLabPublicLibrary`,
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    }),
+    prepare_cache: async (input) => {
+      prepareCalls += 1;
+      assert.equal(input.release_cache_root, resolveDesktopReleaseCacheRoot({}));
+      return {
+        cache_root: input.release_cache_root!,
+        migration: {
+          migrated: true,
+          legacy_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+          cache_root: input.release_cache_root!,
+          active_release_version: "v000001"
+        },
+        validation: {
+          ok: true,
+          cache_root: input.release_cache_root!,
+          active_release_version: "v000001",
+          checks: [],
+          reasons: []
+        }
+      };
+    },
+    env: {},
+    stdout: stdout.stream
+  });
+
+  assert.equal(prepareCalls, 1);
+  assert.equal(prepared?.migration?.migrated, true);
+  const events = stdout.chunks.map((chunk) => JSON.parse(chunk) as { event: string; stage?: string });
+  assert.deepEqual(events.map((event) => event.event), ["starting", "cache_prepare_ready"]);
+  assert.equal(events[0]?.stage, "cache_prepare");
+  assert.equal(events.some((event) => event.event === "ready"), false);
+  assert.equal(shouldRunCachePrepareOnly({ MIXLAB_CUTTER_CACHE_PREPARE_ONLY: "1" }), true);
+  assert.equal(shouldRunCachePrepareOnly({ MIXLAB_CUTTER_CACHE_PREPARE_ONLY: "0" }), false);
 });
