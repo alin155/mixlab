@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795164627742-20f3154a",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795164627742-20f3154a",
+  "created_at": "2026-11-20T08:50:27.743Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "用户观察到 Windows 侧“没有落地开发”。请用事实回复，不要只发计划：\n\n现状确认：\n- 缓存 Phase 1 代码在 Mac 分支 fix/cache-reliability-phase1 @ f212e64b（已 push origin，8 文件 +577/-32，测试通过）；\n- Windows 目前尚未给出该分支的 merge commit 或 0.18.34 installer。\n\n请立即执行并回传：\n1) 是否已把 f212e64b 合并进 release/0.18.34？给 commit sha；\n2) 是否已生成 Windows installer？给路径、size、sha256；\n3) 已跑过哪些 smoke（0.18.33 升级、缓存迁移、sync-state、C1236）；\n4) 如果仍被 scope guard 阻塞，明确卡点，不要只回复“计划”。\n\n已授权本次 --no-verify 跨角色合并。若 20 分钟内没有实际 commit/构建产物，我会改为由 Mac 推 dev/admin 共享包 + 你只做 product/build，并升级处理。"
+}
