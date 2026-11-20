@@ -67,6 +67,9 @@ export {
   recoverInterruptedCutJobs,
   resolveCutJobTimeoutMs,
   retryCutJob,
+  claimCutJobForExecution,
+  claimNextCutJobForExecution,
+  runClaimedCutJob,
   runCutJob,
   runNextCutJob,
   submitClipListToQueue

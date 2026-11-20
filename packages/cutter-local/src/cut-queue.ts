@@ -129,6 +129,8 @@ export interface CutJobManifest {
   error_code?: CutJobErrorCode;
   /** 提交幂等键：client:<id> 或 clip_list:<clip_list_id>。 */
   submission_key?: string;
+  /** 0.19 容量治理：提交任务时已认证的剪辑师 id（用于每用户公平限流；旧任务缺省）。 */
+  submitted_by_user_id?: string;
   /** 实际执行的剪切模式（copy 可能被自动降级为 precise）。 */
   cut_mode_used?: CutMode;
   degrade_reason?: string;
@@ -143,6 +145,8 @@ export interface SubmitClipListToQueueInput {
   now: string;
   /** 客户端幂等键；未提供时以 clip_list_id 作为幂等键。 */
   client_request_id?: string;
+  /** 提交任务的已认证剪辑师 id（0.19 容量治理每用户公平限流）。 */
+  submitted_by_user_id?: string;
   /** 跨进程提交锁等待上限（毫秒，测试用）；默认 2000。 */
   submission_lock_wait_ms?: number;
   /** 测试注入：每个任务提交后回调，用于验证批量失败回滚。 */
@@ -1345,6 +1349,7 @@ function jobFromClipListItem(input: {
   project_clip_order: number;
   now: string;
   submission_key?: string;
+  submitted_by_user_id?: string;
 }): CutJobManifest {
   const sourceTitle = sourceTitleForCanonicalClipName(input.item.source_title, input.clip_list.title);
   const beginMs = Math.max(0, input.item.begin_ms - input.item.pre_roll_ms);
@@ -1378,6 +1383,7 @@ function jobFromClipListItem(input: {
     current_phase: "queue_wait",
     phase_timings: pendingPhaseTimings(),
     ...(input.submission_key ? { submission_key: input.submission_key } : {}),
+    ...(input.submitted_by_user_id ? { submitted_by_user_id: input.submitted_by_user_id } : {}),
     created_at: input.now,
     updated_at: input.now
   };
@@ -1732,7 +1738,8 @@ export async function submitClipListToQueue(
                 item,
                 project_clip_order: existingProjectOrder + index + 1,
                 now: input.now,
-                submission_key: submissionKey
+                submission_key: submissionKey,
+                ...(input.submitted_by_user_id ? { submitted_by_user_id: input.submitted_by_user_id } : {})
               })
             );
 
@@ -2491,17 +2498,20 @@ async function assertCutJobNotCancelled(workspaceRoot: string, cutJobId: string)
   }
 }
 
-async function runPendingCutJobUnlocked(
-  input: RunNextCutJobInput,
+type CutJobClaimInput = Pick<RunNextCutJobInput, "workspace_root" | "now" | "persist_phase_progress">;
+
+/** 在 run-next 锁内把 pending 任务原子置为 running（只做认领，不执行 I/O）。 */
+async function claimPendingCutJobUnlocked(
+  input: CutJobClaimInput,
   pending: CutJobManifest
-): Promise<CutJobManifest> {
+): Promise<CutJobManifest | null> {
   const persistPhaseProgress = input.persist_phase_progress ?? true;
   const latestBeforeRun = await getCutJob({
     workspace_root: input.workspace_root,
     cut_job_id: pending.cut_job_id
   });
   if (latestBeforeRun?.status === "cancelled") {
-    return latestBeforeRun;
+    return null;
   }
 
   const startedAt = input.now();
@@ -2520,6 +2530,17 @@ async function runPendingCutJobUnlocked(
   if (persistPhaseProgress) {
     await writeCutJob(input.workspace_root, running);
   }
+
+  return running;
+}
+
+/** 执行一个已认领（status=running）的任务；不获取 run-next 全局锁，供容量 slot 并发执行。 */
+async function executeClaimedCutJobUnlocked(
+  input: RunNextCutJobInput,
+  runningJob: CutJobManifest
+): Promise<CutJobManifest> {
+  const persistPhaseProgress = input.persist_phase_progress ?? true;
+  let running = runningJob;
 
   try {
     async function runPhase<T>(
@@ -2831,6 +2852,72 @@ async function runPendingCutJobUnlocked(
     await writeCutJob(input.workspace_root, failed);
     return failed;
   }
+}
+
+async function runPendingCutJobUnlocked(
+  input: RunNextCutJobInput,
+  pending: CutJobManifest
+): Promise<CutJobManifest> {
+  const claimed = await claimPendingCutJobUnlocked(input, pending);
+
+  if (!claimed) {
+    return (
+      (await getCutJob({
+        workspace_root: input.workspace_root,
+        cut_job_id: pending.cut_job_id
+      })) ?? pending
+    );
+  }
+
+  return executeClaimedCutJobUnlocked(input, claimed);
+}
+
+/** 0.19 容量治理：原子认领下一个 pending 任务（只认领，不执行）。 */
+export async function claimNextCutJobForExecution(input: {
+  workspace_root: string;
+  now: () => string;
+}): Promise<CutJobManifest | null> {
+  return withWorkspaceRunNextLock(input.workspace_root, async () => {
+    const pending = oldestPendingJob(await readAllCutJobs(input.workspace_root));
+
+    if (!pending) {
+      return null;
+    }
+
+    return claimPendingCutJobUnlocked(
+      { workspace_root: input.workspace_root, now: input.now, persist_phase_progress: true },
+      pending
+    );
+  });
+}
+
+/** 0.19 容量治理：按任务 id 认领（重试/指定任务场景）。 */
+export async function claimCutJobForExecution(input: {
+  workspace_root: string;
+  cut_job_id: string;
+  now: () => string;
+}): Promise<CutJobManifest | null> {
+  return withWorkspaceRunNextLock(input.workspace_root, async () => {
+    const pending = (await readAllCutJobs(input.workspace_root)).find(
+      (job) => job.cut_job_id === input.cut_job_id && job.status === "pending"
+    );
+
+    if (!pending) {
+      return null;
+    }
+
+    return claimPendingCutJobUnlocked(
+      { workspace_root: input.workspace_root, now: input.now, persist_phase_progress: true },
+      pending
+    );
+  });
+}
+
+/** 执行已认领任务（容量 slot 内调用），不重复获取 run-next 锁。 */
+export async function runClaimedCutJob(
+  input: RunNextCutJobInput & { cut_job: CutJobManifest }
+): Promise<CutJobManifest> {
+  return executeClaimedCutJobUnlocked(input, input.cut_job);
 }
 
 /** 进程启动时把上次异常退出遗留的 running 任务降级为 failed，允许用户重试。 */

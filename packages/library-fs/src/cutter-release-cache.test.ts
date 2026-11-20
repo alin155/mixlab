@@ -819,3 +819,58 @@ test("0.19 startup validation flags incomplete active release, keeps pointer, an
   assert.equal(valid.ok, true);
   assert.equal(valid.active_release_version, "v000003");
 });
+
+
+test("0.19 v2 cache without sync-state is still valid at startup (no false STARTUP_CACHE_INVALID)", async () => {
+  const sourceRoot = await makeRoot("mixlab-v2-nostate-source-");
+  const cacheRoot = await makeRoot("mixlab-v2-nostate-cache-");
+  await writeRelease({
+    root: sourceRoot,
+    version: "v000021",
+    search_index_version: "idx-v000021",
+    payload: "v2-no-state"
+  });
+  await writePointer(sourceRoot, "v000021");
+  await writeV2ReleaseManifest({
+    root: sourceRoot,
+    version: "v000021",
+    filePaths: releaseV2FilePaths("v000021", "idx-v000021"),
+    release_id: "rel-v000021"
+  });
+  await syncCutterReleaseCache({
+    source_library_root: sourceRoot,
+    cache_root: cacheRoot,
+    client_version: "0.19.0"
+  });
+  await rm(path.join(cacheRoot, ".mixlab-library", "sync-state.json"), { force: true });
+
+  const validation = await validateCutterReleaseCacheAtStartup({ cache_root: cacheRoot });
+  assert.equal(validation.ok, true);
+  assert.equal(validation.reasons.includes("sync-state"), false);
+});
+
+test("0.19 cross-process sync lock prevents parallel full copies and releases after sync", async () => {
+  const sourceRoot = await makeRoot("mixlab-sync-lock-source-");
+  const cacheRoot = await makeRoot("mixlab-sync-lock-cache-");
+  await writeRelease({ root: sourceRoot, version: "v000001", payload: "lock" });
+  await writePointer(sourceRoot, "v000001");
+  const lockPath = path.join(cacheRoot, ".mixlab-library", ".release-sync.lock");
+  await mkdir(path.dirname(lockPath), { recursive: true });
+  await writeFile(lockPath, JSON.stringify({ pid: process.pid }) + "\n", "utf8");
+
+  const skipped = await syncCutterReleaseCache({
+    source_library_root: sourceRoot,
+    cache_root: cacheRoot
+  });
+  assert.equal(skipped.copied, false);
+  assert.match(skipped.message, /另一个剪辑实例正在同步/);
+  assert.equal(await fileOrDirExists(releaseRoot(cacheRoot, "v000001")), false);
+
+  await rm(lockPath, { force: true });
+  const synced = await syncCutterReleaseCache({
+    source_library_root: sourceRoot,
+    cache_root: cacheRoot
+  });
+  assert.equal(synced.copied, true);
+  assert.equal(await fileOrDirExists(lockPath), false);
+});

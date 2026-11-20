@@ -7,7 +7,7 @@ use std::{
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Component, Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     sync::atomic::{AtomicUsize, Ordering},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -651,9 +651,18 @@ fn searchd_start_attempt_allowed(attempt: usize) -> bool {
     attempt <= SEARCHD_MAX_START_ATTEMPTS
 }
 
-/// 启动/重启 searchd（最多 3 次，指数退避 2s/10s/60s）。成功重置计数；
-/// 达到上限后本进程不再尝试，返回明确错误，Cutter API 搜索降级为 sqlite/transcript fallback。
-fn start_searchd_with_retry(app: &AppHandle, config: &CutterDesktopConfig) -> Result<bool, String> {
+/// 非阻塞启动 searchd：启动路径只做一次快速尝试，剩余 2 次重试放到后台线程（2s/10s 退避）。
+/// 任何失败都让 Cutter API 搜索降级，绝不阻塞 UI 启动（最坏等待仅进程 spawn/健康探测的短超时）。
+fn searchd_background_retry_attempts(attempted: usize) -> usize {
+    SEARCHD_MAX_START_ATTEMPTS.saturating_sub(attempted)
+}
+
+fn searchd_startup_plan() -> (usize, usize) {
+    // (同步尝试次数, 后台重试次数)
+    (1, SEARCHD_MAX_START_ATTEMPTS - 1)
+}
+
+fn start_searchd_nonblocking(app: &AppHandle, config: &CutterDesktopConfig) -> bool {
     let already_attempted = SEARCHD_START_ATTEMPTS.load(Ordering::SeqCst);
 
     if already_attempted >= SEARCHD_MAX_START_ATTEMPTS {
@@ -662,56 +671,161 @@ fn start_searchd_with_retry(app: &AppHandle, config: &CutterDesktopConfig) -> Re
             "searchd_restart_suppressed",
             json!({ "attempts": already_attempted, "max_attempts": SEARCHD_MAX_START_ATTEMPTS }),
         );
-        return Err(format!(
-            "本地搜索服务 searchd 连续启动失败已达到上限（{SEARCHD_MAX_START_ATTEMPTS} 次），已停止重启；搜索将降级为本地 sqlite/transcript fallback。"
-        ));
+        return false;
     }
 
-    let mut last_error = String::new();
-
-    for attempt in (already_attempted + 1)..=SEARCHD_MAX_START_ATTEMPTS {
-        SEARCHD_START_ATTEMPTS.store(attempt, Ordering::SeqCst);
-
-        match ensure_searchd_started(app, config) {
-            Ok(true) => {
-                SEARCHD_START_ATTEMPTS.store(0, Ordering::SeqCst);
-                return Ok(true);
-            }
-            Ok(false) => {
-                last_error = "searchd 健康检查未通过".to_string();
-            }
-            Err(error) => {
-                last_error = error;
-            }
-        }
-
-        if attempt < SEARCHD_MAX_START_ATTEMPTS {
-            let delay = searchd_restart_delay(attempt);
-            desktop_host_log(
-                app,
-                "searchd_start_retry_scheduled",
-                json!({
-                    "attempt": attempt,
-                    "max_attempts": SEARCHD_MAX_START_ATTEMPTS,
-                    "delay_ms": delay.as_millis(),
-                    "error": last_error,
-                }),
-            );
-            thread::sleep(delay);
-        }
+    if http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT)
+        && searchd_matches_desktop_config(config)
+    {
+        SEARCHD_START_ATTEMPTS.store(0, Ordering::SeqCst);
+        desktop_host_log(
+            app,
+            "searchd_already_ready",
+            json!({ "searchd_base_url": searchd_base_url() }),
+        );
+        return true;
     }
 
-    SEARCHD_START_ATTEMPTS.store(SEARCHD_MAX_START_ATTEMPTS, Ordering::SeqCst);
+    if http_health_endpoint_is_ready(SEARCHD_HOST, SEARCHD_PORT) {
+        desktop_host_log(
+            app,
+            "searchd_config_mismatch_restart",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "本地搜索服务配置与当前桌面配置不一致，准备重启 searchd" }),
+        );
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(300));
+    } else if tcp_port_accepts_connection(SEARCHD_HOST, SEARCHD_PORT) {
+        desktop_host_log(
+            app,
+            "searchd_port_accepts_connection",
+            json!({ "searchd_base_url": searchd_base_url(), "message": "端口已打开但健康检查尚未完成，按本地搜索服务预热中处理" }),
+        );
+        stop_windows_process_tree(SEARCHD_EXECUTABLE_NAME);
+        thread::sleep(Duration::from_millis(300));
+    }
+
+    if let Err(error) = spawn_searchd(app, config) {
+        SEARCHD_START_ATTEMPTS.store(SEARCHD_MAX_START_ATTEMPTS, Ordering::SeqCst);
+        desktop_host_log(
+            app,
+            "searchd_spawn_failed_degraded",
+            json!({ "error": error, "message": "searchd 启动失败，搜索降级为本地 sqlite/transcript fallback" }),
+        );
+        return false;
+    }
+
+    SEARCHD_START_ATTEMPTS.store(1, Ordering::SeqCst);
     desktop_host_log(
         app,
-        "searchd_start_attempts_exhausted",
-        json!({ "max_attempts": SEARCHD_MAX_START_ATTEMPTS, "error": last_error }),
+        "searchd_started_background_warmup",
+        json!({ "attempt": 1, "max_attempts": SEARCHD_MAX_START_ATTEMPTS, "searchd_base_url": searchd_base_url() }),
     );
-    Err(format!(
-        "本地搜索服务 searchd 启动失败（已尝试 {SEARCHD_MAX_START_ATTEMPTS} 次，最后错误：{last_error}）；搜索将降级为本地 sqlite/transcript fallback。"
-    ))
+
+    let app_handle = app.clone();
+    let config_clone = config.clone();
+    std::thread::spawn(move || {
+        for attempt in 2..=SEARCHD_MAX_START_ATTEMPTS {
+            thread::sleep(searchd_restart_delay(attempt - 1));
+            match ensure_searchd_started(&app_handle, &config_clone) {
+                Ok(true) => {
+                    SEARCHD_START_ATTEMPTS.store(0, Ordering::SeqCst);
+                    desktop_host_log(
+                        &app_handle,
+                        "searchd_ready_after_background_retry",
+                        json!({ "attempt": attempt, "searchd_base_url": searchd_base_url() }),
+                    );
+                    return;
+                }
+                Ok(false) => {
+                    desktop_host_log(
+                        &app_handle,
+                        "searchd_background_retry_unhealthy",
+                        json!({ "attempt": attempt, "max_attempts": SEARCHD_MAX_START_ATTEMPTS }),
+                    );
+                }
+                Err(error) => {
+                    desktop_host_log(
+                        &app_handle,
+                        "searchd_background_retry_failed",
+                        json!({ "attempt": attempt, "error": error }),
+                    );
+                }
+            }
+            SEARCHD_START_ATTEMPTS.store(attempt, Ordering::SeqCst);
+        }
+
+        SEARCHD_START_ATTEMPTS.store(SEARCHD_MAX_START_ATTEMPTS, Ordering::SeqCst);
+        desktop_host_log(
+            &app_handle,
+            "searchd_start_attempts_exhausted",
+            json!({ "max_attempts": SEARCHD_MAX_START_ATTEMPTS, "message": "searchd 连续启动失败，已停止重启；搜索降级为本地 sqlite/transcript fallback" }),
+        );
+    });
+
+    false
 }
 
+/// Tauri 在启动 searchd/sidecar 前运行：调用 sidecar exe 的 cache-prepare-only 模式，完成旧缓存迁移+校验。
+/// 有界等待（30s）且失败不阻塞启动（后续 sidecar 正常启动会再次执行幂等维护 + 同步等待锁）。
+fn prepare_release_cache_before_engine(app: &AppHandle, config_path: &str) -> Result<(), String> {
+    let sidecar_path = resolve_cutter_api_sidecar_path(app)?;
+    let mut command = Command::new(&sidecar_path);
+    let cache_root = canonical_desktop_cache_root();
+    command.arg("--config").arg(config_path);
+    command.env("MIXLAB_CUTTER_CACHE_PREPARE_ONLY", "1");
+    command.env(
+        "MIXLAB_CUTTER_RELEASE_CACHE_ROOT",
+        path_string(cache_root.clone()),
+    );
+    command.env(
+        "MIXLAB_CUTTER_SEARCHD_CACHE_ROOT",
+        path_string(cache_root.join("searchd")),
+    );
+    configure_bundled_runtime_env(app, &mut command);
+    command.stdin(Stdio::null());
+    command.stdout(Stdio::null());
+    command.stderr(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    if let Some(parent) = sidecar_path.parent() {
+        command.current_dir(parent);
+    }
+
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("无法启动缓存准备进程：{error}"))?;
+    let prepared = wait_child_with_timeout(&mut child, Duration::from_secs(30));
+    desktop_host_log(
+        app,
+        "release_cache_prepared_before_searchd",
+        json!({ "success": prepared, "timeout_ms": 30_000 }),
+    );
+
+    if prepared {
+        Ok(())
+    } else {
+        Err("缓存准备超时或失败（不会阻塞启动，搜索/缓存将按降级路径处理）".to_string())
+    }
+}
+
+fn wait_child_with_timeout(child: &mut Child, timeout: Duration) -> bool {
+    let started = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Ok(None) => {
+                if started.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return false;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => return false,
+        }
+    }
+}
 fn spawn_searchd(app: &AppHandle, config: &CutterDesktopConfig) -> Result<(), String> {
     let searchd_path = match resolve_searchd_path(app) {
         Ok(path) => path,
@@ -860,13 +974,16 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
 
     if http_health_endpoint_is_ready("127.0.0.1", 3789) {
         if current_api_matches_desktop_config("127.0.0.1", 3789, &config) {
-            let searchd_is_ready = match start_searchd_with_retry(&app, &config) {
-                Ok(ready) => ready,
-                Err(error) => {
-                    desktop_host_log(&app, "searchd_degraded", json!({ "error": error }));
-                    false
-                }
-            };
+            // 0.19：先完成 legacy→canonical 迁移/启动校验，再启动 searchd（避免对着空 canonical cache 退避）。
+            if let Err(error) = prepare_release_cache_before_engine(&app, &config_path) {
+                desktop_host_log(
+                    &app,
+                    "release_cache_prepare_degraded",
+                    json!({ "error": error }),
+                );
+            }
+
+            let searchd_is_ready = start_searchd_nonblocking(&app, &config);
             desktop_host_log(
                 &app,
                 "engine_already_ready",
@@ -900,13 +1017,16 @@ fn desktop_start_engine(app: AppHandle, config_path: String) -> Result<(), Strin
         return Err(message.into());
     }
 
-    let searchd_is_ready = match start_searchd_with_retry(&app, &config) {
-        Ok(ready) => ready,
-        Err(error) => {
-            desktop_host_log(&app, "searchd_degraded", json!({ "error": error }));
-            false
-        }
-    };
+    // 0.19：先完成 legacy→canonical 迁移/启动校验，再启动 searchd（避免对着空 canonical cache 退避）。
+    if let Err(error) = prepare_release_cache_before_engine(&app, &config_path) {
+        desktop_host_log(
+            &app,
+            "release_cache_prepare_degraded",
+            json!({ "error": error }),
+        );
+    }
+
+    let searchd_is_ready = start_searchd_nonblocking(&app, &config);
 
     let sidecar_path = match resolve_cutter_api_sidecar_path(&app) {
         Ok(path) => path,
@@ -1688,5 +1808,37 @@ mod tests {
         assert!(!searchd_start_attempt_allowed(
             SEARCHD_MAX_START_ATTEMPTS + 1
         ));
+    }
+
+    #[test]
+    fn searchd_startup_is_non_blocking() {
+        // 启动路径只同步尝试一次；剩余 2 次放后台线程（2s/10s），不阻塞 UI。
+        let (sync_attempts, background_attempts) = searchd_startup_plan();
+
+        assert_eq!(sync_attempts, 1);
+        assert_eq!(background_attempts, SEARCHD_MAX_START_ATTEMPTS - 1);
+        assert_eq!(searchd_background_retry_attempts(1), 2);
+        assert_eq!(searchd_background_retry_attempts(2), 1);
+        assert_eq!(
+            searchd_background_retry_attempts(SEARCHD_MAX_START_ATTEMPTS),
+            0
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_prepare_wait_is_bounded() {
+        let mut child = Command::new("sh")
+            .arg("-c")
+            .arg("sleep 2")
+            .spawn()
+            .expect("spawn sleep child");
+        let started = Instant::now();
+
+        assert!(!wait_child_with_timeout(
+            &mut child,
+            Duration::from_millis(100)
+        ));
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

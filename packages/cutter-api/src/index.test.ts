@@ -5100,3 +5100,175 @@ async function fileOrDirExistsForApi(filePath: string): Promise<boolean> {
     throw error;
   }
 }
+
+
+// --- 0.19 review fixes：启动准备单飞/迁移先于 searchd（sync 等待维护完成） -----------------
+
+test("0.19 release sync waits for startup cache preparation and never races migration", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-prepare-gate-"));
+  const cacheRoot = path.join(workspaceRoot, "canonical-cache");
+  let maintenanceDone = false;
+  let resolveMaintenance!: () => void;
+  const maintenanceGate = new Promise<void>((resolve) => {
+    resolveMaintenance = resolve;
+  });
+  let syncStarted = false;
+  let resolveSyncStarted!: () => void;
+  const syncStartedGate = new Promise<void>((resolve) => {
+    resolveSyncStarted = resolve;
+  });
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: cacheRoot,
+    release_cache_startup_maintenance_runner: async () => {
+      await maintenanceGate;
+      maintenanceDone = true;
+      return { cache_root: cacheRoot };
+    },
+    release_cache_sync_runner: async (input) => {
+      assert.equal(maintenanceDone, true, "sync 不得早于启动迁移/校验完成");
+      syncStarted = true;
+      resolveSyncStarted();
+      return {
+        cache_root: input.cache_root,
+        cache_ready: true,
+        active_release_version: "v000001",
+        source_release_version: "v000001",
+        search_index_version: "idx-v000001",
+        ready_video_count: 1,
+        cached_release_versions: ["v000001"],
+        cached_release_count: 1,
+        max_cached_releases: 2,
+        cache_size_bytes: 1024,
+        catalog_file_path: path.join(input.cache_root, ".mixlab-library", "releases", "v000001", "catalog.sqlite"),
+        copied: false,
+        pruned_release_versions: [],
+        message: "本机 Release 已是最新"
+      };
+    },
+    source_video_probe_runner: async () => ({
+      duration_ms: 3600,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    })
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    // 维护进行中：允许 runtime-status 返回，但同步必须尚未启动。
+    await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(syncStarted, false);
+    assert.equal(maintenanceDone, false);
+
+    resolveMaintenance();
+    for (let attempt = 0; attempt < 40 && !syncStarted; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
+    }
+
+    await syncStartedGate;
+    assert.equal(syncStarted, true);
+    assert.equal(maintenanceDone, true);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+
+// --- 0.19 容量治理：队列状态可观测（slot/公平/预计等待），无租约泄漏 ----------------------
+
+test("0.19 cut queue status exposes capacity slots, per-user fairness, queue position, and no lease leak", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-capacity-"));
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-02T10:00:00Z",
+    auto_run_cut_queue: false,
+    cut_capacity: { max_concurrent_jobs: 2, max_jobs_per_user: 1 },
+    source_duration_probe: async () => ({ duration_ms: 4_000 }),
+    cut_runner: async (input) => {
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "queued-clip-bytes");
+    },
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        library_id: "lib_main_001",
+        project_id: "P20261120-aaa",
+        title: "并发容量清单",
+        items: [1, 2].map((index) => ({
+          source_video_id: "V000001",
+          source_title: "01_现金流.mp4",
+          source_relative_path: "source-videos/01_现金流.mp4",
+          start_segment_id: "V000001-S000001",
+          end_segment_id: "V000001-S000001",
+          begin_ms: 1000,
+          end_ms: 2000,
+          selected_text: "现金流，是企业的血液。",
+          cut_mode: "smart",
+          pre_roll_ms: index * 0,
+          post_roll_ms: 0
+        }))
+      })
+    });
+    assert.equal(clipListResponse.status, 201);
+
+    const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ clip_list_id: "CL20260502-0001" })
+    });
+    assert.equal(submitResponse.status, 201);
+    const submitted = await submitResponse.json() as any;
+    assert.equal(submitted.data.submitted_count, 2);
+
+    const statusResponse = await fetch(`${baseUrl}/cutter/cut-queue/status`, { headers });
+    assert.equal(statusResponse.status, 200);
+    const status = (await statusResponse.json() as any).data;
+
+    assert.equal(status.capacity.enabled, true);
+    assert.equal(status.capacity.max_concurrent_jobs, 2);
+    assert.equal(status.capacity.max_jobs_per_user, 1);
+    assert.equal(status.capacity.active_slots, 0);
+    assert.equal(status.queued_jobs, 2);
+    assert.equal(status.queue.length, 2);
+    assert.equal(status.queue[0].position, 1);
+    assert.equal(status.queue[1].position, 2);
+    assert.ok(status.queue[1].estimated_wait_ms >= status.queue[0].estimated_wait_ms);
+    assert.equal(status.queue[0].submitted_by_user_id, "CU000001");
+    // 空闲时无租约泄漏。
+    assert.equal(status.capacity.queued_waiters, 0);
+
+    const runtimeResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(runtimeResponse.status, 200);
+    const runtime = (await runtimeResponse.json() as any).data;
+    assert.equal(runtime.cut_capacity.enabled, true);
+    assert.equal(runtime.cut_capacity.active_slots, 0);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});

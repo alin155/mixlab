@@ -928,7 +928,68 @@ async function buildReleaseCacheSyncResult(input: {
 
 const pendingSyncs = new Map<string, Promise<SyncCutterReleaseCacheResult>>();
 
-export function syncCutterReleaseCache(
+const RELEASE_SYNC_LOCK_FILE_NAME = ".release-sync.lock";
+const RELEASE_SYNC_LOCK_STALE_MS = 10 * 60 * 1000;
+
+/** 0.19 防雪崩：同一 cache root 跨进程单飞；锁陈旧自动回收；获取失败时降级返回当前缓存状态（不复制）。 */
+async function acquireReleaseSyncFileLock(cacheRoot: string): Promise<(() => Promise<void>) | null> {
+  const lockPath = path.join(mixlabRoot(cacheRoot), RELEASE_SYNC_LOCK_FILE_NAME);
+
+  try {
+    await mkdir(path.dirname(lockPath), { recursive: true });
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+      { encoding: "utf8", flag: "wx" }
+    );
+    return async () => {
+      await rm(lockPath, { force: true }).catch(() => undefined);
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      return null;
+    }
+  }
+
+  const lockStat = await stat(lockPath).catch(() => null);
+
+  if (!lockStat || Date.now() - lockStat.mtimeMs > RELEASE_SYNC_LOCK_STALE_MS) {
+    await rm(lockPath, { force: true }).catch(() => undefined);
+
+    try {
+      await writeFile(
+        lockPath,
+        `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      return async () => {
+        await rm(lockPath, { force: true }).catch(() => undefined);
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/** 50 客户端同时启动时用 jitter 错峰首次全量复制（仅复制前生效；已有缓存不等待）。 */
+async function applyReleaseSyncJitterBestEffort(cacheRoot: string, releaseVersion: string): Promise<void> {
+  const jitterMs = Number.parseInt(process.env.MIXLAB_RELEASE_SYNC_JITTER_MS ?? "", 10);
+
+  if (!Number.isFinite(jitterMs) || jitterMs <= 0) {
+    return;
+  }
+
+  if (await releaseFilesReady(cacheRoot, releaseVersion).catch(() => false)) {
+    return;
+  }
+
+  const delay = Math.floor(Math.random() * Math.min(jitterMs, 60_000));
+  await delayMilliseconds(delay);
+}
+
+export async function syncCutterReleaseCache(
   input: SyncCutterReleaseCacheInput
 ): Promise<SyncCutterReleaseCacheResult> {
   const key = `${path.resolve(input.source_library_root)}:${path.resolve(input.cache_root)}`;
@@ -936,6 +997,25 @@ export function syncCutterReleaseCache(
 
   if (pending) {
     return pending;
+  }
+
+  const releaseSyncLock = await acquireReleaseSyncFileLock(input.cache_root);
+
+  if (!releaseSyncLock) {
+    // 另一个剪辑实例/进程正在同步：不并发复制，返回当前缓存状态（不切换 active）。
+    const status = await readLocalCutterReleaseCacheStatus({
+      cache_root: input.cache_root,
+      ...(input.max_cached_releases !== undefined ? { max_cached_releases: input.max_cached_releases } : {}),
+      ...(input.include_cache_size !== undefined ? { include_cache_size: input.include_cache_size } : {})
+    });
+
+    return {
+      ...status,
+      source_release_version: "",
+      copied: false,
+      pruned_release_versions: [],
+      message: "另一个剪辑实例正在同步 Release，本次跳过（避免并发全量复制）"
+    };
   }
 
   const sync = syncCutterReleaseCacheOnce(input)
@@ -962,12 +1042,13 @@ export function syncCutterReleaseCache(
       });
       throw error;
     })
-    .finally(() => {
+    .finally(async () => {
       pendingSyncs.delete(key);
+      await releaseSyncLock();
     });
 
   pendingSyncs.set(key, sync);
-  return sync;
+  return await sync;
 }
 
 async function syncCutterReleaseCacheOnce(
@@ -979,6 +1060,9 @@ async function syncCutterReleaseCacheOnce(
   const pinnedReleaseVersions = normalizePinnedReleaseVersions(input.pinned_release_versions);
   const preservedUnreferencedVersions = input.preserve_cached_releases_for_unknown_references === true;
   const clientVersion = input.client_version?.trim() ?? "";
+
+  // 0.19 防雪崩：首次全量复制前 jitter 错峰（已有缓存不受影响）。
+  await applyReleaseSyncJitterBestEffort(input.cache_root, sourceReleaseVersion);
 
   // Phase 1：同步开始/各阶段/终态都持久化到 <cache_root>/.mixlab-library/sync-state.json（原子写）。
   const initialActiveVersion = await currentCacheActiveVersionBestEffort(input.cache_root);
@@ -1499,6 +1583,20 @@ export async function migrateLegacyWorkspaceReleaseCache(input: {
       }, null, 2)}\n`,
       "utf8"
     );
+    // canonical 可能已有上次失败同步留下的部分 .mixlab-library（无 current-release 指针）；
+    // 在准备锁内安全清理后原子 rename，避免 ENOTEMPTY 导致迁移失败。
+    if (await fileExists(targetMixlabRoot)) {
+      if (await fileExists(currentReleasePointerPath(cacheRoot))) {
+        await rm(tempMixlabRoot, { recursive: true, force: true }).catch(() => undefined);
+        return {
+          migrated: false,
+          legacy_root: legacyRoot,
+          cache_root: cacheRoot,
+          reason: "canonical_already_present"
+        };
+      }
+      await rm(targetMixlabRoot, { recursive: true, force: true });
+    }
     await rename(tempMixlabRoot, targetMixlabRoot);
     await writeCutterReleaseSyncState(cacheRoot, {
       target_release_version: activeReleaseVersion,
@@ -1525,6 +1623,58 @@ export async function migrateLegacyWorkspaceReleaseCache(input: {
       reason: "migration_failed",
       error: errorMessageOf(error)
     };
+  }
+}
+
+export const CUTTER_CACHE_PREPARE_LOCK_FILE_NAME = "cache-prepare.lock";
+export const CUTTER_CACHE_PREPARE_LOCK_STALE_MS = 60_000;
+
+/**
+ * 跨进程启动准备锁：Tauri cache-prepare 与 sidecar 启动维护共用，保证迁移/校验单飞，
+ * 避免「迁移进行中并发 sync」；锁陈旧自动回收，等待有上限（超时抛错，调用方降级不阻塞 UI）。
+ */
+export async function withCutterReleaseCachePrepareLock<T>(
+  input: { cache_root: string; wait_ms?: number; task: () => Promise<T> }
+): Promise<T> {
+  // 锁放在 cache root 顶层（不能放 .mixlab-library 内：迁移需要对 .mixlab-library 做原子 rename）。
+  const lockPath = path.join(input.cache_root, CUTTER_CACHE_PREPARE_LOCK_FILE_NAME);
+  const waitMs = input.wait_ms ?? 30_000;
+  const startedAt = Date.now();
+
+  await mkdir(path.dirname(lockPath), { recursive: true });
+
+  for (;;) {
+    try {
+      await writeFile(
+        lockPath,
+        `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+    }
+
+    const lockStat = await stat(lockPath).catch(() => null);
+
+    if (!lockStat || Date.now() - lockStat.mtimeMs > CUTTER_CACHE_PREPARE_LOCK_STALE_MS) {
+      await rm(lockPath, { force: true });
+      continue;
+    }
+
+    if (Date.now() - startedAt >= waitMs) {
+      throw new Error("另一个剪辑实例正在准备缓存（迁移/校验），请稍后重试");
+    }
+
+    await delayMilliseconds(50);
+  }
+
+  try {
+    return await input.task();
+  } finally {
+    await rm(lockPath, { force: true });
   }
 }
 
@@ -1600,7 +1750,13 @@ export async function validateCutterReleaseCacheAtStartup(input: {
         fileExists(path.join(releaseRoot(input.cache_root, activeReleaseVersion), name))
       )
     )).some(Boolean);
-    add("sync_state", await fileExists(syncStatePath), v2ManifestExists ? "sync-state 可选（v2 缓存）" : "sync-state 存在");
+    const hasSyncState = await fileExists(syncStatePath);
+    // v2 缓存允许缺少 Phase1 sync-state（例如手工部署/旧缓存迁移）；只有 legacy 缓存才要求。
+    add(
+      "sync_state",
+      hasSyncState || v2ManifestExists,
+      hasSyncState ? "sync-state 存在" : v2ManifestExists ? "v2 缓存允许缺少 sync-state" : "缺少 sync-state"
+    );
   }
 
   const ok = checks.every((check) => check.passed);

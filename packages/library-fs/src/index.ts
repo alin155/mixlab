@@ -60,7 +60,8 @@ export {
   readFastLocalCutterReleaseCacheStatus,
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache,
-  validateCutterReleaseCacheAtStartup
+  validateCutterReleaseCacheAtStartup,
+  withCutterReleaseCachePrepareLock
 } from "./cutter-release-cache.ts";
 export {
   allocateNextLocalClipId,

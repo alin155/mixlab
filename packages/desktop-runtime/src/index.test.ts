@@ -160,6 +160,7 @@ test("builds cutter API environment from desktop config", () => {
       MIXLAB_CUTTER_WORKSPACE_ROOT: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
       MIXLAB_CUTTER_RELEASE_CACHE_ROOT: canonicalDesktopCacheRoot({}, process.platform),
       MIXLAB_CUTTER_SEARCHD_CACHE_ROOT: path.join(canonicalDesktopCacheRoot({}, process.platform), "searchd"),
+      MIXLAB_RELEASE_SYNC_JITTER_MS: "3000",
       MIXLAB_DESKTOP_LOG_DIR: String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\logs`,
       MIXLAB_FFMPEG_PATH: String.raw`C:\Program Files\MixLab Cutter\bin\ffmpeg.exe`,
       MIXLAB_FFPROBE_PATH: String.raw`C:\Program Files\MixLab Cutter\bin\ffprobe.exe`

@@ -8,6 +8,8 @@ import test from "node:test";
 import { resolveDesktopReleaseCacheRoot } from "../../desktop-runtime/src/index.ts";
 import {
   buildCutterApiServerInputFromDesktopConfig,
+  runDesktopCachePrepareMode,
+  shouldRunCachePrepareOnly,
   readCutterDesktopConfig,
   resolveDesktopSidecarConfigPath,
   shouldRunDirectSidecar,
@@ -313,4 +315,50 @@ test("logs sidecar failure after config has been loaded", async () => {
       { event: "failed", stage: "sidecar_startup", error: "端口已被占用" }
     ]
   );
+});
+
+
+test("0.19 cache prepare-only mode completes migration before searchd/engine startup", async () => {
+  const stdout = makeWritable();
+  let prepareCalls = 0;
+  const prepared = await runDesktopCachePrepareMode({
+    config_path: String.raw`C:\MixLab\desktop-config.json`,
+    read_config: async () => ({
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`D:\MixLabPublicLibrary`,
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    }),
+    prepare_cache: async (input) => {
+      prepareCalls += 1;
+      assert.equal(input.release_cache_root, resolveDesktopReleaseCacheRoot({}));
+      return {
+        cache_root: input.release_cache_root!,
+        migration: {
+          migrated: true,
+          legacy_root: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+          cache_root: input.release_cache_root!,
+          active_release_version: "v000001"
+        },
+        validation: {
+          ok: true,
+          cache_root: input.release_cache_root!,
+          active_release_version: "v000001",
+          checks: [],
+          reasons: []
+        }
+      };
+    },
+    env: {},
+    stdout: stdout.stream
+  });
+
+  assert.equal(prepareCalls, 1);
+  assert.equal(prepared?.migration?.migrated, true);
+  const events = stdout.chunks.map((chunk) => JSON.parse(chunk) as { event: string; stage?: string });
+  assert.deepEqual(events.map((event) => event.event), ["starting", "cache_prepare_ready"]);
+  assert.equal(events[0]?.stage, "cache_prepare");
+  assert.equal(events.some((event) => event.event === "ready"), false);
+  assert.equal(shouldRunCachePrepareOnly({ MIXLAB_CUTTER_CACHE_PREPARE_ONLY: "1" }), true);
+  assert.equal(shouldRunCachePrepareOnly({ MIXLAB_CUTTER_CACHE_PREPARE_ONLY: "0" }), false);
 });

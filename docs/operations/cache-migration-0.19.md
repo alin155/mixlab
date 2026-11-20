@@ -29,6 +29,13 @@
 - 有 active 但制品/索引不完整：保留当前指针与缓存（不删除、不切换），写失败 sync-state（`STARTUP_CACHE_INVALID`，含真实原因）；Cutter API/缓存管理页可看到 phase/last_error。修复后重新校验通过。
 - 首次/空缓存不会因校验失败阻塞启动。
 
+## 3.1 启动顺序与单飞（0.19 review 修复）
+
+- Tauri 启动引擎时**先**执行 cache-prepare（sidecar exe + `MIXLAB_CUTTER_CACHE_PREPARE_ONLY=1`，30s 有界等待），完成 legacy→canonical 迁移与启动校验后才启动 searchd/sidecar；失败降级不阻塞 UI。
+- `prepareCutterReleaseCacheForStartup` 使用跨进程 `.cache-prepare.lock` + 进程内单飞 Promise；release sync 入口 await 维护完成，迁移/校验期间不并发同步。
+- v2 缓存允许缺少 Phase1 sync-state（不再误判 STARTUP_CACHE_INVALID）；首次升级 canonical 空但 legacy 有 active 时先迁移。
+- searchd 启动非阻塞：同步只做一次快速 spawn/健康探测，剩余 2 次重试在后台线程按 2s/10s 退避；不阻塞 UI，达上限后搜索降级 fallback。
+
 ## 4. searchd 生命周期
 
 - 启动/配置不匹配/健康检查失败：同一进程最多尝试 3 次，指数退避 2s → 10s → 60s；成功后计数归零。

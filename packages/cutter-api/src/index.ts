@@ -45,6 +45,7 @@ import {
   readLocalCutterReleaseCacheStatus,
   syncCutterReleaseCache,
   validateCutterReleaseCacheAtStartup,
+  withCutterReleaseCachePrepareLock,
   writeLocalClipManifest,
   validateCutterSession,
   type CutterUserRecord,
@@ -61,6 +62,13 @@ import {
   type CutterSourceVideoDetail,
   type LocalClipView
 } from "../../library-fs/src/index.ts";
+import {
+  CutCapacityGovernor,
+  buildCutQueuePositions,
+  resolveCutCapacityConfig,
+  type CutCapacityConfig,
+  type CutCapacitySnapshot
+} from "./cut-capacity.ts";
 import {
   buildProjectClipOutputFile,
   cancelCutJob,
@@ -86,12 +94,15 @@ import {
   recoverInterruptedCutJobsIfLeased,
   resolveCutJobTimeoutMs,
   retryCutJob,
+  claimCutJobForExecution,
+  runClaimedCutJob,
   runCutJob,
   runNextCutJob,
   submitClipListToQueue,
   writeClipList,
   type ClipListManifest,
   type AcquireWorkspaceLeaseInput,
+  type CutJobManifest,
   type CutJobSourceDetail,
   type CoverRunner,
   type WorkspaceLease,
@@ -193,6 +204,19 @@ export interface CreateCutterApiServerInput {
   source_video_probe_runner?: CutterSourceVideoProbeRunner;
   open_path?: CutterPathOpener;
   auto_run_cut_queue?: boolean;
+  /** 0.19 容量治理：全局 slot/每用户公平/搜索优先参数（env 可覆盖，测试可注入）。 */
+  cut_capacity?: Partial<CutCapacityConfig>;
+  cut_capacity_governor?: CutCapacityGovernor;
+  /** 显式禁用容量治理（仅测试/回退用）；默认开启。 */
+  cut_capacity_disabled?: boolean;
+  /** 服务端容量协调接口探测（测试注入；默认 fetch coordinator_url）。 */
+  cut_capacity_coordinator_fetcher?: (url: string) => Promise<unknown>;
+  /** 0.19：启动准备（迁移/校验）跨进程锁等待上限，超时后降级不阻塞 UI。 */
+  release_cache_startup_wait_ms?: number;
+  /** 测试注入：替换启动准备 runner，用于验证 sync 在维护完成前不启动。 */
+  release_cache_startup_maintenance_runner?: (
+    input: CreateCutterApiServerInput
+  ) => Promise<CutterReleaseCacheStartupMaintenanceResult | null>;
 }
 
 export interface CutterApiRuntimeConfig extends CreateCutterApiServerInput {
@@ -336,6 +360,8 @@ interface CutterRuntimeStatusPayload {
   };
   search_backend: CutterSearchBackendStatus;
   release_cache: CutterReleaseCacheRuntimeStatus;
+  /** 0.19 容量治理状态：slot/排队/公平/搜索优先/协调降级（默认开启）。 */
+  cut_capacity?: CutCapacitySnapshot;
   local_cache: CutterLocalCacheRuntimeStatus;
   source_video_preflight: CutterSourceVideoPreflightStatus;
   current_user: {
@@ -660,7 +686,7 @@ export interface CutterReleaseCacheStartupMaintenanceResult {
  * 启动时缓存维护（0.19）：旧 workspace/cache 迁移 → 校验 active release/manifest/index。
  * 只读 + 安全复制；任何失败只记录日志，不阻塞 Cutter API 启动、不删除旧缓存。
  */
-export async function prepareCutterReleaseCacheForStartup(
+async function prepareCutterReleaseCacheForStartupUnlocked(
   input: CreateCutterApiServerInput
 ): Promise<CutterReleaseCacheStartupMaintenanceResult | null> {
   const cacheRoot = releaseCacheRootForInput(input);
@@ -710,6 +736,27 @@ export async function prepareCutterReleaseCacheForStartup(
   }
 
   return result;
+}
+
+/**
+ * 0.19：启动准备单飞（跨进程锁 + 进程内 WeakMap Promise）。
+ * Tauri 可在启动 searchd 前以 prepare-only 模式调用；sidecar 正常启动也会 await 同一维护，
+ * 保证「迁移/校验完成前不同步、不启动 searchd」且不与 sync 并发。
+ */
+export async function prepareCutterReleaseCacheForStartup(
+  input: CreateCutterApiServerInput
+): Promise<CutterReleaseCacheStartupMaintenanceResult | null> {
+  const cacheRoot = releaseCacheRootForInput(input);
+
+  if (!cacheRoot) {
+    return null;
+  }
+
+  return withCutterReleaseCachePrepareLock({
+    cache_root: cacheRoot,
+    wait_ms: input.release_cache_startup_wait_ms ?? 30_000,
+    task: () => prepareCutterReleaseCacheForStartupUnlocked(input)
+  });
 }
 
 const DEFAULT_THUMBNAIL_CACHE_MAX_BYTES = 512 * 1024 * 1024;
@@ -4643,6 +4690,9 @@ async function syncCutterReleaseCacheRuntimeStatusUncached(
   if (!cacheRoot) {
     return disabledReleaseCacheRuntimeStatus();
   }
+  // 启动维护单飞：旧 workspace cache 迁移/启动校验完成前，绝不并发触发 release sync。
+  await releaseCacheStartupMaintenanceByInput.get(input)?.catch(() => null);
+
   const syncRunner = input.release_cache_sync_runner ?? syncCutterReleaseCache;
   const statusReader = input.release_cache_status_reader ?? readLocalCutterReleaseCacheStatus;
   // PLAT-06：淘汰未引用旧版本前，先按本机历史作品清单保护引用版本；
@@ -5158,6 +5208,16 @@ interface LocalCacheRuntimeStatusCacheEntry {
   promise?: Promise<CutterLocalCacheRuntimeStatus>;
 }
 
+const cutCapacityGovernorByInput = new WeakMap<CreateCutterApiServerInput, CutCapacityGovernor>();
+const releaseCacheStartupMaintenanceByInput = new WeakMap<
+  CreateCutterApiServerInput,
+  Promise<CutterReleaseCacheStartupMaintenanceResult | null>
+>();
+
+function cutCapacitySnapshotForInput(input: CreateCutterApiServerInput): CutCapacitySnapshot | undefined {
+  return cutCapacityGovernorByInput.get(input)?.snapshot();
+}
+
 const localCacheRuntimeStatusByInput = new WeakMap<
   CreateCutterApiServerInput,
   LocalCacheRuntimeStatusCacheEntry
@@ -5322,6 +5382,7 @@ async function runtimeStatusForSession(input: {
     },
     search_backend: searchBackend,
     release_cache: releaseCache,
+    cut_capacity: cutCapacitySnapshotForInput(input.api_input),
     local_cache: localCache,
     source_video_preflight: sourceVideoPreflight,
     current_user: {
@@ -5517,6 +5578,8 @@ async function runWorkspaceCutJob(input: {
   api_input: CreateCutterApiServerInput;
   workspace_root: string;
   cut_job_id?: string;
+  /** 容量 slot 已认领任务（status=running）：直接执行，不再认领/等待全局 run-next 锁。 */
+  claimed_job?: CutJobManifest;
   resolved_sources?: Map<string, CutJobSourceDetail>;
   persist_phase_progress?: boolean;
   /** workspace 租约闸门：只有持租约的进程可执行任务（Round2）。 */
@@ -5634,6 +5697,10 @@ async function runWorkspaceCutJob(input: {
   };
 
   try {
+    if (input.claimed_job) {
+      return await runClaimedCutJob({ ...runInput, cut_job: input.claimed_job });
+    }
+
     return input.cut_job_id
       ? await runCutJob({ ...runInput, cut_job_id: input.cut_job_id })
       : await runNextCutJob(runInput);
@@ -5641,6 +5708,71 @@ async function runWorkspaceCutJob(input: {
     for (const release of releaseCachePins) {
       release();
     }
+  }
+}
+
+async function listPendingCutJobsOldest(workspaceRoot: string): Promise<CutJobManifest[]> {
+  const catalog = await listCutJobs({ workspace_root: workspaceRoot, limit: 500 });
+  return catalog.jobs
+    .filter((job) => job.status === "pending")
+    .sort((left, right) => {
+      const byCreatedAt = left.created_at.localeCompare(right.created_at);
+      return byCreatedAt !== 0 ? byCreatedAt : left.cut_job_id.localeCompare(right.cut_job_id);
+    });
+}
+
+function sleepMilliseconds(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, milliseconds)));
+}
+
+/** 容量 worker：先按用户公平获取 slot 租约，再原子认领指定任务并执行；finally 释放租约并记录时长。 */
+async function runCutCapacityWorker(
+  apiInput: CreateCutterApiServerInput,
+  options: {
+    workspace_root: string;
+    governor: CutCapacityGovernor;
+    config: CutCapacityConfig;
+    job_id: string;
+    user_id: string;
+    execution_allowed: () => Promise<boolean>;
+    lease_unavailable_message: () => string;
+  }
+): Promise<void> {
+  const lease = await options.governor.acquire({ user_id: options.user_id });
+  const startedAtMs = Date.now();
+  let heartbeatTimer: NodeJS.Timeout | undefined;
+
+  try {
+    heartbeatTimer = setInterval(() => {
+      if (!options.governor.heartbeat(lease) && heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+      }
+    }, options.config.heartbeat_ms);
+    heartbeatTimer.unref?.();
+    const claimed = await claimCutJobForExecution({
+      workspace_root: options.workspace_root,
+      cut_job_id: options.job_id,
+      now: () => apiInput.now?.() ?? new Date().toISOString()
+    });
+
+    if (!claimed) {
+      return;
+    }
+
+    options.governor.attachJob(lease, claimed.cut_job_id);
+    await runWorkspaceCutJob({
+      api_input: apiInput,
+      workspace_root: options.workspace_root,
+      claimed_job: claimed,
+      execution_allowed: options.execution_allowed,
+      lease_unavailable_message: options.lease_unavailable_message
+    });
+  } finally {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+    }
+    options.governor.recordJobDuration(Date.now() - startedAtMs);
+    options.governor.release(lease);
   }
 }
 
@@ -5862,14 +5994,67 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
   }
 
   // 0.19：canonical cache root 迁移 + 启动校验（异步 best-effort，失败不阻塞启动）。
-  const releaseCacheStartupMaintenance = prepareCutterReleaseCacheForStartup(input).catch((error) => {
+  const releaseCacheStartupMaintenance = (
+    input.release_cache_startup_maintenance_runner ?? prepareCutterReleaseCacheForStartup
+  )(input).catch((error) => {
     console.error(JSON.stringify({
       event: "release_cache_startup_maintenance_failed",
       message: error instanceof Error ? error.message : String(error)
     }));
     return null;
   });
+  releaseCacheStartupMaintenanceByInput.set(input, releaseCacheStartupMaintenance);
   void releaseCacheStartupMaintenance;
+
+  // 0.19 容量治理：全局剪切 slot / 租约心跳 / 每用户公平 / 搜索优先 / 服务端协调降级。
+  const cutCapacityEnabled = input.cut_capacity_disabled !== true;
+  const cutCapacityConfig = resolveCutCapacityConfig(process.env, input.cut_capacity ?? {});
+  const cutCapacityGovernor =
+    input.cut_capacity_governor ??
+    new CutCapacityGovernor(cutCapacityConfig, {
+      on_reap: (lease) => {
+        console.error(JSON.stringify({ event: "cut_slot_lease_reaped", lease }));
+      }
+    });
+  cutCapacityGovernorByInput.set(input, cutCapacityGovernor);
+  let cutCapacityCoordinatorCheckedAtMs = 0;
+  const refreshCutCapacityRemoteBestEffort = async (): Promise<void> => {
+    if (!cutCapacityEnabled || !cutCapacityConfig.coordinator_url) {
+      return;
+    }
+
+    if (Date.now() - cutCapacityCoordinatorCheckedAtMs < 30_000) {
+      return;
+    }
+
+    cutCapacityCoordinatorCheckedAtMs = Date.now();
+
+    try {
+      const payload = input.cut_capacity_coordinator_fetcher
+        ? await input.cut_capacity_coordinator_fetcher(cutCapacityConfig.coordinator_url)
+        : await fetch(cutCapacityConfig.coordinator_url, {
+            signal: AbortSignal.timeout(cutCapacityConfig.coordinator_timeout_ms)
+          }).then((response) => response.json());
+      const remoteLimit =
+        payload && typeof (payload as { max_concurrent_jobs?: unknown }).max_concurrent_jobs === "number"
+          ? (payload as { max_concurrent_jobs: number }).max_concurrent_jobs
+          : undefined;
+      cutCapacityGovernor.updateRemoteCapacity({
+        ...(remoteLimit !== undefined ? { max_concurrent_jobs: remoteLimit } : {}),
+        degraded: false
+      });
+    } catch (error) {
+      // 服务端协调不可用时本地保守限流，绝不放开全部 slot。
+      cutCapacityGovernor.updateRemoteCapacity({
+        degraded: true,
+        reason: error instanceof Error ? error.message : String(error)
+      });
+      console.error(JSON.stringify({
+        event: "cut_capacity_coordinator_unavailable",
+        message: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  };
 
   let cutQueueDrainRunning = false;
   let cutQueueDrainRequested = false;
@@ -5988,22 +6173,99 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
     cutQueueDrainRunning = true;
 
     try {
-      do {
+      if (!cutCapacityEnabled) {
+        do {
+          cutQueueDrainRequested = false;
+
+          for (;;) {
+            const job = await runWorkspaceCutJob({
+              api_input: input,
+              workspace_root: input.workspace_root,
+              execution_allowed: workspaceExecutionAllowed,
+              lease_unavailable_message: workspaceLeaseMessage
+            });
+
+            if (!job) {
+              break;
+            }
+          }
+        } while (cutQueueDrainRequested);
+        return;
+      }
+
+      // 容量治理：最多 effectiveMaxSlots 个 worker 并发；每用户 slot 配额公平；搜索优先时暂停派发。
+      const activeWorkers = new Set<Promise<void>>();
+      const workersByUser = new Map<string, number>();
+
+      for (;;) {
         cutQueueDrainRequested = false;
+        await refreshCutCapacityRemoteBestEffort();
+        cutCapacityGovernor.reapStaleLeases();
+        const pendingJobs = await listPendingCutJobsOldest(input.workspace_root);
 
-        for (;;) {
-          const job = await runWorkspaceCutJob({
-            api_input: input,
-            workspace_root: input.workspace_root,
-            execution_allowed: workspaceExecutionAllowed,
-            lease_unavailable_message: workspaceLeaseMessage
-          });
+        if (pendingJobs.length === 0 && activeWorkers.size === 0) {
+          break;
+        }
 
-          if (!job) {
+        const dispatchDelayMs = cutCapacityGovernor.dispatchDelayMs();
+
+        if (dispatchDelayMs > 0) {
+          await sleepMilliseconds(dispatchDelayMs);
+          continue;
+        }
+
+        while (
+          activeWorkers.size < cutCapacityGovernor.effectiveMaxSlots() &&
+          activeWorkers.size < pendingJobs.length &&
+          cutCapacityGovernor.dispatchDelayMs() === 0
+        ) {
+          const candidate =
+            pendingJobs.find((job) => {
+              const userId = job.submitted_by_user_id ?? "unknown";
+              return (
+                cutCapacityGovernor.activeCountForUser(userId) + (workersByUser.get(userId) ?? 0) <
+                cutCapacityConfig.max_jobs_per_user
+              );
+            }) ?? pendingJobs[0];
+
+          if (!candidate) {
             break;
           }
+
+          const userId = candidate.submitted_by_user_id ?? "unknown";
+          workersByUser.set(userId, (workersByUser.get(userId) ?? 0) + 1);
+          let worker: Promise<void>;
+          worker = runCutCapacityWorker(input, {
+            workspace_root: input.workspace_root,
+            governor: cutCapacityGovernor,
+            config: cutCapacityConfig,
+            job_id: candidate.cut_job_id,
+            user_id: userId,
+            execution_allowed: workspaceExecutionAllowed,
+            lease_unavailable_message: workspaceLeaseMessage
+          }).finally(() => {
+            activeWorkers.delete(worker);
+            const remaining = (workersByUser.get(userId) ?? 1) - 1;
+
+            if (remaining > 0) {
+              workersByUser.set(userId, remaining);
+            } else {
+              workersByUser.delete(userId);
+            }
+          });
+          activeWorkers.add(worker);
         }
-      } while (cutQueueDrainRequested);
+
+        if (activeWorkers.size > 0) {
+          await Promise.race([...activeWorkers]);
+        } else if (pendingJobs.length > 0) {
+          await sleepMilliseconds(25);
+        } else {
+          break;
+        }
+      }
+
+      await Promise.allSettled([...activeWorkers]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(JSON.stringify({
@@ -6040,9 +6302,66 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
 
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
+      // 0.19 搜索优先：检索/浏览请求活跃时暂停或降速剪切派发（保护搜索 p95）。
+      if (
+        cutCapacityEnabled &&
+        (request.method === "GET" || request.method === "POST") &&
+        (url.pathname === "/cutter/source-search" ||
+          url.pathname === "/cutter/source-library" ||
+          url.pathname === "/cutter/source-folders")
+      ) {
+        const searchStartedAtMs = Date.now();
+        let searchFinished = false;
+        cutCapacityGovernor.noteSearchStarted();
+        const finishSearch = (): void => {
+          if (searchFinished) {
+            return;
+          }
+          searchFinished = true;
+          cutCapacityGovernor.noteSearchFinished(Date.now() - searchStartedAtMs);
+        };
+        response.once("finish", finishSearch);
+        response.once("close", finishSearch);
+      }
+
       // 能力协商端点：公开（仅能力/版本，不含路径/凭据），旧客户端 404 时自动降级。
       if (request.method === "GET" && url.pathname === "/cutter/capabilities") {
         writeJson(response, 200, apiResponse(buildCutterCapabilities(input)));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/cutter/cut-queue/status") {
+        const auth = await requireCutterSession({
+          api_input: input,
+          request,
+          response
+        });
+
+        if (!auth) {
+          return;
+        }
+
+        const workspaceRoot = workspaceRootOrThrow(input);
+        const pendingJobs = await listPendingCutJobsOldest(workspaceRoot);
+        const capacity = cutCapacityGovernor.snapshot();
+
+        writeJson(
+          response,
+          200,
+          apiResponse({
+            capacity,
+            queued_jobs: pendingJobs.length,
+            queue: buildCutQueuePositions({
+              pending: pendingJobs,
+              capacity: cutCapacityConfig,
+              effectiveMaxSlots: capacity.effective_max_concurrent_jobs,
+              activeSlots: capacity.active_slots,
+              ...(capacity.recent_job_avg_ms !== undefined
+                ? { averageJobDurationMs: capacity.recent_job_avg_ms }
+                : {})
+            })
+          })
+        );
         return;
       }
 
@@ -6533,6 +6852,7 @@ export function createCutterApiServer(input: CreateCutterApiServerInput): Server
           workspace_root: workspaceRoot,
           clip_list: clipList,
           now: input.now?.() ?? new Date().toISOString(),
+          submitted_by_user_id: auth.user.user_id,
           ...(clientRequestId ? { client_request_id: clientRequestId } : {})
         });
         writeJson(response, 201, apiResponse(submission));

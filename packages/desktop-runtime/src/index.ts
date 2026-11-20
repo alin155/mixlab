@@ -279,6 +279,8 @@ export function buildCutterApiEnv(
     MIXLAB_CUTTER_SEARCHD_CACHE_ROOT:
       env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT?.trim() ||
       joinDesktopPath(releaseCacheRoot, "searchd"),
+    // 0.19 防雪崩：50 客户端同时启动时错峰首次 release 全量复制（显式 env 优先）。
+    MIXLAB_RELEASE_SYNC_JITTER_MS: env.MIXLAB_RELEASE_SYNC_JITTER_MS?.trim() || "3000",
     ...(config.log_root ? { MIXLAB_DESKTOP_LOG_DIR: normalizeDesktopPathForStorage(config.log_root) } : {}),
     ...(config.ffmpeg_path ? { MIXLAB_FFMPEG_PATH: normalizeDesktopPathForStorage(config.ffmpeg_path) } : {}),
     ...(config.ffprobe_path ? { MIXLAB_FFPROBE_PATH: normalizeDesktopPathForStorage(config.ffprobe_path) } : {})
