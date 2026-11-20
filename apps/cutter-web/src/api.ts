@@ -475,6 +475,30 @@ export interface CutterRuntimeStatus {
     };
     message: string;
   };
+  /** 0.19：队列位置/预计等待 + 跨客户端 NAS 全局容量。 */
+  cut_queue?: {
+    queued_jobs: number;
+    queue: Array<{
+      cut_job_id: string;
+      position: number;
+      estimated_wait_ms: number;
+      submitted_by_user_id?: string;
+    }>;
+    global_capacity?: {
+      available: boolean;
+      degraded: boolean;
+      degraded_reason?: string;
+      max_slots: number;
+      active_count: number;
+      waiting_count: number;
+    };
+    global_capacity_degraded: boolean;
+    global_queue?: Array<{
+      cut_job_id: string;
+      position: number;
+      estimated_wait_ms: number;
+    }>;
+  };
   local_cache?: {
     cache_root_path: string;
     searchd_cache_root_path?: string;

@@ -928,7 +928,68 @@ async function buildReleaseCacheSyncResult(input: {
 
 const pendingSyncs = new Map<string, Promise<SyncCutterReleaseCacheResult>>();
 
-export function syncCutterReleaseCache(
+const RELEASE_SYNC_LOCK_FILE_NAME = ".release-sync.lock";
+const RELEASE_SYNC_LOCK_STALE_MS = 10 * 60 * 1000;
+
+/** 0.19 防雪崩：同一 cache root 跨进程单飞；锁陈旧自动回收；获取失败时降级返回当前缓存状态（不复制）。 */
+async function acquireReleaseSyncFileLock(cacheRoot: string): Promise<(() => Promise<void>) | null> {
+  const lockPath = path.join(mixlabRoot(cacheRoot), RELEASE_SYNC_LOCK_FILE_NAME);
+
+  try {
+    await mkdir(path.dirname(lockPath), { recursive: true });
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+      { encoding: "utf8", flag: "wx" }
+    );
+    return async () => {
+      await rm(lockPath, { force: true }).catch(() => undefined);
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      return null;
+    }
+  }
+
+  const lockStat = await stat(lockPath).catch(() => null);
+
+  if (!lockStat || Date.now() - lockStat.mtimeMs > RELEASE_SYNC_LOCK_STALE_MS) {
+    await rm(lockPath, { force: true }).catch(() => undefined);
+
+    try {
+      await writeFile(
+        lockPath,
+        `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      return async () => {
+        await rm(lockPath, { force: true }).catch(() => undefined);
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+/** 50 客户端同时启动时用 jitter 错峰首次全量复制（仅复制前生效；已有缓存不等待）。 */
+async function applyReleaseSyncJitterBestEffort(cacheRoot: string, releaseVersion: string): Promise<void> {
+  const jitterMs = Number.parseInt(process.env.MIXLAB_RELEASE_SYNC_JITTER_MS ?? "", 10);
+
+  if (!Number.isFinite(jitterMs) || jitterMs <= 0) {
+    return;
+  }
+
+  if (await releaseFilesReady(cacheRoot, releaseVersion).catch(() => false)) {
+    return;
+  }
+
+  const delay = Math.floor(Math.random() * Math.min(jitterMs, 60_000));
+  await delayMilliseconds(delay);
+}
+
+export async function syncCutterReleaseCache(
   input: SyncCutterReleaseCacheInput
 ): Promise<SyncCutterReleaseCacheResult> {
   const key = `${path.resolve(input.source_library_root)}:${path.resolve(input.cache_root)}`;
@@ -936,6 +997,25 @@ export function syncCutterReleaseCache(
 
   if (pending) {
     return pending;
+  }
+
+  const releaseSyncLock = await acquireReleaseSyncFileLock(input.cache_root);
+
+  if (!releaseSyncLock) {
+    // 另一个剪辑实例/进程正在同步：不并发复制，返回当前缓存状态（不切换 active）。
+    const status = await readLocalCutterReleaseCacheStatus({
+      cache_root: input.cache_root,
+      ...(input.max_cached_releases !== undefined ? { max_cached_releases: input.max_cached_releases } : {}),
+      ...(input.include_cache_size !== undefined ? { include_cache_size: input.include_cache_size } : {})
+    });
+
+    return {
+      ...status,
+      source_release_version: "",
+      copied: false,
+      pruned_release_versions: [],
+      message: "另一个剪辑实例正在同步 Release，本次跳过（避免并发全量复制）"
+    };
   }
 
   const sync = syncCutterReleaseCacheOnce(input)
@@ -962,12 +1042,13 @@ export function syncCutterReleaseCache(
       });
       throw error;
     })
-    .finally(() => {
+    .finally(async () => {
       pendingSyncs.delete(key);
+      await releaseSyncLock();
     });
 
   pendingSyncs.set(key, sync);
-  return sync;
+  return await sync;
 }
 
 async function syncCutterReleaseCacheOnce(
@@ -979,6 +1060,9 @@ async function syncCutterReleaseCacheOnce(
   const pinnedReleaseVersions = normalizePinnedReleaseVersions(input.pinned_release_versions);
   const preservedUnreferencedVersions = input.preserve_cached_releases_for_unknown_references === true;
   const clientVersion = input.client_version?.trim() ?? "";
+
+  // 0.19 防雪崩：首次全量复制前 jitter 错峰（已有缓存不受影响）。
+  await applyReleaseSyncJitterBestEffort(input.cache_root, sourceReleaseVersion);
 
   // Phase 1：同步开始/各阶段/终态都持久化到 <cache_root>/.mixlab-library/sync-state.json（原子写）。
   const initialActiveVersion = await currentCacheActiveVersionBestEffort(input.cache_root);
@@ -1369,4 +1453,335 @@ export async function readFastLocalCutterReleaseCacheStatus(input: {
       message: "本机 Release 不可用"
     };
   }
+}
+
+
+// --- 0.19 Phase 2：canonical cache root 迁移 + 启动校验 ---------------------------------
+
+export interface LegacyWorkspaceReleaseCacheDetection {
+  legacy_root: string;
+  has_cache: boolean;
+  active_release_version?: string;
+  release_versions: string[];
+}
+
+/** 检测 0.18 及更早版本的 workspace/cache 旧缓存（只读，不修改）。 */
+export async function detectLegacyWorkspaceReleaseCache(
+  workspaceRoot: string
+): Promise<LegacyWorkspaceReleaseCacheDetection> {
+  const legacyRoot = path.join(workspaceRoot, "cache");
+  const releaseVersions = (await listCachedReleaseDirectories(legacyRoot))
+    .map((release) => release.release_version)
+    .sort();
+  let activeReleaseVersion: string | undefined;
+
+  try {
+    activeReleaseVersion = (await readCurrentPointer(legacyRoot)).current_version;
+  } catch {
+    activeReleaseVersion = undefined;
+  }
+
+  return {
+    legacy_root: legacyRoot,
+    has_cache: releaseVersions.length > 0 || activeReleaseVersion !== undefined,
+    ...(activeReleaseVersion ? { active_release_version: activeReleaseVersion } : {}),
+    release_versions: releaseVersions
+  };
+}
+
+export interface LegacyReleaseCacheMigrationResult {
+  migrated: boolean;
+  legacy_root: string;
+  cache_root: string;
+  migration_marker_path?: string;
+  active_release_version?: string;
+  reason?: string;
+  error?: string;
+}
+
+/**
+ * 把旧 workspace/cache 迁移到 canonical cache root（0.19）：
+ * - canonical 已有 current-release 指针时不覆盖（reason=canonical_already_present）；
+ * - 复制到同盘临时目录后原子 rename，旧目录保留不删除（迁移失败不丢失任何缓存，可回滚）；
+ * - 旧 active 制品不完整时放弃复制并给出 reason，由后续正常同步安全重建；
+ * - 任何异常只返回结果，不抛错、不阻塞启动。
+ */
+export async function migrateLegacyWorkspaceReleaseCache(input: {
+  workspace_root: string;
+  cache_root: string;
+  now?: string;
+}): Promise<LegacyReleaseCacheMigrationResult> {
+  const legacyRoot = path.join(input.workspace_root, "cache");
+  const cacheRoot = path.resolve(input.cache_root);
+  const targetMixlabRoot = mixlabRoot(cacheRoot);
+  const markerPath = path.join(targetMixlabRoot, "cache-migration.json");
+  const now = input.now ?? new Date().toISOString();
+
+  if (path.resolve(legacyRoot) === cacheRoot) {
+    return {
+      migrated: false,
+      legacy_root: legacyRoot,
+      cache_root: cacheRoot,
+      reason: "cache_root_is_legacy_root"
+    };
+  }
+
+  try {
+    if (await fileExists(currentReleasePointerPath(cacheRoot))) {
+      return {
+        migrated: false,
+        legacy_root: legacyRoot,
+        cache_root: cacheRoot,
+        reason: "canonical_already_present"
+      };
+    }
+  } catch {
+    // 继续按不存在处理。
+  }
+
+  const detection = await detectLegacyWorkspaceReleaseCache(input.workspace_root);
+
+  if (!detection.has_cache) {
+    return {
+      migrated: false,
+      legacy_root: legacyRoot,
+      cache_root: cacheRoot,
+      reason: "legacy_cache_missing"
+    };
+  }
+
+  const activeReleaseVersion = detection.active_release_version;
+
+  if (
+    !activeReleaseVersion ||
+    !(await releaseFilesReady(legacyRoot, activeReleaseVersion).catch(() => false))
+  ) {
+    return {
+      migrated: false,
+      legacy_root: legacyRoot,
+      cache_root: cacheRoot,
+      ...(activeReleaseVersion ? { active_release_version: activeReleaseVersion } : {}),
+      reason: "legacy_active_release_incomplete"
+    };
+  }
+
+  const tempMixlabRoot = `${targetMixlabRoot}.tmp-migrate-${process.pid}-${Date.now()}`;
+
+  try {
+    await mkdir(path.dirname(targetMixlabRoot), { recursive: true });
+    await cp(mixlabRoot(legacyRoot), tempMixlabRoot, { recursive: true, force: true, errorOnExist: false });
+    await writeFile(
+      path.join(tempMixlabRoot, "cache-migration.json"),
+      `${JSON.stringify({
+        schema_version: "1.0",
+        migrated_at: now,
+        source_kind: "legacy-workspace-cache",
+        from: legacyRoot,
+        to: cacheRoot,
+        active_release_version: activeReleaseVersion,
+        release_versions: detection.release_versions
+      }, null, 2)}\n`,
+      "utf8"
+    );
+    // canonical 可能已有上次失败同步留下的部分 .mixlab-library（无 current-release 指针）；
+    // 在准备锁内安全清理后原子 rename，避免 ENOTEMPTY 导致迁移失败。
+    if (await fileExists(targetMixlabRoot)) {
+      if (await fileExists(currentReleasePointerPath(cacheRoot))) {
+        await rm(tempMixlabRoot, { recursive: true, force: true }).catch(() => undefined);
+        return {
+          migrated: false,
+          legacy_root: legacyRoot,
+          cache_root: cacheRoot,
+          reason: "canonical_already_present"
+        };
+      }
+      await rm(targetMixlabRoot, { recursive: true, force: true });
+    }
+    await rename(tempMixlabRoot, targetMixlabRoot);
+    await writeCutterReleaseSyncState(cacheRoot, {
+      target_release_version: activeReleaseVersion,
+      active_release_version: activeReleaseVersion,
+      phase: "ready",
+      sync_status: "ready",
+      copied: false
+    });
+
+    return {
+      migrated: true,
+      legacy_root: legacyRoot,
+      cache_root: cacheRoot,
+      migration_marker_path: markerPath,
+      active_release_version: activeReleaseVersion
+    };
+  } catch (error) {
+    await rm(tempMixlabRoot, { recursive: true, force: true }).catch(() => undefined);
+    return {
+      migrated: false,
+      legacy_root: legacyRoot,
+      cache_root: cacheRoot,
+      ...(activeReleaseVersion ? { active_release_version: activeReleaseVersion } : {}),
+      reason: "migration_failed",
+      error: errorMessageOf(error)
+    };
+  }
+}
+
+export const CUTTER_CACHE_PREPARE_LOCK_FILE_NAME = "cache-prepare.lock";
+export const CUTTER_CACHE_PREPARE_LOCK_STALE_MS = 60_000;
+
+/**
+ * 跨进程启动准备锁：Tauri cache-prepare 与 sidecar 启动维护共用，保证迁移/校验单飞，
+ * 避免「迁移进行中并发 sync」；锁陈旧自动回收，等待有上限（超时抛错，调用方降级不阻塞 UI）。
+ */
+export async function withCutterReleaseCachePrepareLock<T>(
+  input: { cache_root: string; wait_ms?: number; task: () => Promise<T> }
+): Promise<T> {
+  // 锁放在 cache root 顶层（不能放 .mixlab-library 内：迁移需要对 .mixlab-library 做原子 rename）。
+  const lockPath = path.join(input.cache_root, CUTTER_CACHE_PREPARE_LOCK_FILE_NAME);
+  const waitMs = input.wait_ms ?? 30_000;
+  const startedAt = Date.now();
+
+  await mkdir(path.dirname(lockPath), { recursive: true });
+
+  for (;;) {
+    try {
+      await writeFile(
+        lockPath,
+        `${JSON.stringify({ pid: process.pid, acquired_at: new Date().toISOString() })}\n`,
+        { encoding: "utf8", flag: "wx" }
+      );
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+    }
+
+    const lockStat = await stat(lockPath).catch(() => null);
+
+    if (!lockStat || Date.now() - lockStat.mtimeMs > CUTTER_CACHE_PREPARE_LOCK_STALE_MS) {
+      await rm(lockPath, { force: true });
+      continue;
+    }
+
+    if (Date.now() - startedAt >= waitMs) {
+      throw new Error("另一个剪辑实例正在准备缓存（迁移/校验），请稍后重试");
+    }
+
+    await delayMilliseconds(50);
+  }
+
+  try {
+    return await input.task();
+  } finally {
+    await rm(lockPath, { force: true });
+  }
+}
+
+export interface CutterReleaseCacheStartupValidation {
+  ok: boolean;
+  cache_root: string;
+  active_release_version: string;
+  checks: Array<{ check: string; passed: boolean; detail: string }>;
+  reasons: string[];
+}
+
+/**
+ * 启动时校验 active release / manifest / 搜索索引（只读；失败保留旧 active 并写 failed sync-state）。
+ * 校验失败不删除缓存、不切指针；后续正常同步可安全修复。
+ */
+export async function validateCutterReleaseCacheAtStartup(input: {
+  cache_root: string;
+}): Promise<CutterReleaseCacheStartupValidation> {
+  const checks: Array<{ check: string; passed: boolean; detail: string }> = [];
+  const reasons: string[] = [];
+  const add = (check: string, passed: boolean, detail: string): void => {
+    checks.push({ check, passed, detail });
+
+    if (!passed) {
+      reasons.push(detail);
+    }
+  };
+  let activeReleaseVersion = "";
+
+  try {
+    activeReleaseVersion = (await readCurrentPointer(input.cache_root)).current_version;
+    add("active_pointer", true, `active release = ${activeReleaseVersion}`);
+  } catch (error) {
+    add("active_pointer", false, `current-release.json 不可读：${errorMessageOf(error)}`);
+  }
+
+  // 首次运行/空缓存不是错误：等待正常同步即可，不能写 failed sync-state 抢先覆盖同步结果。
+  if (!activeReleaseVersion) {
+    return {
+      ok: true,
+      cache_root: input.cache_root,
+      active_release_version: "",
+      checks: [{ check: "active_pointer", passed: true, detail: "本机暂无 active release，等待首次同步" }],
+      reasons: []
+    };
+  }
+
+  const status = await readLocalCutterReleaseCacheStatus({
+    cache_root: input.cache_root,
+    include_cache_size: false
+  });
+  add("release_manifest", status.cache_ready, status.cache_ready ? "release.json/catalog 可读" : status.message);
+
+  if (activeReleaseVersion) {
+    let filesReady = false;
+
+    try {
+      filesReady = await releaseFilesReady(input.cache_root, activeReleaseVersion);
+    } catch (error) {
+      filesReady = false;
+      reasons.push(errorMessageOf(error));
+    }
+
+    add(
+      "release_artifacts",
+      filesReady,
+      filesReady ? "catalog/source-path-map/搜索索引存在" : `release ${activeReleaseVersion} 制品不完整`
+    );
+
+    const syncStatePath = cutterReleaseSyncStatePath(input.cache_root);
+    const v2ManifestExists = (await Promise.all(
+      RELEASE_MANIFEST_V2_FILE_NAMES.map(async (name) =>
+        fileExists(path.join(releaseRoot(input.cache_root, activeReleaseVersion), name))
+      )
+    )).some(Boolean);
+    const hasSyncState = await fileExists(syncStatePath);
+    // v2 缓存允许缺少 Phase1 sync-state（例如手工部署/旧缓存迁移）；只有 legacy 缓存才要求。
+    add(
+      "sync_state",
+      hasSyncState || v2ManifestExists,
+      hasSyncState ? "sync-state 存在" : v2ManifestExists ? "v2 缓存允许缺少 sync-state" : "缺少 sync-state"
+    );
+  }
+
+  const ok = checks.every((check) => check.passed);
+
+  if (!ok) {
+    await writeCutterReleaseSyncState(input.cache_root, {
+      target_release_version: activeReleaseVersion,
+      active_release_version: activeReleaseVersion,
+      phase: "failed",
+      sync_status: "failed",
+      copied: false,
+      last_error: {
+        code: "STARTUP_CACHE_INVALID",
+        message: reasons.join("；") || "启动校验失败",
+        phase: "failed",
+        at: new Date().toISOString()
+      }
+    });
+  }
+
+  return {
+    ok,
+    cache_root: input.cache_root,
+    active_release_version: activeReleaseVersion,
+    checks,
+    reasons
+  };
 }

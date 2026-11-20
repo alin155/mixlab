@@ -195,6 +195,54 @@ function taskCountForFilter(summary: ReturnType<typeof cutQueueSummary>, filter:
   return filter === "all" ? summary.total : summary[filter];
 }
 
+export interface CutQueueStatusView {
+  queued_jobs: number;
+  queue: Array<{ position: number; estimated_wait_ms: number }>;
+  global_capacity?: {
+    available?: boolean;
+    degraded?: boolean;
+    degraded_reason?: string;
+    max_slots?: number;
+    active_count?: number;
+    waiting_count?: number;
+  };
+  global_capacity_degraded?: boolean;
+}
+
+function formatQueueWait(milliseconds: number): string {
+  if (milliseconds >= 60_000) {
+    return `约 ${Math.ceil(milliseconds / 60_000)} 分钟`;
+  }
+
+  return `约 ${Math.max(1, Math.ceil(milliseconds / 1_000))} 秒`;
+}
+
+function queuePositionSummary(status: CutQueueStatusView): string {
+  const next = status.queue[0];
+
+  if (next) {
+    return `本机第 ${next.position} 位 · 预计 ${formatQueueWait(next.estimated_wait_ms)}`;
+  }
+
+  if (status.global_capacity?.waiting_count) {
+    return `${status.global_capacity.waiting_count} 个任务排队中`;
+  }
+
+  return status.global_capacity_degraded ? "全局协调降级（本地保守 1 slot）" : "空闲";
+}
+
+function queuePositionDetail(status: CutQueueStatusView): string {
+  const active = status.global_capacity?.active_count;
+  const maxSlots = status.global_capacity?.max_slots;
+  const waiting = status.global_capacity?.waiting_count ?? 0;
+  const capacityLabel =
+    typeof active === "number" && typeof maxSlots === "number"
+      ? `全局剪切并发 ${active}/${maxSlots} slot`
+      : "全局剪切并发协调中";
+
+  return `${capacityLabel} · 全局等待 ${waiting} 个任务${status.global_capacity_degraded ? " · 协调服务不可用，已降级为本地保守 1 slot" : ""}`;
+}
+
 export function CutQueuePage({
   jobs,
   project,
@@ -214,6 +262,7 @@ export function CutQueuePage({
   onLoadMore,
   onOpenFeedback,
   verificationEnabled = true,
+  queueStatus,
   hiddenJobCount = 0,
   leaseWarning = "",
   onRestoreHiddenJobs,
@@ -250,6 +299,8 @@ export function CutQueuePage({
   onBatchRetry?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
   onBatchPause?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
   onBatchDelete?: (cutJobIds: readonly string[]) => Promise<CutQueueBatchResult>;
+  /** 0.19 队列位置/预计等待 + 跨客户端全局容量（来自 runtime-status.cut_queue）。 */
+  queueStatus?: CutQueueStatusView;
 }) {
   const summary = cutQueueSummary(jobs);
   const pipelineStatus = cutPipelineStatusLabel(pipelineState);
@@ -610,6 +661,22 @@ export function CutQueuePage({
         </div>
 
         <div className="cutter-queue-table-area">
+          {queueStatus &&
+          (queueStatus.queued_jobs > 0 ||
+            (queueStatus.global_capacity?.waiting_count ?? 0) > 0 ||
+            queueStatus.global_capacity_degraded) ? (
+            <Card
+              className="cutter-queue-capacity-card is-workbench"
+              bodyClassName="cutter-queue-capacity-card-body ml-summary-card-body"
+            >
+              <div className="ml-inline-summary">
+                <span>全局剪切排队</span>
+                <strong>{queuePositionSummary(queueStatus)}</strong>
+              </div>
+              <p className="ml-supporting-text">{queuePositionDetail(queueStatus)}</p>
+            </Card>
+          ) : null}
+
           <Table<CutQueueJob>
             className="cutter-queue-table is-workbench"
           columns={taskColumns}

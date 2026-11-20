@@ -8,12 +8,15 @@ import {
   buildCutterApiEnv,
   isWindowsUncPath,
   normalizeDesktopPathForStorage,
+  resolveDesktopReleaseCacheRoot,
   type CutterDesktopConfig
 } from "../../desktop-runtime/src/index.ts";
 import { appendUsageEvent } from "../../library-fs/src/usage-events.ts";
 import {
   createCutterApiServer,
+  prepareCutterReleaseCacheForStartup,
   type CreateCutterApiServerInput,
+  type CutterReleaseCacheStartupMaintenanceResult,
   type CutterUsageEventRecorder
 } from "./index.ts";
 
@@ -44,10 +47,11 @@ export interface CutterApiSidecarHandle {
 }
 
 type SidecarEvent =
-  | { event: "starting"; stage: "sidecar_startup" }
+  | { event: "starting"; stage: "sidecar_startup" | "cache_prepare" }
   | { event: "ready"; api_address: string }
   | { event: "failed"; stage: string; error: string }
-  | { event: "stopping" };
+  | { event: "stopping" }
+  | { event: "cache_prepare_ready"; cache_root: string; validation_ok: boolean; migrated: boolean };
 
 const USAGE_EVENT_WORKER_ARG = "--usage-event-worker";
 const USAGE_EVENT_WORKER_ENV = "MIXLAB_SIDECAR_USAGE_WORKER";
@@ -447,9 +451,8 @@ export function buildCutterApiServerInputFromDesktopConfig(
     env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT?.trim() || env.MIXLAB_SEARCHD_CACHE_ROOT?.trim() || "";
 
   const workspaceRoot = normalizeDesktopPathForStorage(config.local_workspace_root);
-  const releaseCacheRoot = isWindowsUncPath(workspaceRoot) || /^[a-zA-Z]:[\\/]/.test(workspaceRoot)
-    ? path.win32.join(workspaceRoot, "cache")
-    : path.join(workspaceRoot, "cache");
+  // 0.19：与 Tauri/searchd 共用同一 canonical release cache root（不再绑 workspace/cache）。
+  const releaseCacheRoot = resolveDesktopReleaseCacheRoot(env);
   const searchdTimeoutMs = optionalPositiveInteger(
     env.MIXLAB_SEARCHD_TIMEOUT_MS ?? env.MIXLAB_CUTTER_SEARCHD_TIMEOUT_MS
   ) ?? DEFAULT_DESKTOP_SEARCHD_TIMEOUT_MS;
@@ -483,7 +486,9 @@ export function buildCutterApiServerInputFromDesktopConfig(
     ...(authMode === "local_trusted"
       ? { trusted_username: env.MIXLAB_CUTTER_TRUSTED_USERNAME?.trim() || "本机剪辑师" }
       : {}),
-    ...(searchdCacheRoot ? { searchd_cache_root: normalizeDesktopPathForStorage(searchdCacheRoot) } : {}),
+    searchd_cache_root: searchdCacheRoot
+      ? normalizeDesktopPathForStorage(searchdCacheRoot)
+      : path.join(releaseCacheRoot, "searchd"),
     ...(searchdBaseUrl
       ? {
           searchd_base_url: searchdBaseUrl,
@@ -557,6 +562,78 @@ function close(server: Server): Promise<void> {
       resolve();
     });
   });
+}
+
+export const CUTTER_CACHE_PREPARE_ONLY_ENV = "MIXLAB_CUTTER_CACHE_PREPARE_ONLY";
+
+export function shouldRunCachePrepareOnly(
+  env: Partial<Record<string, string | undefined>> = process.env
+): boolean {
+  const value = env[CUTTER_CACHE_PREPARE_ONLY_ENV]?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
+export interface DesktopCachePrepareModeInput {
+  config_path?: string;
+  args?: readonly string[];
+  env?: NodeJS.ProcessEnv;
+  read_config?: (configPath: string) => Promise<CutterDesktopConfig>;
+  build_input?: typeof buildCutterApiServerInputFromDesktopConfig;
+  prepare_cache?: (
+    input: CreateCutterApiServerInput
+  ) => Promise<CutterReleaseCacheStartupMaintenanceResult | null>;
+  stdout?: Pick<NodeJS.WriteStream, "write">;
+  log_event?: (event: SidecarEvent) => Promise<void> | void;
+}
+
+/**
+ * 0.19：Tauri 在启动 searchd 之前调用（同 sidecar exe + MIXLAB_CUTTER_CACHE_PREPARE_ONLY=1），
+ * 完成 legacy→canonical 迁移 + 启动校验后立即退出；与 sidecar 正常启动共用跨进程准备锁，保证单飞。
+ */
+export async function runDesktopCachePrepareMode(
+  input: DesktopCachePrepareModeInput = {}
+): Promise<CutterReleaseCacheStartupMaintenanceResult | null> {
+  const stdout = input.stdout ?? process.stdout;
+  const env = input.env ?? process.env;
+  const preparedEvent: SidecarEvent = { event: "starting", stage: "cache_prepare" };
+  emitSidecarEvent(stdout, preparedEvent);
+
+  try {
+    const configPath =
+      input.config_path ??
+      resolveDesktopSidecarConfigPath({
+        args: input.args ?? process.argv.slice(2),
+        env
+      });
+    const config = await (input.read_config ?? readCutterDesktopConfig)(configPath);
+    const serverInput = (input.build_input ?? buildCutterApiServerInputFromDesktopConfig)(
+      config,
+      env
+    );
+    const result = await (input.prepare_cache ?? prepareCutterReleaseCacheForStartup)(serverInput);
+
+    if (result) {
+      const readyEvent: SidecarEvent = {
+        event: "cache_prepare_ready",
+        cache_root: result.cache_root,
+        validation_ok: result.validation?.ok ?? true,
+        migrated: result.migration?.migrated === true
+      };
+      emitSidecarEvent(stdout, readyEvent);
+      await input.log_event?.(readyEvent);
+    }
+
+    return result;
+  } catch (error) {
+    const failedEvent: SidecarEvent = {
+      event: "failed",
+      stage: "cache_prepare",
+      error: error instanceof Error ? error.message : "未知错误"
+    };
+    emitSidecarEvent(stdout, failedEvent);
+    await input.log_event?.(failedEvent);
+    throw error;
+  }
 }
 
 export async function startCutterApiSidecar(
@@ -640,6 +717,11 @@ export function shouldRunDirectSidecar(input: ShouldRunDirectSidecarInput): bool
 }
 
 async function runDirectSidecar(): Promise<void> {
+  if (shouldRunCachePrepareOnly(process.env)) {
+    await runDesktopCachePrepareMode();
+    process.exit(0);
+  }
+
   const handle = await startCutterApiSidecar();
   const stopAndExit = async () => {
     await handle.stop();

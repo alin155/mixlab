@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import {
   buildCutterApiEnv,
+  canonicalDesktopCacheRoot,
   defaultWindowsWorkspaceRoot,
   isSubPath,
   isWindowsUncPath,
+  legacyWorkspaceCacheRoot,
   normalizeDesktopPathForStorage,
+  resolveDesktopReleaseCacheRoot,
   redactDesktopDiagnostics,
   validateLocalWorkspaceCandidate,
   validatePublicLibraryCandidate,
@@ -154,7 +158,9 @@ test("builds cutter API environment from desktop config", () => {
       MIXLAB_CUTTER_API_PORT: "3789",
       MIXLAB_CUTTER_LIBRARY_ROOT: String.raw`D:\MixLabPublicLibrary`,
       MIXLAB_CUTTER_WORKSPACE_ROOT: String.raw`C:\Users\Allen\Videos\MixLabLocal`,
-      MIXLAB_CUTTER_RELEASE_CACHE_ROOT: String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`,
+      MIXLAB_CUTTER_RELEASE_CACHE_ROOT: canonicalDesktopCacheRoot({}, process.platform),
+      MIXLAB_CUTTER_SEARCHD_CACHE_ROOT: path.join(canonicalDesktopCacheRoot({}, process.platform), "searchd"),
+      MIXLAB_RELEASE_SYNC_JITTER_MS: "3000",
       MIXLAB_DESKTOP_LOG_DIR: String.raw`C:\Users\Allen\AppData\Roaming\MixLab Cutter\logs`,
       MIXLAB_FFMPEG_PATH: String.raw`C:\Program Files\MixLab Cutter\bin\ffmpeg.exe`,
       MIXLAB_FFPROBE_PATH: String.raw`C:\Program Files\MixLab Cutter\bin\ffprobe.exe`
@@ -183,4 +189,59 @@ test("redacts diagnostics while preserving operational fields", () => {
   assert.equal(serialized.includes("用户粘贴的完整文案"), false);
   assert.equal(diagnostics.api_address, "http://127.0.0.1:3789");
   assert.equal(diagnostics.public_library_root, String.raw`D:\MixLabPublicLibrary`);
+});
+
+
+// --- 0.19 Phase 2：canonical release cache root（Windows/macOS/Linux 单一来源） ----------
+
+test("canonical cache root is product-scoped and platform-specific", () => {
+  assert.equal(
+    canonicalDesktopCacheRoot({ LOCALAPPDATA: String.raw`C:\Users\Allen\AppData\Local` }, "win32"),
+    String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache`
+  );
+  assert.equal(
+    canonicalDesktopCacheRoot({ HOME: "/Users/allen" }, "darwin"),
+    "/Users/allen/Library/Application Support/MixLab Cutter/cache"
+  );
+  assert.equal(
+    canonicalDesktopCacheRoot({ HOME: "/home/allen" }, "linux"),
+    "/home/allen/.cache/mixlab-cutter/cache"
+  );
+  assert.equal(
+    canonicalDesktopCacheRoot({ XDG_CACHE_HOME: "/xdg/cache", HOME: "/home/allen" }, "linux"),
+    "/xdg/cache/mixlab-cutter/cache"
+  );
+  // 不再把 release cache 绑在 local_workspace_root/cache。
+  assert.notEqual(
+    canonicalDesktopCacheRoot({ HOME: "/Users/allen" }, "darwin"),
+    legacyWorkspaceCacheRoot("/Users/allen/Movies/MixLabLocal")
+  );
+});
+
+test("desktop release cache root honors explicit env override and legacy workspace detection", () => {
+  assert.equal(
+    resolveDesktopReleaseCacheRoot({ MIXLAB_CUTTER_RELEASE_CACHE_ROOT: String.raw`D:\Cache\MixLab` }, "win32"),
+    String.raw`D:\Cache\MixLab`
+  );
+  assert.equal(
+    legacyWorkspaceCacheRoot(String.raw`C:\Users\Allen\Videos\MixLabLocal`),
+    String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`
+  );
+});
+
+test("buildCutterApiEnv routes release cache and searchd cache to the canonical root", () => {
+  const env = buildCutterApiEnv(
+    {
+      api_host: "127.0.0.1",
+      api_port: 3789,
+      public_library_root: String.raw`\\NAS\MixLab\PublicLibrary`,
+      local_workspace_root: String.raw`C:\Users\Allen\Videos\MixLabLocal`
+    },
+    { LOCALAPPDATA: String.raw`C:\Users\Allen\AppData\Local` },
+    "win32"
+  );
+
+  assert.equal(env.MIXLAB_CUTTER_RELEASE_CACHE_ROOT, String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache`);
+  assert.equal(env.MIXLAB_CUTTER_SEARCHD_CACHE_ROOT, String.raw`C:\Users\Allen\AppData\Local\MixLab Cutter\cache\searchd`);
+  assert.notEqual(env.MIXLAB_CUTTER_RELEASE_CACHE_ROOT, String.raw`C:\Users\Allen\Videos\MixLabLocal\cache`);
 });

@@ -22,6 +22,10 @@ import {
 } from "../../library-fs/src/index.ts";
 import { isCapabilityTableV1 } from "../../contracts/src/capabilities.ts";
 import {
+  GlobalCapacityUnavailableError,
+  type GlobalCutCapacityCoordinator
+} from "../../cutter-local/src/index.ts";
+import {
   buildOpenPathCommandPlan,
   closeCutterUsageOutbox,
   createCutterApiServer,
@@ -30,6 +34,7 @@ import {
   cutterApiInfrastructureErrorPayload,
   type CreateCutterApiServerInput,
   parseIostatDiskIoBytesPerSecond,
+  prepareCutterReleaseCacheForStartup,
   resolveCutterApiRuntimeConfigFromEnv
 } from "./index.ts";
 
@@ -44,7 +49,10 @@ test("cutter API runtime config defaults the local workspace to the user Movies 
 
   assert.equal(config.library_root, "/Volumes/PublicLibrary");
   assert.equal(config.workspace_root, path.join(os.homedir(), "Movies", "MixLabLocal"));
-  assert.equal(config.release_cache_root, path.join(os.homedir(), "Movies", "MixLabLocal", "cache"));
+  // 0.19：release cache 使用 canonical root（macOS Application Support / Windows LOCALAPPDATA），不再绑 workspace。
+  assert.ok(config.release_cache_root);
+  assert.match(config.release_cache_root!, /(?:MixLab Cutter[\\/]cache|mixlab-cutter[\\/]cache)$/);
+  assert.notEqual(config.release_cache_root, path.join(os.homedir(), "Movies", "MixLabLocal", "cache"));
   assert.equal(config.host, "127.0.0.1");
   assert.equal(config.port, 3789);
 });
@@ -5056,5 +5064,487 @@ test("runtime status exposes persistent release sync failure (phase/target/last_
     assert.match(releaseCache.message, /最近同步失败/);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+
+// --- 0.19 Phase 2：canonical cache root + 旧 workspace/cache 启动迁移 -------------------
+
+async function seedLegacyWorkspaceCacheForApi(workspaceRoot: string): Promise<void> {
+  const legacyRoot = path.join(workspaceRoot, "cache");
+  const releaseRoot = path.join(legacyRoot, ".mixlab-library", "releases", "v000001");
+  await mkdir(path.join(releaseRoot, "search-index", "source-transcript-index", "v000001"), { recursive: true });
+  await writeFile(path.join(releaseRoot, "search-index", "source-transcript-index", "v000001", "index.sqlite"), "index");
+  await writeFile(path.join(releaseRoot, "catalog.sqlite"), "catalog");
+  await writeFile(
+    path.join(releaseRoot, "source-path-map.json"),
+    JSON.stringify({ schema_version: "1.0", release_version: "v000001", library_id: "lib_main_001", source_videos: {} })
+  );
+  await writeFile(
+    path.join(releaseRoot, "release.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      release_version: "v000001",
+      library_id: "lib_main_001",
+      generated_at: "2026-11-19T00:00:00.000Z",
+      ready_video_count: 1,
+      source_index_version: "v000001",
+      catalog_path: "catalog.sqlite",
+      source_path_map_path: "source-path-map.json",
+      search_index_path: "search-index/source-transcript-index",
+      thumbnails_path: "thumbnails",
+      transcript_pack_path: "transcript-pack"
+    })
+  );
+  await mkdir(path.join(legacyRoot, ".mixlab-library"), { recursive: true });
+  await writeFile(
+    path.join(legacyRoot, ".mixlab-library", "current-release.json"),
+    JSON.stringify({
+      schema_version: "1.0",
+      library_id: "lib_main_001",
+      current_version: "v000001",
+      updated_at: "2026-11-19T00:00:00.000Z",
+      manifest_path: ".mixlab-library/releases/v000001/release.json"
+    })
+  );
+}
+
+test("0.19 startup maintenance migrates legacy workspace cache into canonical root and validates it", async () => {
+  const libraryRoot = await prepareLibrary();
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-cache-workspace-"));
+  const canonicalRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-cache-canonical-"));
+  await seedLegacyWorkspaceCacheForApi(workspaceRoot);
+
+  const result = await prepareCutterReleaseCacheForStartup({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: canonicalRoot
+  });
+
+  assert.ok(result);
+  assert.equal(result!.migration?.migrated, true);
+  assert.equal(result!.migration?.active_release_version, "v000001");
+  assert.equal(result!.validation?.ok, true);
+  assert.equal(
+    JSON.parse(await readFile(path.join(canonicalRoot, ".mixlab-library", "current-release.json"), "utf8")).current_version,
+    "v000001"
+  );
+  // 旧 workspace cache 仍在（回滚路径，不静默删除）。
+  assert.equal(await fileOrDirExistsForApi(path.join(workspaceRoot, "cache", ".mixlab-library", "current-release.json")), true);
+  // 二次启动不会覆盖 canonical。
+  const second = await prepareCutterReleaseCacheForStartup({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: canonicalRoot
+  });
+  assert.equal(second!.migration?.migrated, false);
+  assert.equal(second!.migration?.reason, "canonical_already_present");
+});
+
+test("0.19 canonical default release cache root no longer follows the workspace", () => {
+  const config = resolveCutterApiRuntimeConfigFromEnv({
+    MIXLAB_CUTTER_LIBRARY_ROOT: "/Volumes/PublicLibrary",
+    MIXLAB_CUTTER_WORKSPACE_ROOT: "/Volumes/FastDisk/MixLabLocal"
+  });
+
+  assert.ok(config.release_cache_root);
+  assert.notEqual(config.release_cache_root!, path.join("/Volumes/FastDisk/MixLabLocal", "cache"));
+  assert.match(String(config.release_cache_root), /(?:MixLab Cutter[\\/]cache|mixlab-cutter[\\/]cache)$/);
+  assert.equal(config.workspace_root, "/Volumes/FastDisk/MixLabLocal");
+});
+
+async function fileOrDirExistsForApi(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
+}
+
+
+// --- 0.19 review fixes：启动准备单飞/迁移先于 searchd（sync 等待维护完成） -----------------
+
+test("0.19 release sync waits for startup cache preparation and never races migration", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-prepare-gate-"));
+  const cacheRoot = path.join(workspaceRoot, "canonical-cache");
+  let maintenanceDone = false;
+  let resolveMaintenance!: () => void;
+  const maintenanceGate = new Promise<void>((resolve) => {
+    resolveMaintenance = resolve;
+  });
+  let syncStarted = false;
+  let resolveSyncStarted!: () => void;
+  const syncStartedGate = new Promise<void>((resolve) => {
+    resolveSyncStarted = resolve;
+  });
+
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    release_cache_root: cacheRoot,
+    release_cache_startup_maintenance_runner: async () => {
+      await maintenanceGate;
+      maintenanceDone = true;
+      return { cache_root: cacheRoot };
+    },
+    release_cache_sync_runner: async (input) => {
+      assert.equal(maintenanceDone, true, "sync 不得早于启动迁移/校验完成");
+      syncStarted = true;
+      resolveSyncStarted();
+      return {
+        cache_root: input.cache_root,
+        cache_ready: true,
+        active_release_version: "v000001",
+        source_release_version: "v000001",
+        search_index_version: "idx-v000001",
+        ready_video_count: 1,
+        cached_release_versions: ["v000001"],
+        cached_release_count: 1,
+        max_cached_releases: 2,
+        cache_size_bytes: 1024,
+        catalog_file_path: path.join(input.cache_root, ".mixlab-library", "releases", "v000001", "catalog.sqlite"),
+        copied: false,
+        pruned_release_versions: [],
+        message: "本机 Release 已是最新"
+      };
+    },
+    source_video_probe_runner: async () => ({
+      duration_ms: 3600,
+      width: 1920,
+      height: 1080,
+      fps: 29.97,
+      codec: "h264"
+    })
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    // 维护进行中：允许 runtime-status 返回，但同步必须尚未启动。
+    await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(syncStarted, false);
+    assert.equal(maintenanceDone, false);
+
+    resolveMaintenance();
+    for (let attempt = 0; attempt < 40 && !syncStarted; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await fetch(`${baseUrl}/cutter/runtime-status?include_cache=1`, { headers });
+    }
+
+    await syncStartedGate;
+    assert.equal(syncStarted, true);
+    assert.equal(maintenanceDone, true);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+
+// --- 0.19 容量治理：队列状态可观测（slot/公平/预计等待），无租约泄漏 ----------------------
+
+test("0.19 cut queue status exposes capacity slots, per-user fairness, queue position, and no lease leak", async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-capacity-"));
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    now: () => "2026-05-02T10:00:00Z",
+    auto_run_cut_queue: false,
+    cut_capacity: { max_concurrent_jobs: 2, max_jobs_per_user: 1 },
+    source_duration_probe: async () => ({ duration_ms: 4_000 }),
+    cut_runner: async (input) => {
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "queued-clip-bytes");
+    },
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const clipListResponse = await fetch(`${baseUrl}/cutter/clip-lists`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        library_id: "lib_main_001",
+        project_id: "P20261120-aaa",
+        title: "并发容量清单",
+        items: [1, 2].map((index) => ({
+          source_video_id: "V000001",
+          source_title: "01_现金流.mp4",
+          source_relative_path: "source-videos/01_现金流.mp4",
+          start_segment_id: "V000001-S000001",
+          end_segment_id: "V000001-S000001",
+          begin_ms: 1000,
+          end_ms: 2000,
+          selected_text: "现金流，是企业的血液。",
+          cut_mode: "smart",
+          pre_roll_ms: index * 0,
+          post_roll_ms: 0
+        }))
+      })
+    });
+    assert.equal(clipListResponse.status, 201);
+
+    const submitResponse = await fetch(`${baseUrl}/cutter/cut-jobs`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ clip_list_id: "CL20260502-0001" })
+    });
+    assert.equal(submitResponse.status, 201);
+    const submitted = await submitResponse.json() as any;
+    assert.equal(submitted.data.submitted_count, 2);
+
+    const statusResponse = await fetch(`${baseUrl}/cutter/cut-queue/status`, { headers });
+    assert.equal(statusResponse.status, 200);
+    const status = (await statusResponse.json() as any).data;
+
+    assert.equal(status.capacity.enabled, true);
+    assert.equal(status.capacity.max_concurrent_jobs, 2);
+    assert.equal(status.capacity.max_jobs_per_user, 1);
+    assert.equal(status.capacity.active_slots, 0);
+    assert.equal(status.queued_jobs, 2);
+    assert.equal(status.queue.length, 2);
+    assert.equal(status.queue[0].position, 1);
+    assert.equal(status.queue[1].position, 2);
+    assert.ok(status.queue[1].estimated_wait_ms >= status.queue[0].estimated_wait_ms);
+    assert.equal(status.queue[0].submitted_by_user_id, "CU000001");
+    // 空闲时无租约泄漏。
+    assert.equal(status.capacity.queued_waiters, 0);
+
+    const runtimeResponse = await fetch(`${baseUrl}/cutter/runtime-status`, { headers });
+    assert.equal(runtimeResponse.status, 200);
+    const runtime = (await runtimeResponse.json() as any).data;
+    assert.equal(runtime.cut_capacity.enabled, true);
+    assert.equal(runtime.cut_capacity.active_slots, 0);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  }
+});
+
+
+// --- 0.19 review：跨客户端 NAS 全局 slot 协调 + 协调不可用保守降级 -------------------------
+
+async function submitQueuedCutJobsForCapacity(input: {
+  base_url: string;
+  headers: Record<string, string>;
+  project_id: string;
+  item_count: number;
+}): Promise<{ clip_list_id: string; submitted_count: number }> {
+  const clipListResponse = await fetch(input.base_url + "/cutter/clip-lists", {
+    method: "POST",
+    headers: { ...input.headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      library_id: "lib_main_001",
+      project_id: input.project_id,
+      title: "全局容量测试",
+      items: Array.from({ length: input.item_count }, (_, index) => ({
+        source_video_id: "V000001",
+        source_title: "01_现金流.mp4",
+        source_relative_path: "source-videos/01_现金流.mp4",
+        start_segment_id: "V000001-S000001",
+        end_segment_id: "V000001-S000001",
+        begin_ms: 1000 + index,
+        end_ms: 2000 + index,
+        selected_text: "现金流，是企业的血液。",
+        cut_mode: "smart"
+      }))
+    })
+  });
+  assert.equal(clipListResponse.status, 201);
+  const clipList = (await clipListResponse.json() as any).data;
+  const submitResponse = await fetch(input.base_url + "/cutter/cut-jobs", {
+    method: "POST",
+    headers: { ...input.headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ clip_list_id: clip_list_id(clipList) })
+  });
+  assert.equal(submitResponse.status, 201);
+  const submitted = (await submitResponse.json() as any).data;
+  return { clip_list_id: clip_list_id(clipList), submitted_count: submitted.submitted_count };
+}
+function clip_list_id(clipList: any): string {
+  return String(clipList.clip_list_id);
+}
+
+test("0.19 two cutter runtimes share one NAS global slot pool and expose queue position", { timeout: 60_000 }, async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const sharedRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-global-slots-"));
+  const makeServer = async (prefix: string) => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), prefix));
+    const server = createCutterApiServer({
+      library_root: libraryRoot,
+      workspace_root: workspaceRoot,
+      auto_run_cut_queue: true,
+      cut_capacity: { max_concurrent_jobs: 2, max_jobs_per_user: 4 },
+      global_cut_capacity: {
+        root: sharedRoot,
+        max_slots: 1,
+        lease_ttl_ms: 10_000,
+        heartbeat_interval_ms: 1_000,
+        average_job_ms: 500
+      },
+      source_duration_probe: async () => ({ duration_ms: 4_000 }),
+      cut_runner: async (input) => {
+        await mkdir(path.dirname(input.output_path), { recursive: true });
+        await writeFile(input.output_path, "global-slot-bytes");
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      },
+      cover_runner: async (input) => {
+        await writeFile(input.output_path, "cover-bytes");
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    return {
+      server,
+      baseUrl: `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    };
+  };
+  const clientA = await makeServer("mixlab-019-global-a-");
+  const clientB = await makeServer("mixlab-019-global-b-");
+
+  try {
+    await submitQueuedCutJobsForCapacity({ base_url: clientA.baseUrl, headers, project_id: "P-GLOBAL-A", item_count: 2 });
+    await submitQueuedCutJobsForCapacity({ base_url: clientB.baseUrl, headers, project_id: "P-GLOBAL-B", item_count: 2 });
+    let peakGlobalActive = 0;
+    let observedQueuePosition = false;
+    let finished = false;
+
+    for (let attempt = 0; attempt < 300 && !finished; attempt += 1) {
+      for (const client of [clientA, clientB]) {
+        const response = await fetch(client.baseUrl + "/cutter/cut-queue/status", { headers });
+
+        if (response.status === 200) {
+          const status = (await response.json() as any).data;
+          peakGlobalActive = Math.max(peakGlobalActive, status.global_capacity?.active_count ?? 0);
+          const globalQueue = status.global_queue ?? [];
+          observedQueuePosition = observedQueuePosition || globalQueue.some((item: any) => item.position >= 1 && item.estimated_wait_ms >= 0);
+        }
+      }
+      const jobsA = await fetch(clientA.baseUrl + "/cutter/cut-jobs?limit=50", { headers });
+      const jobsB = await fetch(clientB.baseUrl + "/cutter/cut-jobs?limit=50", { headers });
+      const dataA = (await jobsA.json() as any).data;
+      const dataB = (await jobsB.json() as any).data;
+      const doneA = (dataA.jobs ?? []).filter((job: any) => job.status === "done").length;
+      const doneB = (dataB.jobs ?? []).filter((job: any) => job.status === "done").length;
+      finished = doneA + doneB >= 4;
+      if (!finished) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+
+    assert.equal(finished, true);
+    assert.ok(peakGlobalActive <= 1, "跨客户端全局并发峰值 " + peakGlobalActive + " 不得超过共享 slot 上限 1");
+    assert.equal(observedQueuePosition, true, "排队任务应暴露全局 position/预计等待");
+    // 任务 done 与 worker finally 释放 slot 之间有几毫秒窗口：轮询等待全局租约清空。
+    let releaseStatus: any;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      let allReleased = true;
+      for (const client of [clientA, clientB]) {
+        const response = await fetch(client.baseUrl + "/cutter/cut-queue/status", { headers });
+        const status = (await response.json() as any).data;
+        releaseStatus = status;
+        if ((status.global_capacity?.active_count ?? 0) !== 0 || (status.global_capacity?.waiting_count ?? 0) !== 0) {
+          allReleased = false;
+        }
+      }
+      if (allReleased) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    for (const client of [clientA, clientB]) {
+      const response = await fetch(client.baseUrl + "/cutter/cut-queue/status", { headers });
+      const status = (await response.json() as any).data;
+      assert.equal(status.global_capacity.active_count, 0);
+      assert.equal(status.global_capacity.waiting_count, 0);
+    }
+    assert.ok(releaseStatus);
+  } finally {
+    await new Promise<void>((resolve) => clientA.server.close(() => resolve()));
+    await new Promise<void>((resolve) => clientB.server.close(() => resolve()));
+  }
+});
+
+test("0.19 unreachable global capacity falls back to conservative local 1 slot but still completes jobs", { timeout: 60_000 }, async () => {
+  const libraryRoot = await prepareLibrary();
+  const headers = await createApprovedAuthHeaders(libraryRoot);
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "mixlab-019-global-degraded-"));
+  const unavailableCoordinator = {
+    config: { heartbeat_interval_ms: 1_000 },
+    acquire: async () => {
+      throw new GlobalCapacityUnavailableError("NAS 共享目录不可达");
+    },
+    heartbeat: async () => false,
+    release: async () => undefined,
+    snapshot: async () => ({
+      available: false,
+      degraded: true,
+      degraded_reason: "NAS 共享目录不可达",
+      root: "/unreachable",
+      max_slots: 4,
+      active_count: 0,
+      active_leases: [],
+      waiting_count: 0,
+      average_job_ms: 20_000,
+      captured_at: new Date().toISOString()
+    })
+  } as unknown as GlobalCutCapacityCoordinator;
+  const server = createCutterApiServer({
+    library_root: libraryRoot,
+    workspace_root: workspaceRoot,
+    auto_run_cut_queue: true,
+    cut_capacity: { max_concurrent_jobs: 2, max_jobs_per_user: 2 },
+    global_cut_capacity_coordinator: unavailableCoordinator,
+    source_duration_probe: async () => ({ duration_ms: 4_000 }),
+    cut_runner: async (input) => {
+      await mkdir(path.dirname(input.output_path), { recursive: true });
+      await writeFile(input.output_path, "degraded-bytes");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    },
+    cover_runner: async (input) => {
+      await writeFile(input.output_path, "cover-bytes");
+    }
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  try {
+    const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    await submitQueuedCutJobsForCapacity({ base_url: baseUrl, headers, project_id: "P-GLOBAL-DEGRADED", item_count: 2 });
+    let latestStatus: any;
+    let finished = false;
+
+    for (let attempt = 0; attempt < 300 && !finished; attempt += 1) {
+      const statusResponse = await fetch(baseUrl + "/cutter/cut-queue/status", { headers });
+      latestStatus = (await statusResponse.json() as any).data;
+      const jobsResponse = await fetch(baseUrl + "/cutter/cut-jobs?limit=50", { headers });
+      const jobs = (await jobsResponse.json() as any).data.jobs ?? [];
+      finished = jobs.filter((job: any) => job.status === "done").length >= 2;
+      if (!finished) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+    }
+
+    assert.equal(finished, true);
+    assert.equal(latestStatus.global_capacity_degraded, true);
+    assert.equal(latestStatus.capacity.effective_max_concurrent_jobs, 1, "协调不可用时本地必须降级为 1 slot");
+    assert.equal(latestStatus.global_capacity.available, false);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });

@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-11-20T09:28:48.968Z",
+  "kind": "cross-process-global-capacity",
+  "environment": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v26.0.0",
+    "clients": 50,
+    "global_slots": 4,
+    "hold_ms": 300
+  },
+  "global_capacity": {
+    "peak_active": 4,
+    "peak_waiting": 42,
+    "final_active": 0,
+    "final_waiting": 0,
+    "leftover_slot_files": 0,
+    "leftover_queue_files": 0
+  },
+  "workers": {
+    "succeeded": 50,
+    "failed": 0,
+    "failed_samples": []
+  },
+  "resources": {
+    "wall_ms": 5279,
+    "cpu_user_ms": 230,
+    "cpu_system_ms": 210
+  },
+  "gate": {
+    "cross_process_smoke_pass": true,
+    "release_gate": "0.19 发布门禁未通过：需 Windows 构建机 + 真实 NAS 10 分钟 50 客户端压测报告并签字；0.18.34 不发布"
+  }
+}

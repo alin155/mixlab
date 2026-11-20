@@ -150,8 +150,8 @@ function cacheDetailRows(
       label: "Release 缓存目录",
       value: release?.cache_root_path || "未启用",
       hint: release
-        ? `${release.cached_release_count ?? release.cached_release_versions?.length ?? 0}/${release.max_cached_releases ?? "-"} 个版本`
-        : undefined
+        ? `0.19 canonical 本机缓存（不再跟随工作区）· ${release.cached_release_count ?? release.cached_release_versions?.length ?? 0}/${release.max_cached_releases ?? "-"} 个版本`
+        : "0.19 canonical 本机缓存（不再跟随工作区）"
     },
     {
       label: "当前 Release",
