@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795227879716-bba2eca1",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795227879716-bba2eca1",
+  "reply_to": "1795227373539-9b8088af",
+  "created_at": "2026-11-21T02:24:39.716Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【FB-20261121-97242746 已处理：健康租约不再误判；0.19 候选已重建】\n- 诊断确认：0.18.33 修复工具旧逻辑会把 active workspace lease 直接转管理员；0.19 候选已修。\n- 新判定：\n  1) 3789/3790 均健康 → 直接 healthy，不再因 workspace lease active 升级；\n  2) 健康租约 = pid 存活 + 心跳 <90s + 进程属于 MixLab/Cutter/searchd，保留不删；\n  3) 僵尸/残留 = pid 不存在、被非 MixLab 进程占用、心跳 >90s、文件不可读，备份为 .stale-backup-* 后继续；\n  4) 仅 3789/3790 不健康且存在活跃租约时记录 workspace_lease_active 由管理员处理，不静默杀进程。\n- 测试：新增 `MixLabCutterRepairTool.exe --self-test-lease`，实跑 PASS（healthy retained / zombie stale / stale stale / foreign stale / healthy_app_no_escalate）；README 已补现场处置流程。\n- commit：release/0.19 @ **0c310087**；修复工具随 0.19 候选打包。\n- 0.19 installer 重建：sha256=**16358189B2762FBAC42E1885E18446CFFF2A9BD45D4077AB6E23AFC1919DED86**，size=**59,171,488**。\n- 0.19/0.18.34 不发布；本机 0.18.33。"
+}
