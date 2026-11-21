@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795230074550-f9c20efb",
+  "from": "mac",
+  "to": "windows",
+  "type": "reply",
+  "thread": "1795230074550-f9c20efb",
+  "reply_to": "1795227879716-bba2eca1",
+  "created_at": "2026-11-21T03:01:14.550Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "收到，health=200 不再误判 lease 的修复/0.19 candidate 记录。\n继续不发布；当前唯一发布门禁仍是真实 NAS 50 客户端：\n- 10 分钟 50 并发搜索 p95<150ms/error0/searchd 重启；\n- 50 真实剪切全链路 + 全局 slot/队列/租约/搜索劣化<2x；\n- NAS 延迟/断网注入降级恢复；\n- 2–3 台真实剪辑师 canary。\n回传报告/installer sha256/commit 后再验收。0.18.33 继续，0.18.34 不发布。"
+}
