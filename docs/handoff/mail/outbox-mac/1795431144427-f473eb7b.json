@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795431144427-f473eb7b",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795431144427-f473eb7b",
+  "created_at": "2026-11-23T10:52:24.428Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【P0 系统性：多台机器 workspace root 被设成盘符根，剪切全部失败/pending】\n\n新增反馈 FB-20261123-59542868（肖锦森，0.18.33）\n- 用户：没办法剪辑，重启也没用，一直剪切失败\n- cutter-api.log：\n  workspace_lease_acquire_failed message=\"EPERM: operation not permitted, mkdir 'F:\\\\'\"\n  cut_queue_drain_skipped reason=submit/retry cause=workspace_lease_unavailable\n  F:\\\\.mixlab-library\\videos\\...cover.jpg\n=> local_workspace_root = F:\\（盘符根）\n\n之前 FB-20261123-30435268（卢小兰）同样是 D:\\ 根：\n  EPERM mkdir 'D:\\'\n  cut queue 一直 pending\n\n这不是容量、不是 NAS，是工作区根配置非法：\n- 应用允许把 workspace 设为盘符根；\n- lease 在根目录 mkdir 被 Windows 拒绝；\n- cut queue 只记 skipped，不向 UI 报明确原因；\n- 用户看到“剪切失败/一直等待”。\n\n请作为 0.19 P0 修复：\n1) 配置保存/启动校验禁止 workspace root = 盘符根、用户目录根、UNC 根、公共库/其子目录；\n2) 非法时自动迁移到同盘安全子目录（如 D:\\MixLabLocal / F:\\MixLabLocal）或默认 %USERPROFILE%\\Videos\\MixLabLocal，并明确提示；\n3) 启动 doctor 检查 workspace root；\n4) cut queue lease 不可用时 UI 显示明确错误，不要静默 pending；恢复后自动 drain；\n5) 回归测试：D:\\、F:\\、C:\\、UNC、用户目录根、正常子目录。\n\n现场处置：两台机器把 workspace 改为同盘子目录（D:\\MixLabLocal / F:\\MixLabLocal）或默认 Videos\\MixLabLocal，重启后验证 pending/cut 是否恢复。\n请回传修复 commit/测试/0.19 候选是否需重建。"
+}
