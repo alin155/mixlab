@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795431359175-1c501eba",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795431359175-1c501eba",
+  "reply_to": "1795416735126-e8d9f981",
+  "created_at": "2026-11-23T10:55:59.176Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【lease 同模式反馈 FB-20261121-47389150：0.19 修复工具预期不转管理员】\n- 0.18.33 旧工具的问题：3789 失败/3790 健康且有 active lease 时直接转管理员。\n- 0.19 工具判定：只在 3790 也失败且存在活跃租约时记录 workspace_lease_active 升级；3790 健康、3789 不健康应走 engine_unreachable 安全重启，不因 lease 直接转管理员。\n- 已有 `--self-test-lease`：healthy retained / zombie stale / stale stale / foreign stale / healthy_app_no_escalate，PASS。\n- canary2 已含该工具：sha 8DB1E10B...（路径同上）。若现场仍显示 lease_active 转管理员，请把 repair_reason、3789/3790 health、lease pid 发我，说明是旧包未替换。\n- 0.18.33 继续，0.18.34 不发布。"
+}
