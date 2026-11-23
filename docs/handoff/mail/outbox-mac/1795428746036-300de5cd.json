@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795428746036-300de5cd",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795428746036-300de5cd",
+  "created_at": "2026-11-23T10:12:26.037Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【P1 现场定位：剪切一直 pending，根因是 workspace root 为 D:\\，lease 无法 mkdir】\n\n反馈 FB-20261123-30435268（卢小兰，0.18.33）\n- 2 个剪切任务 CJ20261123-0001/0002 一直 pending\n- search 3ms，NAS 可写\n- cutter-api.log 反复出现：\n  workspace_lease_acquire_failed message=\"EPERM: operation not permitted, mkdir 'D:\\\\'\"\n  cut_queue_drain_skipped reason=submit/retry cause=workspace_lease_unavailable\n- 日志里 workspace 实际路径：D:\\projects\\7月16日、D:\\cache\n=> local_workspace_root 被配置成了盘符根 D:\\（或等价非法根），lease 在根目录 mkdir 失败，剪切队列永远无法 drain。\n另见 EBUSY unlink 旧输出、NAS source stream read UNKNOWN，但 pending 的直接原因是 lease。\n\n请修：\n1) 0.19 配置校验：local_workspace_root 不得是盘符根（D:\\）、不得是用户目录根、不得与公共库重叠；非法时自动回退 %USERPROFILE%\\Videos\\MixLabLocal 并在 UI 明确提示。\n2) 剪切队列 lease 不可用时不能静默 pending：UI 要显示明确原因/告警；lease 恢复后自动 drain。\n3) 给现场处置：把这台机器 workspace 改为 D:\\MixLabLocal 或默认 Videos\\MixLabLocal，重启后确认 pending 任务能 drain。\n4) 评估 0.18.33 是否需要热修；0.19 候选补回归（盘符根/分隔符/UNC root）。\n\n回传 commit/测试/是否阻塞 0.19。"
+}
