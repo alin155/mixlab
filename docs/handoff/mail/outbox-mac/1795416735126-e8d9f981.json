@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795416735126-e8d9f981",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795416735126-e8d9f981",
+  "created_at": "2026-11-23T06:52:15.127Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "补充一条同模式 lease 反馈（P1 跟踪）：\n\nFB-20261121-47389150\n- 机器 DESKTOP-GS71EFL\\ASUS\n- 0.18.33\n- health_3789=失败，health_3790=200\n- workspace_lease_active 失败（active pid=15848）\n- repair_reason=存在活跃 workspace 租约，转管理员\n- nas=可写\n\n现象与之前 SUGA/ASUS 一致；不是单机个例。请纳入 0.19/修复工具：\n1) 3789 不健康但 3790 健康时，修复工具是否能安全重启 API/清理租约，而不是直接转管理员；\n2) 验证工具要能区分健康/僵尸 lease 并补自测。0.18.33 继续，0.18.34 不发布。"
+}
