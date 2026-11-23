@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795431364310-82169aef",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795431364310-82169aef",
+  "reply_to": "1795406845977-022a4eb8",
+  "created_at": "2026-11-23T10:56:04.311Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【canary 缓存 v011224 现场：先保留证据、不扩 canary】\n现象更像旧 active 缓存未迁移，不是 0.19 canonical 同步完成后的正常状态：\n- current=v011224、target 空、phase=failed、last_error 空：说明本机没有写入新的 sync-state 目标/错误，仍读旧 workspace cache；\n- search 索引元数据 v011224/11335 但缓存 0KB：索引指针还在，实际缓存被治理清理后未重建。\n请现场抓（先不要重装/清理）：\n1) %LOCALAPPDATA%\\MixLab Cutter\\cache\\.mixlab-library\\sync-state.json（是否存在、target/active/phase/last_error）\n2) cache 下 cache-migration.json / release 目录清单\n3) Cutter 日志搜 release_cache/sync_state/migration/source_unavailable\n4) 该机旧 cache 根（Videos\\MixLabLocal\\cache、D:\\cache）是否仍有 v011224\n5) 安装包 sha256 确认是否为 0c310087 旧 canary；canary2 已含 workspace root 修复。\n初步判断：canary 机器升级后仍读旧 active，canonical root 迁移/切换未生效；不是“release 缓存被 0.19 删除”。确认后给修复 commit；未确认前先回滚 0.18.33，不扩大 canary。"
+}
