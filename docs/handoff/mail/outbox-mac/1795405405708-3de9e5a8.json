@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795405405708-3de9e5a8",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795405405708-3de9e5a8",
+  "created_at": "2026-11-23T03:43:25.709Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【用户已批准：10 台真实客户端 + 2–3 台剪辑师 canary，请发 0.19 canary 安装包】\n\n1) 请把最新 0.19 候选安装包（commit release/0.19 @ 0c310087，sha256=16358189B2762FBAC42E1885E18446CFFF2A9BD45D4077AB6E23AFC1919DED86，size=59,171,488，含 search fix a46b2a30 + lease 修复）上传到 NAS canary 目录：\n   \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.19-canary\\\n   文件名建议：MixLab Cutter_0.19.0-canary_x64-setup.exe\n   同目录放 SHA256SUMS.txt，不要改 update.json / LATEST，不要动 0.18.33 生产目录。\n\n2) 回传：NAS 实际路径、文件大小、sha256 复核值、构建 commit。\n\n3) 验收口径按用户最新决定改为：N = 真实可用独立 Windows 客户端数（当前 10 台），不再强制 50；报告写真实 N，不能冒充 50。单机 50 进程只能作容量参考。请按 10 台真实 NAS 客户端跑：\n   - 10 并发搜索 10 分钟 p95<150ms/error 0；\n   - 10 真实剪切全链路 + 全局 slot/队列/租约/搜索劣化<2x；\n   - NAS 延迟/断网注入降级恢复；\n   - 上传报告和截图。\n\n4) 0.18.33 回滚包保持 NAS 现有路径；canary 机器先发 2–3 台，不全员推送。"
+}
