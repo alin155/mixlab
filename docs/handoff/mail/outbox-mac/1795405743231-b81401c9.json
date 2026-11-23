@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795405743231-b81401c9",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795405743231-b81401c9",
+  "created_at": "2026-11-23T03:49:03.231Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【急】用户现在要 0.19 安装包，手动发给 2–3 个剪辑师 canary。\n\n0.19 候选已经在 Windows 构建机上（commit 0c310087，sha256=16358189B2762FBAC42E1885E18446CFFF2A9BD45D4077AB6E23AFC1919DED86，size=59,171,488），但 Mac 这边没有 exe，也无法在 Mac 上打 Windows NSIS 包。\n\n请立刻二选一：\n1) 把现成 exe 上传到 NAS：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.19-canary\\MixLab Cutter_0.19.0-canary_x64-setup.exe\n   并回传路径/大小/sha256；\n2) 给一个 Windows 构建机可访问共享路径（\\\\IP\\共享名\\...），Mac 直接复制。\n\n不要重新打包，不要改 update.json/LATEST，不要动 0.18.33 生产目录。用户在线等。"
+}
