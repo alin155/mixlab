@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795517368585-87aab273",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795517368585-87aab273",
+  "created_at": "2026-11-24T10:49:28.585Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "【告警：NAS 上 0.18.33 安装包被写成 0 字节，已恢复；请查根因】\n\n发现时间：2026-11-23 约 00:33\n受影响路径（全部 0B）：\n- \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.18.33\\MixLab Cutter_0.18.33_x64-setup.exe\n- \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\MixLab Cutter_0.18.33_x64-setup.exe\n- \\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.33\\MixLab Cutter_0.18.33_x64-setup.exe\n- \\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.19-canary\\MixLab Cutter_0.18.33_x64-setup.exe\n\n已用 Mac 本地已知正确副本恢复，sha256=becd2ead7413b5d30eab9480556e41e313ec83fa6aebe4bd0ddb9f39bd355f2e，56MB，SHA256SUMS 与文件一致。\n请查：\n1) 00:33 前后是谁/哪个脚本/哪个上传流程写入了这些路径；\n2) 是否打包/上传时用了截断写或先创建空文件再失败；\n3) 增加写后 size/sha 校验，失败不得覆盖旧文件；\n4) 同步修复 canary2 上传流程。\n\n另：canary2 已核对 sha=8DB1E10B...，workspace root 修复收到；pending 队列 UI 明示仍列为下一步。\n缓存 canary 现场按你建议保留证据、先回滚 0.18.33，不扩大 canary。"
+}
