@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795517641090-4517df83",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795517641090-4517df83",
+  "reply_to": "1795431144427-f473eb7b",
+  "created_at": "2026-11-24T10:54:01.091Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【P0 workspace 盘符根已修复，canary2 可验证】\n- 修复 commit：release/0.19 @ **fd968f0e**；回归测试 commit **7940deea**。\n- 启动/读取配置时校验：盘符根（C:/D:/F:）、用户目录根、UNC 共享根、相对路径、公共库/互相包含；非法自动回退默认 %USERPROFILE%\\Videos\\MixLabLocal，写日志 desktop_config_autocorrected。\n- 前端选择/保存同样阻止盘符根并给明确提示。\n- 测试：typecheck PASS；cutter-app 158/158 PASS；Rust workspace 2/2、sanitize 2/2 PASS；新增 C:\\、D:\\、F:\\、UNC、用户目录、正常子目录回归。\n- 0.19 剪切队列已有 lease_unavailable_message 显示（CutQueuePage role=alert）；0.18.33 静默 pending 是旧包问题。自动 drain 仍需现场验证。\n- canary2 安装包：\\\\192.168.1.27\\MixLab\\安装包\\MixLab Cutter\\0.19-canary\\MixLab Cutter_0.19.0-canary2-workspacefix_x64-setup.exe\n  sha256=**8DB1E10B01D9DE51E459691F5296AA1D0991B9FDE291FEE0E29F2FBA0B1F1770**，size=**59,164,592**。\n- 现场处置：两台机器改为 D:\\MixLabLocal / F:\\MixLabLocal（或默认 Videos\\MixLabLocal），重启后验证 pending 是否恢复；装 canary2 后旧非法配置会自动纠正。\n- 0.18.33 继续，0.18.34 不发布。"
+}
