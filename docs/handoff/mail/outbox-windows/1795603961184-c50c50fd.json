@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795603961184-c50c50fd",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795603961184-c50c50fd",
+  "reply_to": "1795575137916-b27fe4c3",
+  "created_at": "2026-11-25T10:52:41.185Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【第 3 台 3789 失败/3790 健康+active lease：0.19 不升级；附 IT 安全处置】\n- 0.19 修复工具判定：只有 3790 也不健康且租约活跃才记录 workspace_lease_active 升级；3790 健康、3789 不健康走 engine_unreachable 安全重启，不应直接转管理员。\n- canary2 已含该工具（sha 8DB1E10B...）；请确认现场装的是 canary2，不是旧 0c310087。\n- 0.18.33 旧工具现场安全处置已写入 repair-tool/README（commit e767ac33）：\n  1) Get-CimInstance Win32_Process -Filter ProcessId=<pid> 确认 ExecutablePath 属于 MixLab Cutter/cutter-api-sidecar/searchd；不属于则不要杀，提交诊断包。\n  2) 属于 MixLab：关闭 Cutter 主窗口，确认 3789 停止监听；只结束 cutter-api-sidecar，不要杀 3790 健康的 searchd。\n  3) 租约仅在 pid 不存在/非 MixLab/心跳>90s 时视为僵尸；备份工作区 .mixlab-workspace-lock.json 和 %LOCALAPPDATA%\\MixLab Cutter\\workspace-leases\\<hash>.json 为 .stale-backup-*。\n  4) 重启 Cutter，检查 3789/3790 health；pending 恢复后应自动 drain，若仍 pending 提交诊断包。\n- 0.19 pending 队列已有 lease_unavailable_message 明示；自动 drain 仍需现场验证。0.18.33 继续，0.18.34 不发布。"
+}
