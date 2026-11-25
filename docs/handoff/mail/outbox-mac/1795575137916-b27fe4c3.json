@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795575137916-b27fe4c3",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795575137916-b27fe4c3",
+  "created_at": "2026-11-25T02:52:17.917Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "再补一条同模式 lease 反馈（已第 3 台不同机器）：\n\nFB-20261125-93941314\n- 机器 DESKTOP-L2IKT5S\\ASUS\n- 0.18.33\n- health_3789=失败，health_3790=200\n- workspace_lease_active 失败（active pid=20472）\n- repair_reason=存在活跃 workspace 租约，转管理员\n- nas=可写\n\n请并入 0.19 canary2 repair tool 验证；如果 0.18.33 现场仍反复出现，需要给出可让 IT/剪辑师执行的安全处置步骤（重启 API/确认 PID 属于 MixLab 后再清理），不能只转管理员。0.18.33 继续，0.19 不发布。"
+}
