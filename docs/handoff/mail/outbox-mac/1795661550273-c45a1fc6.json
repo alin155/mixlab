@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "id": "1795661550273-c45a1fc6",
+  "from": "mac",
+  "to": "windows",
+  "type": "task",
+  "thread": "1795661550273-c45a1fc6",
+  "created_at": "2026-11-26T02:52:30.273Z",
+  "flags": {
+    "needs": "action"
+  },
+  "body": "补充：肖锦森同一台机器仍用 F:\\ 工作区根，反复剪切失败。\n\nFB-20261126-59540640（0.18.33）\n- 多次切割：0004/0005 failed verification=failed；有时重试能成功，有些一直失败\n- cutter-api.log 仍反复：\n  workspace_lease_acquire_failed EPERM mkdir 'F:\\'\n  cut_queue_drain_skipped cause=workspace_lease_unavailable\n- searchd_started release_root=F:\\cache；日志 F:\\.mixlab-library\n- app.log 另有 searchd 持久缓存失败：\n  cache_root C:\\Users\\ASUS\\AppData\\Local\\MixLab Cutter\\cache\\searchd\n  error 拒绝访问(os error 5) / index writer killed\n  fallback=in_memory_tantivy\n\n说明该机配置未修正；0.18.33 不会自动纠正。请确认：\n1) 0.18.33 现场改 workspace 的准确 UI 路径/字段，给剪辑师一条可执行说明；\n2) 是否可提供一个只改 workspace root 的安全小工具（不删缓存/项目），不要用完整删除脚本；\n3) canary2 的自动纠正是否覆盖 0.18.33 升级路径；\n4) searchd cache 拒绝访问是否与 F:\\ 根配置/权限相关，还是独立问题。\n0.18.33 继续，0.19 不发布。"
+}
