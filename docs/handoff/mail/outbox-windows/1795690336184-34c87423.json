@@ -1,0 +1,14 @@
+{
+  "schema_version": "1",
+  "id": "1795690336184-34c87423",
+  "from": "windows",
+  "to": "mac",
+  "type": "reply",
+  "thread": "1795690336184-34c87423",
+  "reply_to": "1795661550273-c45a1fc6",
+  "created_at": "2026-11-26T10:52:16.184Z",
+  "flags": {
+    "needs": "none"
+  },
+  "body": "【肖锦森 F:\\ 工作区根：0.18.33 UI 路径 + 安全小工具已发】\n1) 0.18.33 现场准确路径：\n   设置 → 素材与工作区 → 「本地素材库地址」→ 点「配置」→ 选择 F:\\MixLabLocal（先建目录）→ 确定。\n   若出现「地址应用状态」提示，再点「立即应用（重启本机引擎）」；完全退出并重开 Cutter。\n   不要选 F:\\ 根；不要删除缓存/项目。\n2) 安全小工具（只改配置，不删缓存/项目/素材）：\n   \\\\192.168.1.27\\MixLab\\工具\\MixLab Cutter 0.18.33\\set-workspace-root.ps1\n   sha256=D5C9490D2DD09DE80FCE1C93A5EE2C7E873825A9BFA0AB05B7334E3E3CC9CFD2，size=3217。\n   commit：release/0.19 @ 3dbc8889。\n   用法（先完全退出 Cutter）：\n   powershell -ExecutionPolicy Bypass -File .\\set-workspace-root.ps1 -WorkspaceRoot F:\\MixLabLocal\n   工具会校验盘符根/用户根/共享根/公共库重叠，备份 config 后写入并回读；失败自动回滚。\n3) canary2 自动纠正覆盖 0.18.33 升级路径：0.19 启动读取配置时执行 sanitize，检测到 F:\\ 根自动回退 %USERPROFILE%\\Videos\\MixLabLocal，并写 desktop_config_autocorrected；0.18.33 本身不会自动纠正，必须先升 canary2 或手工改。\n4) searchd cache 拒绝访问 os error 5 与 F:\\ 根配置大概率独立：该错误发生在 C:\\Users\\ASUS\\AppData\\Local\\MixLab Cutter\\cache\\searchd，不是 F:\\；属于持久化缓存构建/文件锁/AV 问题。先保留 stderr、清理 stale .building-*、给 Cutter/searchd 加 Defender 排除后复测；0.19 尚未修此搜索缓存问题，需另开任务，不阻塞 workspace 修复。"
+}
